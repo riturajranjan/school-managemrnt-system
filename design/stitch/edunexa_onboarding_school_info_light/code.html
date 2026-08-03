@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduNexa Onboarding - School Information</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#4648d4",
+                        "tertiary-container": "#00885d",
+                        "surface-bright": "#f8f9ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "outline": "#767586",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "background": "#f8f9ff",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "on-primary-fixed": "#07006c",
+                        "on-surface-variant": "#464554",
+                        "primary-container": "#6063ee",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#0b1c30",
+                        "secondary-container": "#8455ef",
+                        "on-secondary-container": "#fffbff",
+                        "inverse-primary": "#c0c1ff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#e9ddff",
+                        "surface-tint": "#494bd6",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "on-error": "#ffffff",
+                        "secondary": "#6b38d4",
+                        "tertiary": "#006c49",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#d0bcff",
+                        "outline-variant": "#c7c4d7",
+                        "error": "#ba1a1a",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "on-secondary-fixed": "#23005c",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary-fixed-variant": "#5516be",
+                        "primary-fixed": "#e1e0ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container-high": "#dce9ff",
+                        "surface": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "sidebar-width": "280px",
+                        "container-padding": "32px",
+                        "card-gap": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "title-md": ["Geist"],
+                        "headline-lg-mobile": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-md": ["Geist"],
+                        "display-lg": ["Geist"],
+                        "label-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "title-md": ["20px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .step-active {
+            background: linear-gradient(135deg, #4648d4 0%, #6b38d4 100%);
+        }
+        .input-halo:focus-within {
+            box-shadow: 0 0 0 4px rgba(70, 72, 212, 0.15);
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .autosave-shimmer {
+            background: linear-gradient(90deg, transparent, rgba(70, 72, 212, 0.05), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-md overflow-x-hidden">
+<!-- Header / Branding -->
+<header class="sticky top-0 z-50 bg-surface/50 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-outline-variant/20">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A modern geometric logo for EduNexa featuring a stylized book with a graduation cap tassel integrated into its spine, rendered in a sleek purple to blue gradient. The design is clean, professional, and set against a bright, airy light-mode background to emphasize institutional reliability and innovation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDydoAj8n2-tCU3n2ETnsgkwzer3pnxsbwGIWaOzYMcfmxTNGiKtp_q-X9xpdnG_ma0pn1crKOgK2Z4fRBXNmaXZyJ8tYVGWpTwpRpgrUFyF7fL2KeaJvgm0m1-cbAVyuiL_O5L2M3xZ1dRb9zPGCUPX6BcUVQQmylhwP6hqYkv7Wf5HR_qPpYYdEY5azDP0MDsR30BQtfrbVTUDLy5h8l95soeZsCm_XhLsCdWFFPIk0CRYKdhrD0"/>
+</div>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-black tracking-tight text-primary">EduNexa</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 bg-tertiary-container/10 rounded-full">
+<span class="material-symbols-outlined text-tertiary-container text-[18px]">cloud_done</span>
+<span class="font-label-sm text-label-sm text-tertiary-container">Autosaved</span>
+</div>
+</header>
+<main class="px-6 py-8 pb-32">
+<!-- Stepper -->
+<section class="mb-10">
+<div class="flex justify-between items-center mb-6">
+<div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Institution Setup</h1>
+<p class="text-on-surface-variant text-sm mt-1">Step 1 of 5: School Information</p>
+</div>
+</div>
+<div class="relative h-1 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full w-[20%] step-active transition-all duration-700"></div>
+</div>
+<div class="flex justify-between mt-4">
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-full step-active text-white flex items-center justify-center text-xs font-bold mb-1 shadow-md shadow-primary/30">1</div>
+<span class="font-label-sm text-[10px] text-primary">Info</span>
+</div>
+<div class="flex flex-col items-center opacity-40">
+<div class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center text-xs font-bold mb-1">2</div>
+<span class="font-label-sm text-[10px]">Staff</span>
+</div>
+<div class="flex flex-col items-center opacity-40">
+<div class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center text-xs font-bold mb-1">3</div>
+<span class="font-label-sm text-[10px]">Curricula</span>
+</div>
+<div class="flex flex-col items-center opacity-40">
+<div class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center text-xs font-bold mb-1">4</div>
+<span class="font-label-sm text-[10px]">Billing</span>
+</div>
+<div class="flex flex-col items-center opacity-40">
+<div class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center text-xs font-bold mb-1">5</div>
+<span class="font-label-sm text-[10px]">Review</span>
+</div>
+</div>
+</section>
+<!-- Form Content -->
+<form class="space-y-8">
+<!-- Logo Upload Area -->
+<div class="glass-card rounded-2xl p-6 text-center">
+<label class="block text-on-surface font-title-md text-title-md mb-4 text-left">School Identity</label>
+<div class="relative group cursor-pointer border-2 border-dashed border-outline-variant hover:border-primary rounded-xl p-8 transition-all bg-surface-container-low/30">
+<div class="flex flex-col items-center gap-3">
+<div class="w-20 h-20 bg-surface-container-highest rounded-2xl flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-4xl text-primary" data-weight="fill">add_a_photo</span>
+</div>
+<p class="font-title-md text-title-md text-on-surface">Upload School Logo</p>
+<p class="text-xs text-on-surface-variant px-4">PNG or JPG, max 5MB. Recommended 512x512px.</p>
+</div>
+<input class="absolute inset-0 opacity-0 cursor-pointer" type="file"/>
+</div>
+</div>
+<!-- Basic Details Bento Section -->
+<div class="space-y-6">
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1 uppercase tracking-widest">General Information</label>
+<div class="glass-card rounded-2xl p-5 space-y-6">
+<div class="input-halo group transition-all">
+<label class="block text-sm font-medium text-on-surface mb-2">School Name</label>
+<input class="w-full bg-surface border-outline-variant rounded-xl px-4 py-3 focus:border-primary focus:ring-0 transition-all text-on-surface placeholder:text-outline/50" placeholder="e.g. St. Xavier's International" type="text"/>
+</div>
+<div class="grid grid-cols-1 gap-6">
+<div class="input-halo">
+<label class="block text-sm font-medium text-on-surface mb-2">School Type</label>
+<select class="w-full bg-surface border-outline-variant rounded-xl px-4 py-3 focus:border-primary focus:ring-0 transition-all text-on-surface appearance-none">
+<option>Select school level</option>
+<option>Primary School</option>
+<option>Secondary School</option>
+<option>K-12 Institution</option>
+<option>Higher Secondary</option>
+</select>
+</div>
+<div class="input-halo">
+<label class="block text-sm font-medium text-on-surface mb-2">Educational Board</label>
+<select class="w-full bg-surface border-outline-variant rounded-xl px-4 py-3 focus:border-primary focus:ring-0 transition-all text-on-surface appearance-none">
+<option>Select board affiliation</option>
+<option>CBSE</option>
+<option>ICSE</option>
+<option>IB Curriculum</option>
+<option>State Board</option>
+<option>Cambridge International</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1 uppercase tracking-widest">Administrative Data</label>
+<div class="glass-card rounded-2xl p-5 space-y-6">
+<div class="grid grid-cols-2 gap-4">
+<div class="input-halo">
+<label class="block text-sm font-medium text-on-surface mb-2">School Code</label>
+<input class="w-full bg-surface border-outline-variant rounded-xl px-4 py-3 focus:border-primary focus:ring-0 transition-all text-on-surface" placeholder="SC-000" type="text"/>
+</div>
+<div class="input-halo">
+<label class="block text-sm font-medium text-on-surface mb-2">Founded Year</label>
+<input class="w-full bg-surface border-outline-variant rounded-xl px-4 py-3 focus:border-primary focus:ring-0 transition-all text-on-surface" placeholder="YYYY" type="number"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Contextual Tip -->
+<div class="bg-primary/5 border border-primary/10 rounded-2xl p-5 flex gap-4 items-start">
+<div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary" data-weight="fill">lightbulb</span>
+</div>
+<div>
+<h4 class="font-title-md text-sm text-primary mb-1">Quick Tip</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Providing your official School Code helps us automatically sync your existing records from the National Education Database during Step 3.</p>
+</div>
+</div>
+</form>
+</main>
+<!-- Bottom Action Bar -->
+<nav class="fixed bottom-0 left-0 w-full glass-card border-t-0 p-6 flex items-center gap-4 z-50">
+<button class="w-1/3 bg-surface border border-outline-variant text-on-surface font-title-md py-4 rounded-2xl active:scale-95 transition-all" type="button">
+            Back
+        </button>
+<button class="flex-1 bg-gradient-to-r from-primary to-secondary text-on-primary font-title-md py-4 rounded-2xl shadow-[0_4px_15px_rgba(70,72,212,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2" type="button">
+            Save and Continue
+            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</nav>
+<!-- Micro-interaction Scripts -->
+<script>
+        // Simple scroll behavior for header elevation
+        window.onscroll = function() {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('shadow-xl', 'shadow-primary/5');
+            } else {
+                header.classList.remove('shadow-xl', 'shadow-primary/5');
+            }
+        };
+
+        // Form auto-save simulation
+        const inputs = document.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.addEventListener('change', () => {
+                const badge = document.querySelector('.bg-tertiary-container\\/10');
+                const text = badge.querySelector('span:last-child');
+                const icon = badge.querySelector('span:first-child');
+                
+                text.textContent = 'Saving...';
+                icon.textContent = 'sync';
+                icon.classList.add('animate-spin');
+                
+                setTimeout(() => {
+                    text.textContent = 'Autosaved';
+                    icon.textContent = 'cloud_done';
+                    icon.classList.remove('animate-spin');
+                }, 800);
+            });
+        });
+    </script>
+</body></html>

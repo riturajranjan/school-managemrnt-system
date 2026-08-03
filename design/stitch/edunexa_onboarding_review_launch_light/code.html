@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduNexa Onboarding - Review &amp; Launch</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary": "#4648d4",
+                    "tertiary-container": "#00885d",
+                    "surface-bright": "#f8f9ff",
+                    "surface-container-highest": "#d3e4fe",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "outline": "#767586",
+                    "on-error-container": "#93000a",
+                    "inverse-on-surface": "#eaf1ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary-container": "#fffbff",
+                    "background": "#f8f9ff",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "on-tertiary-container": "#000703",
+                    "on-primary-fixed": "#07006c",
+                    "on-surface-variant": "#464554",
+                    "primary-container": "#6063ee",
+                    "error-container": "#ffdad6",
+                    "on-surface": "#0b1c30",
+                    "secondary-container": "#8455ef",
+                    "on-secondary-container": "#fffbff",
+                    "inverse-primary": "#c0c1ff",
+                    "surface-variant": "#d3e4fe",
+                    "surface-dim": "#cbdbf5",
+                    "on-tertiary-fixed": "#002113",
+                    "surface-container-low": "#eff4ff",
+                    "secondary-fixed": "#e9ddff",
+                    "surface-tint": "#494bd6",
+                    "on-secondary": "#ffffff",
+                    "surface-container": "#e5eeff",
+                    "on-error": "#ffffff",
+                    "secondary": "#6b38d4",
+                    "tertiary": "#006c49",
+                    "on-primary": "#ffffff",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "outline-variant": "#c7c4d7",
+                    "error": "#ba1a1a",
+                    "on-background": "#0b1c30",
+                    "inverse-surface": "#213145",
+                    "on-secondary-fixed": "#23005c",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "primary-fixed": "#e1e0ff",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "tertiary-fixed": "#6ffbbe",
+                    "surface-container-high": "#dce9ff",
+                    "surface": "#f8f9ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "unit": "8px",
+                    "sidebar-width": "280px",
+                    "container-padding": "32px",
+                    "card-gap": "24px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "title-md": ["Geist"],
+                    "headline-lg-mobile": ["Geist"],
+                    "headline-lg": ["Geist"],
+                    "body-md": ["Geist"],
+                    "display-lg": ["Geist"],
+                    "label-sm": ["Geist"]
+            },
+            "fontSize": {
+                    "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-float {
+            animation: float 4s ease-in-out infinite;
+        }
+        .confetti {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen pb-24 overflow-x-hidden">
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 shadow-sm flex items-center justify-between px-6 h-20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-2xl">school</span>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">EduNexa</h1>
+</div>
+<button class="material-symbols-outlined text-primary hover:opacity-80 transition-opacity active:scale-95">dark_mode</button>
+</header>
+<main class="pt-24 px-6 max-w-md mx-auto">
+<!-- Step Indicator -->
+<div class="mb-8">
+<div class="flex justify-between items-center mb-4">
+<span class="text-label-sm font-label-sm uppercase tracking-widest text-primary">Onboarding Step 5 of 5</span>
+<span class="text-label-sm font-label-sm font-bold text-tertiary">Final Review</span>
+</div>
+<div class="h-1 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-full transition-all duration-1000 ease-out"></div>
+</div>
+</div>
+<!-- Hero Section / Success Illustration -->
+<div class="relative w-full aspect-video mb-8 rounded-2xl overflow-hidden shadow-xl animate-float">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 z-0"></div>
+<img class="w-full h-full object-cover relative z-10 opacity-90" data-alt="A premium 3D education illustration featuring a glassmorphic graduation cap, floating translucent books with data charts, and glowing geometric shapes. The lighting is soft and high-key, using a palette of soft purples and blues. The style is modern, sleek, and high-quality, mimicking a refined technological educational interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_SQuaKABKaefkCuJ8DNJJ7NsIHuQXsep6PU5leA80aqNwJ1YoDLZ_9H4jrp3eU_fq9ry9sV_kEw80lNqEqk1wwjldUYMBp6cqY8zbEueyLVZojeD-SA1Tpb-830rfTx_quo413QgwvDNRjfZqgVwASgZS8YfNvD8JX0VEUxMcsjvRxbXSLn_qyGqZNOjLZJd1jGYXkivMnui_xv4MbtRrghbdq_bwdjg0hNDR4Tvjtq_hXwIBwFs"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent z-20"></div>
+</div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile mb-2">Ready to Launch?</h2>
+<p class="text-on-surface-variant mb-8">Review your institutional setup. Once confirmed, your high-performance education ecosystem will be ready for students.</p>
+<!-- Bento Grid Summaries -->
+<div class="space-y-4">
+<!-- School Info Card -->
+<div class="glass-card p-6 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+</div>
+<h3 class="font-title-md text-title-md">School Info</h3>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between">
+<span class="text-outline text-label-sm font-label-sm">INSTITUTION</span>
+<span class="font-bold text-on-surface">Oakwood Academy</span>
+</div>
+<div class="flex justify-between">
+<span class="text-outline text-label-sm font-label-sm">LOCATION</span>
+<span class="text-on-surface">San Francisco, CA</span>
+</div>
+<div class="flex justify-between">
+<span class="text-outline text-label-sm font-label-sm">SYSTEM</span>
+<span class="text-on-surface">K-12 Modern</span>
+</div>
+</div>
+</div>
+<!-- Admin Setup Card -->
+<div class="glass-card p-6 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">person_add</span>
+</div>
+<h3 class="font-title-md text-title-md">Admin Details</h3>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between">
+<span class="text-outline text-label-sm font-label-sm">DIRECTOR</span>
+<span class="font-bold text-on-surface">Dr. Sarah Jenkins</span>
+</div>
+<div class="flex justify-between">
+<span class="text-outline text-label-sm font-label-sm">PRIMARY EMAIL</span>
+<span class="text-on-surface">sarah.j@oakwood.edu</span>
+</div>
+</div>
+</div>
+<!-- Selected Modules -->
+<div class="glass-card p-6 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary">verified</span>
+</div>
+<h3 class="font-title-md text-title-md">Selected Modules</h3>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm text-primary">Student Analytics</span>
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm text-primary">LMS Integration</span>
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm text-primary">Smart Attendance</span>
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm text-primary">Parent Portal</span>
+</div>
+</div>
+<!-- Subscription Summary -->
+<div class="glass-card p-6 rounded-2xl shadow-sm bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">payments</span>
+<span class="font-bold text-on-surface">Institutional Elite</span>
+</div>
+<span class="font-bold text-primary">$499/mo</span>
+</div>
+</div>
+</div>
+<!-- Launch Button Area -->
+<div class="mt-12 mb-8">
+<button class="w-full h-16 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-bold text-title-md shadow-[0_4px_20px_rgba(70,72,212,0.4)] hover:shadow-[0_8px_30px_rgba(70,72,212,0.6)] transition-all active:scale-95 flex items-center justify-center gap-2 relative overflow-hidden group" id="launchBtn">
+<span class="relative z-10">Launch Dashboard</span>
+<span class="material-symbols-outlined relative z-10 transition-transform group-hover:translate-x-1">rocket_launch</span>
+<div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</button>
+<button class="w-full mt-4 text-outline font-label-sm text-label-sm uppercase tracking-widest hover:text-primary transition-colors">
+                Back to Edit
+            </button>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface/90 backdrop-blur-lg border-t border-outline-variant/30 shadow-lg flex justify-around items-center h-16 px-4">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-opacity active:scale-90">
+<span class="material-symbols-outlined">login</span>
+<span class="font-label-sm text-[10px]">Login</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-opacity active:scale-90">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-sm text-[10px]">Support</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-2xl px-4 py-1 active:scale-90">
+<span class="material-symbols-outlined">verified</span>
+<span class="font-label-sm text-[10px]">Review</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-opacity active:scale-90">
+<span class="material-symbols-outlined">info</span>
+<span class="font-label-sm text-[10px]">About</span>
+</div>
+</nav>
+<div class="fixed inset-0 pointer-events-none z-[100]" id="confettiContainer"></div>
+<script>
+        const launchBtn = document.getElementById('launchBtn');
+        const container = document.getElementById('confettiContainer');
+
+        function createConfetti() {
+            const colors = ['#4648d4', '#6b38d4', '#006c49', '#ba1a1a', '#ffd700'];
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = '-10px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                
+                container.appendChild(confetti);
+
+                const animation = confetti.animate([
+                    { transform: `translate3d(0, 0, 0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translate3d(${(Math.random() - 0.5) * 200}px, 100vh, 0) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+                ], {
+                    duration: Math.random() * 3000 + 2000,
+                    easing: 'cubic-bezier(0, .9, .57, 1)'
+                });
+
+                animation.onfinish = () => confetti.remove();
+            }
+        }
+
+        launchBtn.addEventListener('click', () => {
+            createConfetti();
+            launchBtn.innerHTML = '<span>Launching...</span><span class="material-symbols-outlined animate-spin">sync</span>';
+            setTimeout(() => {
+                launchBtn.innerHTML = '<span>Success!</span><span class="material-symbols-outlined">check_circle</span>';
+                launchBtn.classList.replace('from-primary', 'from-tertiary');
+                launchBtn.classList.replace('to-secondary', 'to-tertiary-container');
+            }, 1500);
+        });
+
+        // Simple parallax on mouse move (if testing on desktop view)
+        document.addEventListener('mousemove', (e) => {
+            const cards = document.querySelectorAll('.glass-card');
+            const x = (window.innerWidth / 2 - e.pageX) / 50;
+            const y = (window.innerHeight / 2 - e.pageY) / 50;
+            cards.forEach(card => {
+                card.style.transform = `translate(${x}px, ${y}px)`;
+            });
+        });
+    </script>
+</body></html>

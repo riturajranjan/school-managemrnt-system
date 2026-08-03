@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .otp-input:focus {
+            box-shadow: 0 0 0 4px rgba(70, 72, 212, 0.15);
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-step {
+            animation: slideIn 0.5s ease-out forwards;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#4648d4",
+                        "tertiary-container": "#00885d",
+                        "surface-bright": "#f8f9ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "outline": "#767586",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "background": "#f8f9ff",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "on-primary-fixed": "#07006c",
+                        "on-surface-variant": "#464554",
+                        "primary-container": "#6063ee",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#0b1c30",
+                        "secondary-container": "#8455ef",
+                        "on-secondary-container": "#fffbff",
+                        "inverse-primary": "#c0c1ff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#e9ddff",
+                        "surface-tint": "#494bd6",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "on-error": "#ffffff",
+                        "secondary": "#6b38d4",
+                        "tertiary": "#006c49",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#d0bcff",
+                        "outline-variant": "#c7c4d7",
+                        "error": "#ba1a1a",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "on-secondary-fixed": "#23005c",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary-fixed-variant": "#5516be",
+                        "primary-fixed": "#e1e0ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container-high": "#dce9ff",
+                        "surface": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "sidebar-width": "280px",
+                        "container-padding": "32px",
+                        "card-gap": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "title-md": ["Geist"],
+                        "headline-lg-mobile": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-md": ["Geist"],
+                        "display-lg": ["Geist"],
+                        "label-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
+<div class="flex items-center justify-between px-6 h-20 max-w-screen-2xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="school">school</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">EduNexa</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant transition-colors active:scale-95" onclick="window.history.back()">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="close">close</span>
+</button>
+</div>
+</header>
+<main class="flex-grow pt-28 pb-12 px-6 flex flex-col max-w-md mx-auto w-full relative">
+<!-- Progress Indicator -->
+<div class="flex justify-between items-center mb-8 px-2">
+<div class="flex items-center gap-1">
+<div class="w-2 h-2 rounded-full bg-primary transition-all duration-300" id="step-dot-1"></div>
+<div class="w-2 h-2 rounded-full bg-outline-variant transition-all duration-300" id="step-dot-2"></div>
+<div class="w-2 h-2 rounded-full bg-outline-variant transition-all duration-300" id="step-dot-3"></div>
+</div>
+<span class="text-label-sm font-label-sm text-primary uppercase" id="step-label">Step 1 of 3</span>
+</div>
+<!-- Hero Graphic (Simplified for Mobile focus) -->
+<div class="mb-10 flex justify-center">
+<div class="relative w-32 h-32">
+<div class="absolute inset-0 bg-primary/10 rounded-3xl rotate-12"></div>
+<div class="absolute inset-0 bg-secondary/10 rounded-3xl -rotate-6"></div>
+<div class="absolute inset-0 glass-card border border-white/50 rounded-3xl flex items-center justify-center shadow-lg">
+<span class="material-symbols-outlined text-5xl text-primary" data-icon="lock_reset" id="hero-icon">lock_reset</span>
+</div>
+</div>
+</div>
+<!-- Form Container -->
+<div class="relative min-h-[400px]">
+<!-- Step 1: Email Verification -->
+<section class="animate-step flex flex-col" id="step-1">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile mb-2">Forgot Password?</h1>
+<p class="text-on-surface-variant mb-8">Enter your institutional email and we'll send you a recovery code to reset your access.</p>
+<div class="space-y-6">
+<div class="group">
+<label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 ml-1">Work Email</label>
+<div class="relative">
+<input class="w-full h-14 px-4 rounded-xl border border-outline-variant bg-surface focus:border-primary focus:ring-4 focus:ring-primary/15 transition-all outline-none" placeholder="name@school.edu" type="email"/>
+<span class="material-symbols-outlined absolute right-4 top-4 text-outline" data-icon="mail">mail</span>
+</div>
+</div>
+<button class="w-full h-14 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-title-md shadow-[0_4px_20px_rgba(70,72,212,0.3)] active:scale-95 transition-transform flex items-center justify-center gap-2" onclick="goToStep(2)">
+                        Send Recovery Code
+                        <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</section>
+<!-- Step 2: OTP Input -->
+<section class="hidden animate-step flex flex-col" id="step-2">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile mb-2">Check your inbox</h1>
+<p class="text-on-surface-variant mb-8">We sent a 4-digit code to <span class="font-bold text-on-surface">j.doe@edunexa.edu</span>. Enter it below.</p>
+<div class="space-y-8">
+<div class="flex justify-between gap-3">
+<input class="otp-input w-16 h-20 text-center text-3xl font-bold rounded-2xl border border-outline-variant bg-surface focus:border-primary transition-all outline-none" maxlength="1" oninput="this.value=this.value.slice(0,1); if(this.value) this.nextElementSibling?.focus()" type="number"/>
+<input class="otp-input w-16 h-20 text-center text-3xl font-bold rounded-2xl border border-outline-variant bg-surface focus:border-primary transition-all outline-none" maxlength="1" oninput="this.value=this.value.slice(0,1); if(this.value) this.nextElementSibling?.focus()" type="number"/>
+<input class="otp-input w-16 h-20 text-center text-3xl font-bold rounded-2xl border border-outline-variant bg-surface focus:border-primary transition-all outline-none" maxlength="1" oninput="this.value=this.value.slice(0,1); if(this.value) this.nextElementSibling?.focus()" type="number"/>
+<input class="otp-input w-16 h-20 text-center text-3xl font-bold rounded-2xl border border-outline-variant bg-surface focus:border-primary transition-all outline-none" maxlength="1" oninput="this.value=this.value.slice(0,1); if(this.value) this.nextElementSibling?.focus()" type="number"/>
+</div>
+<div class="text-center">
+<p class="text-on-surface-variant text-label-sm font-label-sm mb-4">Didn't receive the code?</p>
+<button class="text-primary font-bold hover:underline decoration-2 underline-offset-4">Resend Code (45s)</button>
+</div>
+<button class="w-full h-14 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-title-md shadow-[0_4px_20px_rgba(70,72,212,0.3)] active:scale-95 transition-transform" onclick="goToStep(3)">
+                        Verify &amp; Continue
+                    </button>
+</div>
+</section>
+<!-- Step 3: New Password -->
+<section class="hidden animate-step flex flex-col" id="step-3">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile mb-2">Create New Password</h1>
+<p class="text-on-surface-variant mb-8">Your identity is verified. Please choose a strong password you haven't used before.</p>
+<div class="space-y-6">
+<div class="group">
+<label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 ml-1">New Password</label>
+<div class="relative">
+<input class="w-full h-14 px-4 rounded-xl border border-outline-variant bg-surface focus:border-primary focus:ring-4 focus:ring-primary/15 transition-all outline-none" placeholder="••••••••" type="password"/>
+<span class="material-symbols-outlined absolute right-4 top-4 text-outline" data-icon="visibility">visibility</span>
+</div>
+<div class="mt-3 flex gap-1 h-1">
+<div class="flex-1 bg-tertiary-container rounded-full"></div>
+<div class="flex-1 bg-tertiary-container rounded-full"></div>
+<div class="flex-1 bg-tertiary-container rounded-full"></div>
+<div class="flex-1 bg-outline-variant rounded-full"></div>
+</div>
+<p class="mt-2 text-xs text-tertiary-container font-medium">Strong password</p>
+</div>
+<div class="group">
+<label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 ml-1">Confirm Password</label>
+<div class="relative">
+<input class="w-full h-14 px-4 rounded-xl border border-outline-variant bg-surface focus:border-primary focus:ring-4 focus:ring-primary/15 transition-all outline-none" placeholder="••••••••" type="password"/>
+<span class="material-symbols-outlined absolute right-4 top-4 text-outline" data-icon="check_circle">check_circle</span>
+</div>
+</div>
+<button class="w-full h-14 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-title-md shadow-[0_4px_20px_rgba(70,72,212,0.3)] active:scale-95 transition-transform" onclick="showSuccess()">
+                        Update Password
+                    </button>
+</div>
+</section>
+<!-- Success Screen -->
+<section class="hidden animate-step flex flex-col items-center text-center" id="step-success">
+<div class="w-20 h-20 bg-tertiary-container/10 rounded-full flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-4xl text-tertiary" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile mb-2">Password Updated!</h1>
+<p class="text-on-surface-variant mb-10">Your security credentials have been successfully updated. You can now log in with your new password.</p>
+<button class="w-full h-14 rounded-xl bg-primary text-white font-title-md shadow-[0_4px_20px_rgba(70,72,212,0.3)] active:scale-95 transition-transform" onclick="window.location.reload()">
+                    Back to Login
+                </button>
+</section>
+</div>
+</main>
+<!-- BottomNavBar (Hidden for focused transactional flow as per filter rule) -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl bg-surface/90 backdrop-blur-lg border-t border-outline-variant/30 shadow-lg md:hidden flex justify-around items-center h-16 px-4" id="bottom-nav">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-2xl" data-icon="login">login</span>
+<span class="font-label-sm text-[10px]">Login</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-2xl" data-icon="help">help</span>
+<span class="font-label-sm text-[10px]">Support</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-2xl" data-icon="info">info</span>
+<span class="font-label-sm text-[10px]">About</span>
+</div>
+</nav>
+<script>
+        function goToStep(step) {
+            // Hide all
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            
+            // Show target
+            const target = document.getElementById(`step-${step}`);
+            target.classList.remove('hidden');
+
+            // Update Indicators
+            const dots = [document.getElementById('step-dot-1'), document.getElementById('step-dot-2'), document.getElementById('step-dot-3')];
+            const labels = ["Step 1 of 3", "Step 2 of 3", "Step 3 of 3"];
+            const icons = ["lock_reset", "mark_email_read", "key"];
+
+            dots.forEach((dot, i) => {
+                if (i < step) {
+                    dot.classList.remove('bg-outline-variant');
+                    dot.classList.add('bg-primary');
+                } else {
+                    dot.classList.add('bg-outline-variant');
+                    dot.classList.remove('bg-primary');
+                }
+            });
+
+            document.getElementById('step-label').innerText = labels[step-1];
+            document.getElementById('hero-icon').innerText = icons[step-1];
+            document.getElementById('hero-icon').setAttribute('data-icon', icons[step-1]);
+        }
+
+        function showSuccess() {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('step-success').classList.remove('hidden');
+            document.querySelector('.flex.justify-between.items-center.mb-8').classList.add('invisible');
+            document.querySelector('.mb-10.flex.justify-center').classList.add('hidden');
+            // Hide bottom nav for success state to keep focus
+            document.getElementById('bottom-nav').classList.add('hidden');
+        }
+
+        // Auto-focus OTP inputs logic (simplified)
+        document.querySelectorAll('.otp-input').forEach((input, index) => {
+            input.addEventListener('keyup', (e) => {
+                if (e.key === "Backspace" && index > 0 && !input.value) {
+                    input.previousElementSibling.focus();
+                }
+            });
+        });
+    </script>
+</body></html>

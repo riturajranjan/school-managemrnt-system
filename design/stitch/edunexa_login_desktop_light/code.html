@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login | EduNexa</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-high": "#dce9ff",
+                    "surface-bright": "#f8f9ff",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#000703",
+                    "secondary-fixed": "#e9ddff",
+                    "on-secondary-container": "#fffbff",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#e1e0ff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-variant": "#d3e4fe",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-fixed": "#6ffbbe",
+                    "tertiary-container": "#00885d",
+                    "tertiary": "#006c49",
+                    "on-surface": "#0b1c30",
+                    "inverse-surface": "#213145",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "background": "#f8f9ff",
+                    "on-secondary": "#ffffff",
+                    "secondary-container": "#8455ef",
+                    "secondary": "#6b38d4",
+                    "on-surface-variant": "#464554",
+                    "surface-container-low": "#eff4ff",
+                    "primary-container": "#6063ee",
+                    "primary": "#4648d4",
+                    "on-primary-container": "#fffbff",
+                    "surface": "#f8f9ff",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "surface-dim": "#cbdbf5",
+                    "outline-variant": "#c7c4d7",
+                    "surface-container": "#e5eeff",
+                    "on-error-container": "#93000a",
+                    "outline": "#767586",
+                    "surface-tint": "#494bd6",
+                    "on-primary-fixed": "#07006c",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "error-container": "#ffdad6",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "on-secondary-fixed": "#23005c",
+                    "surface-container-highest": "#d3e4fe",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "on-tertiary-fixed": "#002113",
+                    "on-background": "#0b1c30",
+                    "inverse-primary": "#c0c1ff",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "sidebar-width": "280px",
+                    "unit": "8px",
+                    "container-padding": "32px",
+                    "card-gap": "24px"
+            },
+            "fontFamily": {
+                    "title-md": ["Geist"],
+                    "body-md": ["Geist"],
+                    "headline-lg-mobile": ["Geist"],
+                    "headline-lg": ["Geist"],
+                    "display-lg": ["Geist"],
+                    "label-sm": ["Geist"]
+            },
+            "fontSize": {
+                    "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      body {
+        font-family: 'Geist', sans-serif;
+        background-color: #f8f9ff;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+      }
+      .primary-gradient {
+        background: linear-gradient(135deg, #4648d4 0%, #6b38d4 100%);
+      }
+      .input-halo:focus {
+        box-shadow: 0 0 0 4px rgba(70, 72, 212, 0.15);
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 md:p-8">
+<main class="w-full max-w-6xl h-full md:h-[800px] flex flex-col md:flex-row glass-card shadow-2xl rounded-3xl overflow-hidden animate-in fade-in duration-700">
+<!-- Left Side: Visual Illustration (Desktop Only) -->
+<section class="hidden md:flex md:w-1/2 relative primary-gradient items-center justify-center p-12">
+<!-- Animated Background Pattern -->
+<div class="absolute inset-0 opacity-20 pointer-events-none">
+<div class="absolute top-0 left-0 w-full h-full" style="background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0); background-size: 40px 40px;"></div>
+</div>
+<div class="relative z-10 w-full h-full flex flex-col items-center justify-center text-center">
+<div class="relative w-full aspect-[1.79] max-w-lg mb-12 transform hover:scale-105 transition-transform duration-500 ease-out">
+<img alt="Premium 3D education illustration" class="w-full h-full object-contain filter drop-shadow-2xl" src="https://lh3.googleusercontent.com/aida/AP1WRLtsY6sjyrFNEpoP8oXJAonUvqsKiTTrXOLJnZz04B_vFyej-mqlq4taTIpF1GrdH2YdnF3WCPoweSrVfADsao5JfUykJ22oEXKW7LX36vxVPBHFpdfbNlTBMy49miaP8jnRY8vM9yeAnUq2SJWhEK8rWx7xSIIuaXyGFr_A8Ze-C6hiqcvfBBdcYhfTOk7k1Ejh5-8U0zu6tNgwQnJTUbkeZfRXvOSl20aCn9algKbK5eXMzJlePsDTJw"/>
+</div>
+<div class="space-y-4 px-8">
+<h2 class="font-headline-lg text-headline-lg text-white leading-tight">Elevate Institutional Excellence</h2>
+<p class="font-body-md text-body-md text-primary-fixed opacity-90 max-w-md mx-auto">
+                        Experience the next generation of educational management with EduNexa's intelligent workflow ecosystem.
+                    </p>
+</div>
+</div>
+<!-- Bottom decorative blobs -->
+<div class="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary rounded-full filter blur-[80px] opacity-30"></div>
+<div class="absolute -top-24 -right-24 w-64 h-64 bg-primary-container rounded-full filter blur-[80px] opacity-30"></div>
+</section>
+<!-- Right Side: Login Form -->
+<section class="w-full md:w-1/2 bg-surface flex flex-col items-center justify-center p-8 md:p-16 lg:p-24 relative overflow-y-auto">
+<div class="w-full max-w-md space-y-8">
+<!-- Brand Identity -->
+<div class="flex flex-col items-center md:items-start text-center md:text-left space-y-4">
+<div class="w-16 h-16 rounded-2xl bg-surface-container-high p-3 flex items-center justify-center shadow-sm">
+<img alt="EduNexa Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLvHGjW7JIJhKbdM7s1eBKKH_DmFcW9r7ZD3OWKv1JBtoU3sAlo8FhtOfdWNQTuYDzW35ww-usQSVQSK0N4SSgSzkIsFNv_OdVBI67YVg8W-uDupIPcstCrK8MooY6j-STQc-PWHycxNQr2yLts2X3rSmqD6dVZYYvPQrHbe9OSUWw6rI2yxrntdW9S-RBnJ7ICWxgLu748lnZ4GWZFrDXXwxnSC5X6fIs9U2dzugFgA8AWfZF54dBHODw"/>
+</div>
+<div class="space-y-1">
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Welcome back</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Please enter your credentials to access your portal.</p>
+</div>
+</div>
+<!-- Login Form -->
+<form class="space-y-6" onsubmit="event.preventDefault();">
+<div class="space-y-4">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-outline uppercase tracking-wider" for="email">Institutional Email</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">mail</span>
+<input class="w-full pl-12 pr-4 py-4 rounded-xl border border-outline-variant bg-surface-bright font-body-md focus:border-primary focus:ring-0 input-halo transition-all duration-200 outline-none" id="email" placeholder="name@school.edu" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-outline uppercase tracking-wider" for="password">Password</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">lock</span>
+<input class="w-full pl-12 pr-12 py-4 rounded-xl border border-outline-variant bg-surface-bright font-body-md focus:border-primary focus:ring-0 input-halo transition-all duration-200 outline-none" id="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Options -->
+<div class="flex items-center justify-between font-label-sm text-label-sm">
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary focus:ring-offset-0 transition-all" type="checkbox"/>
+<span class="text-on-surface-variant group-hover:text-on-surface transition-colors">Remember me</span>
+</label>
+<a class="text-primary font-bold hover:underline" href="#">Forgot password?</a>
+</div>
+<!-- Action Button -->
+<button class="w-full py-4 primary-gradient text-white rounded-xl font-title-md shadow-[0_4px_20px_-4px_rgba(70,72,212,0.4)] hover:shadow-[0_8px_25px_-4px_rgba(70,72,212,0.5)] active:scale-[0.98] transition-all duration-200" type="submit">
+                        Login to EduNexa
+                    </button>
+</form>
+<!-- Social Login Divider -->
+<div class="relative flex items-center py-4">
+<div class="flex-grow border-t border-outline-variant"></div>
+<span class="flex-shrink mx-4 text-outline font-label-sm uppercase tracking-widest">or continue with</span>
+<div class="flex-grow border-t border-outline-variant"></div>
+</div>
+<!-- Social Buttons -->
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-3 py-3 border border-outline-variant rounded-xl hover:bg-surface-container-low transition-colors duration-200">
+<svg class="w-5 h-5" viewbox="0 0 24 24">
+<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"></path>
+<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
+</svg>
+<span class="font-body-md text-on-surface">Google</span>
+</button>
+<button class="flex items-center justify-center gap-3 py-3 border border-outline-variant rounded-xl hover:bg-surface-container-low transition-colors duration-200">
+<svg class="w-5 h-5" viewbox="0 0 24 24">
+<path d="M1 1h10v10H1z" fill="#00a4ef"></path>
+<path d="M13 1h10v10H13z" fill="#7fbb00"></path>
+<path d="M1 13h10v10H1z" fill="#ffb900"></path>
+<path d="M13 13h10v10H13z" fill="#f25022"></path>
+</svg>
+<span class="font-body-md text-on-surface">Microsoft</span>
+</button>
+</div>
+<!-- Footer Link -->
+<div class="pt-4 text-center">
+<p class="font-body-md text-on-surface-variant">
+                        New to EduNexa? <a class="text-primary font-bold hover:underline" href="#">Apply for Enrollment</a>
+</p>
+</div>
+</div>
+<!-- Absolute positioned support trigger -->
+<button class="absolute bottom-8 right-8 w-12 h-12 flex items-center justify-center rounded-full bg-surface-container-high text-primary hover:bg-primary-container hover:text-white transition-all duration-300 shadow-md">
+<span class="material-symbols-outlined">help_center</span>
+</button>
+</section>
+</main>
+<!-- Footer Meta -->
+<div class="fixed bottom-6 w-full flex justify-center pointer-events-none">
+<nav class="flex items-center gap-6 px-6 py-2 rounded-full glass-card pointer-events-auto">
+<a class="font-label-sm text-outline hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<a class="font-label-sm text-outline hover:text-primary transition-colors" href="#">Terms of Service</a>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<a class="font-label-sm text-outline hover:text-primary transition-colors" href="#">Contact Support</a>
+</nav>
+</div>
+<script>
+        // Micro-interactions for input fields
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.querySelector('.material-symbols-outlined').style.fontVariationSettings = "'FILL' 1";
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.querySelector('.material-symbols-outlined').style.fontVariationSettings = "'FILL' 0";
+            });
+        });
+
+        // Simple button press animation enhancement
+        const loginBtn = document.querySelector('button[type="submit"]');
+        loginBtn.addEventListener('click', function() {
+            this.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span>';
+            setTimeout(() => {
+                this.innerHTML = 'Login to EduNexa';
+            }, 2000);
+        });
+    </script>
+</body></html>

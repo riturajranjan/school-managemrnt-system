@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduNexa Admin Sign-up</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-high": "#dce9ff",
+                    "surface-bright": "#f8f9ff",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#000703",
+                    "secondary-fixed": "#e9ddff",
+                    "on-secondary-container": "#fffbff",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#e1e0ff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-variant": "#d3e4fe",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-fixed": "#6ffbbe",
+                    "tertiary-container": "#00885d",
+                    "tertiary": "#006c49",
+                    "on-surface": "#0b1c30",
+                    "inverse-surface": "#213145",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "background": "#070B17",
+                    "on-secondary": "#ffffff",
+                    "secondary-container": "#8455ef",
+                    "secondary": "#6b38d4",
+                    "on-surface-variant": "#464554",
+                    "surface-container-low": "#101626",
+                    "primary-container": "#6063ee",
+                    "primary": "#4648d4",
+                    "on-primary-container": "#fffbff",
+                    "surface": "#070B17",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "surface-dim": "#070B17",
+                    "outline-variant": "#c7c4d7",
+                    "surface-container": "#151b2d",
+                    "on-error-container": "#93000a",
+                    "outline": "#767586",
+                    "surface-tint": "#494bd6",
+                    "on-primary-fixed": "#07006c",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "error-container": "#ffdad6",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "on-secondary-fixed": "#23005c",
+                    "on-background": "#F8FAFC",
+                    "inverse-primary": "#c0c1ff",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "sidebar-width": "280px",
+                    "unit": "8px",
+                    "container-padding": "32px",
+                    "card-gap": "24px"
+            },
+            "fontFamily": {
+                    "title-md": ["Geist"],
+                    "body-md": ["Geist"],
+                    "headline-lg-mobile": ["Geist"],
+                    "headline-lg": ["Geist"],
+                    "display-lg": ["Geist"],
+                    "label-sm": ["Geist"]
+            },
+            "fontSize": {
+                    "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #070B17;
+            color: #F8FAFC;
+            font-family: 'Geist', sans-serif;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: rgba(16, 22, 38, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #4648d4, #8455ef);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .primary-button {
+            background: linear-gradient(135deg, #4648d4, #6b38d4);
+            box-shadow: 0 4px 20px rgba(70, 72, 212, 0.3);
+            transition: all 0.3s ease;
+        }
+        .primary-button:active {
+            transform: scale(0.95);
+        }
+        .input-focus:focus-within {
+            border-color: #4648d4;
+            box-shadow: 0 0 0 4px rgba(70, 72, 212, 0.15);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start pb-10">
+<!-- Header / TopAppBar (Suppressed Shell version for Transactional Focus) -->
+<header class="w-full h-20 flex items-center justify-center px-container-padding sticky top-0 z-50 bg-background/80 backdrop-blur-md">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-3xl">school</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-extrabold tracking-tight">EduNexa</span>
+</div>
+</header>
+<!-- Main Content -->
+<main class="w-full max-w-md px-6 mt-4 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+<!-- Progress Indicator -->
+<div class="w-full flex flex-col gap-3">
+<div class="flex justify-between items-end">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-widest">Step 02 of 04</span>
+<span class="font-title-md text-title-md text-on-background">Admin Setup</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-1/2 rounded-full shadow-[0_0_10px_rgba(70,72,212,0.5)]"></div>
+</div>
+</div>
+<!-- Headline -->
+<div class="space-y-2">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-background">Create your admin account</h1>
+<p class="font-body-md text-body-md text-outline">Enter your professional details to begin the institution verification process.</p>
+</div>
+<!-- Form Card -->
+<section class="glass-card rounded-3xl p-6 shadow-2xl">
+<form class="space-y-5">
+<!-- Full Name -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-outline px-1">Full Name</label>
+<div class="input-focus flex items-center gap-3 glass-card rounded-xl px-4 py-3 border border-outline-variant/20 transition-all">
+<span class="material-symbols-outlined text-outline text-xl">person</span>
+<input class="bg-transparent border-none outline-none text-on-background font-body-md w-full focus:ring-0 placeholder:text-outline/40" placeholder="John Doe" type="text"/>
+</div>
+</div>
+<!-- Work Email -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-outline px-1">Work Email</label>
+<div class="input-focus flex items-center gap-3 glass-card rounded-xl px-4 py-3 border border-outline-variant/20 transition-all">
+<span class="material-symbols-outlined text-outline text-xl">mail</span>
+<input class="bg-transparent border-none outline-none text-on-background font-body-md w-full focus:ring-0 placeholder:text-outline/40" placeholder="john@university.edu" type="email"/>
+</div>
+</div>
+<!-- Phone -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-outline px-1">Phone Number</label>
+<div class="input-focus flex items-center gap-3 glass-card rounded-xl px-4 py-3 border border-outline-variant/20 transition-all">
+<span class="material-symbols-outlined text-outline text-xl">call</span>
+<input class="bg-transparent border-none outline-none text-on-background font-body-md w-full focus:ring-0 placeholder:text-outline/40" placeholder="+1 (555) 000-0000" type="tel"/>
+</div>
+</div>
+<!-- Password -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-outline px-1">Password</label>
+<div class="input-focus flex items-center gap-3 glass-card rounded-xl px-4 py-3 border border-outline-variant/20 transition-all">
+<span class="material-symbols-outlined text-outline text-xl">lock</span>
+<input class="bg-transparent border-none outline-none text-on-background font-body-md w-full focus:ring-0 placeholder:text-outline/40" placeholder="••••••••" type="password"/>
+<span class="material-symbols-outlined text-outline text-xl cursor-pointer">visibility</span>
+</div>
+</div>
+<div class="pt-4">
+<button class="primary-button w-full py-4 rounded-2xl text-on-primary font-title-md flex items-center justify-center gap-2" type="submit">
+                        Continue
+                        <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</form>
+</section>
+<!-- Premium Trust Panel -->
+<section class="glass-card rounded-2xl p-4 overflow-hidden relative">
+<div class="flex items-start gap-4 relative z-10">
+<div class="h-12 w-12 rounded-xl bg-primary-container/20 flex items-center justify-center border border-primary/20 shrink-0">
+<span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+</div>
+<div class="space-y-1">
+<h4 class="font-title-md text-on-background text-[16px]">Institution Grade Security</h4>
+<p class="font-label-sm text-label-sm text-outline leading-normal">Your data is protected by AES-256 encryption and SOC2 compliant infrastructure.</p>
+</div>
+</div>
+<!-- Decorative Glow -->
+<div class="absolute -right-10 -bottom-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl"></div>
+</section>
+<!-- Secondary Action -->
+<div class="text-center py-4">
+<p class="font-body-md text-body-md text-outline">
+                Already have an admin account? 
+                <a class="text-primary font-bold hover:underline" href="#">Log in</a>
+</p>
+</div>
+</main>
+<!-- Footer Trust Badges -->
+<footer class="mt-auto w-full px-6 py-8 flex flex-col items-center gap-4 border-t border-outline-variant/10">
+<div class="flex gap-8 opacity-40 grayscale filter">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">security</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Secure Data</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">cloud_done</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Cloud Scale</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">gpp_maybe</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Privacy First</span>
+</div>
+</div>
+<p class="text-[11px] text-outline/50 font-label-sm">© 2024 EduNexa Platforms Inc. All rights reserved.</p>
+</footer>
+<!-- Micro-interaction Script -->
+<script>
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.classList.add('scale-[1.02]');
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.classList.remove('scale-[1.02]');
+            });
+        });
+
+        // Simple form validation logic simulation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span>';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                alert('Account Created - Verification email sent!');
+            }, 1500);
+        });
+    </script>
+</body></html>

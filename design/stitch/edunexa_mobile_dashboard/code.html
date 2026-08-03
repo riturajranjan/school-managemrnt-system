@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>EduNexa | Institutional Elite Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap');
+        
+        body {
+            font-family: 'Geist', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Smooth appearance for stats */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.4s ease-out forwards;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "surface-container-highest": "#d3e4fe",
+                      "primary-fixed-dim": "#c0c1ff",
+                      "outline-variant": "#c7c4d7",
+                      "on-tertiary": "#ffffff",
+                      "secondary-fixed": "#e9ddff",
+                      "on-tertiary-container": "#000703",
+                      "secondary-fixed-dim": "#d0bcff",
+                      "tertiary-fixed": "#6ffbbe",
+                      "on-secondary-fixed-variant": "#5516be",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary-fixed": "#23005c",
+                      "on-error-container": "#93000a",
+                      "surface": "#f8f9ff",
+                      "on-surface-variant": "#464554",
+                      "outline": "#767586",
+                      "on-background": "#0b1c30",
+                      "surface-bright": "#f8f9ff",
+                      "surface-tint": "#494bd6",
+                      "on-surface": "#0b1c30",
+                      "inverse-surface": "#213145",
+                      "background": "#f8f9ff",
+                      "error": "#ba1a1a",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#07006c",
+                      "on-primary-container": "#fffbff",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "surface-container-low": "#eff4ff",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "surface-container": "#e5eeff",
+                      "tertiary": "#006c49",
+                      "inverse-on-surface": "#eaf1ff",
+                      "on-secondary-container": "#fffbff",
+                      "tertiary-container": "#00885d",
+                      "on-primary-fixed-variant": "#2f2ebe",
+                      "primary": "#4648d4",
+                      "surface-dim": "#cbdbf5",
+                      "inverse-primary": "#c0c1ff",
+                      "primary-fixed": "#e1e0ff",
+                      "secondary": "#6b38d4",
+                      "primary-container": "#6063ee",
+                      "secondary-container": "#8455ef",
+                      "on-error": "#ffffff",
+                      "on-tertiary-fixed": "#002113",
+                      "surface-variant": "#d3e4fe",
+                      "surface-container-high": "#dce9ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "container-padding": "32px",
+                      "sidebar-width": "280px",
+                      "gutter": "24px",
+                      "unit": "8px",
+                      "card-gap": "24px"
+              },
+              "fontFamily": {
+                      "label-sm": ["Geist"],
+                      "headline-lg-mobile": ["Geist"],
+                      "title-md": ["Geist"],
+                      "display-lg": ["Geist"],
+                      "body-md": ["Geist"],
+                      "headline-lg": ["Geist"]
+              },
+              "fontSize": {
+                      "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                      "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                      "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top Navigation Bar (Mobile Viewport) -->
+<header class="sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant/20 px-4 py-3 flex justify-between items-center h-16">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-on-primary shadow-lg overflow-hidden border-2 border-surface">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of an experienced school principal, smiling warmly. High-key corporate lighting, shallow depth of field, minimalist office background. Clean, high-end educational leadership aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVLF-Zpa6c-Qqm3HrMO2xi2KkXnDZMPxXk4W9c-4Kxt-Ps1gPzofSA9ztiZHEc6LYYmU7WtzR4iTm1lqlxVLnqwGsHb1UdCdVevzcG_dR6EMAueqO2wTnRDTvffm628bhW2vGzq4vk3jpHio9B_MnZMFj_tXfM257PFXqdpsKvlbsMT0SdwptXUb8hii8nSNKIFfaFVPe7_t9Hu82OKK32IfYIWVbfkZNgeQkd0tMAQ0gEp4AO2EA"/>
+</div>
+<div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile tracking-tight text-primary">EduNexa</h1>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant relative active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-surface"></span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</button>
+</div>
+</header>
+<main class="px-4 pb-24 pt-4 space-y-6 max-w-md mx-auto">
+<!-- Mobile Hero Section -->
+<section class="relative overflow-hidden rounded-3xl bg-surface-container-lowest shadow-2xl shadow-primary/5 border border-outline-variant/30">
+<div class="absolute inset-0 z-0">
+<img alt="Education Hero Illustration" class="w-full h-full object-cover opacity-90" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCe2HmWc7ASTmvFCRd5X7FKN2j8h_K9ogaT-tP2Hv_CATvAHsILtCCFhpYfnItqcaZnTQsbrMgUHU1B5rBKTGWCc0bNmN97bQg2V7y-uB5WM9ygovLIKoECmq6QV63LxGqXTrNVTJn4w31iluFx1zgC9gQW4DjM4dmd_jjtKfgeG8UJepi4SLKmStxZZwwZJQVXVHBIdqNQDjN4mJ-wghDP6AfM_qoa8vAtP1OpmhoJN8KEOD0eJ3c"/>
+</div>
+<div class="relative z-10 p-6 bg-gradient-to-t from-surface-container-lowest/90 via-surface-container-lowest/40 to-transparent">
+<span class="font-label-sm text-label-sm bg-primary/10 text-primary px-3 py-1 rounded-full inline-block mb-3">Session 2023-24</span>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-1">Good Morning, Principal</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Your institution is thriving today.</p>
+<div class="flex gap-2">
+<button class="px-4 py-2 bg-gradient-to-r from-primary to-secondary text-on-primary rounded-full font-label-sm text-label-sm shadow-[0_0_15px_rgba(70,72,212,0.3)] active:scale-95 transition-all">
+                        View Analytics
+                    </button>
+</div>
+</div>
+</section>
+<!-- Quick Stats Grid -->
+<section>
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-title-md text-title-md text-on-surface">Overview</h3>
+<span class="font-label-sm text-label-sm text-primary">Live Updates</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Stat 1 -->
+<div class="bg-surface-container p-4 rounded-2xl border border-outline-variant/10 animate-slide-up" style="animation-delay: 0.1s;">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="group">group</span>
+<span class="text-[10px] font-bold text-tertiary">+2.4%</span>
+</div>
+<div class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">1,248</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Students</div>
+</div>
+<!-- Stat 2 -->
+<div class="bg-surface-container-high p-4 rounded-2xl border border-outline-variant/10 animate-slide-up" style="animation-delay: 0.2s;">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-secondary" data-icon="person">person</span>
+<span class="text-[10px] font-bold text-on-surface-variant">Stable</span>
+</div>
+<div class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">84</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Teachers</div>
+</div>
+<!-- Stat 3 -->
+<div class="bg-tertiary-container/10 p-4 rounded-2xl border border-tertiary/20 animate-slide-up" style="animation-delay: 0.3s;">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="fact_check">fact_check</span>
+<span class="text-[10px] font-bold text-tertiary">92%</span>
+</div>
+<div class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">964</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Attendance</div>
+</div>
+<!-- Stat 4 -->
+<div class="bg-secondary-container/10 p-4 rounded-2xl border border-secondary/20 animate-slide-up" style="animation-delay: 0.4s;">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-secondary" data-icon="payments">payments</span>
+<span class="text-[10px] font-bold text-error">-5%</span>
+</div>
+<div class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">$42K</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Collections</div>
+</div>
+</div>
+</section>
+<!-- Quick Actions Grid -->
+<section>
+<h3 class="font-title-md text-title-md text-on-surface mb-4">Quick Actions</h3>
+<div class="grid grid-cols-3 gap-3">
+<button class="flex flex-col items-center gap-2 p-3 bg-surface rounded-2xl border border-outline-variant/30 active:scale-95 transition-all">
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="person_add">person_add</span>
+</div>
+<span class="font-label-sm text-[10px] text-center">Add Student</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-surface rounded-2xl border border-outline-variant/30 active:scale-95 transition-all">
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="campaign">campaign</span>
+</div>
+<span class="font-label-sm text-[10px] text-center">Announcement</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-surface rounded-2xl border border-outline-variant/30 active:scale-95 transition-all">
+<div class="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="assignment_turned_in">assignment_turned_in</span>
+</div>
+<span class="font-label-sm text-[10px] text-center">Attendance</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-surface rounded-2xl border border-outline-variant/30 active:scale-95 transition-all">
+<div class="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="event_note">event_note</span>
+</div>
+<span class="font-label-sm text-[10px] text-center">Exam Schedule</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-surface rounded-2xl border border-outline-variant/30 active:scale-95 transition-all">
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</div>
+<span class="font-label-sm text-[10px] text-center">Fee Invoice</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-surface rounded-2xl border border-outline-variant/30 active:scale-95 transition-all">
+<div class="w-12 h-12 rounded-xl bg-on-surface-variant/10 flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</div>
+<span class="font-label-sm text-[10px] text-center">More</span>
+</button>
+</div>
+</section>
+<!-- Today's Events -->
+<section>
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-title-md text-title-md text-on-surface">Upcoming Today</h3>
+<button class="text-primary font-label-sm text-label-sm">View All</button>
+</div>
+<div class="space-y-3">
+<div class="flex gap-4 p-4 bg-surface rounded-2xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+<div class="flex flex-col items-center justify-center px-3 py-1 bg-primary/5 rounded-xl border border-primary/10 min-w-[60px]">
+<span class="font-label-sm text-primary text-[10px]">10:00</span>
+<span class="font-bold text-primary">AM</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md font-semibold text-on-surface">Staff Performance Review</h4>
+<p class="font-label-sm text-on-surface-variant">Conference Hall A • 45 mins</p>
+</div>
+</div>
+<div class="flex gap-4 p-4 bg-surface rounded-2xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+<div class="flex flex-col items-center justify-center px-3 py-1 bg-secondary/5 rounded-xl border border-secondary/10 min-w-[60px]">
+<span class="font-label-sm text-secondary text-[10px]">01:30</span>
+<span class="font-bold text-secondary">PM</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md font-semibold text-on-surface">Annual Sports Planning</h4>
+<p class="font-label-sm text-on-surface-variant">Library Annex • 60 mins</p>
+</div>
+</div>
+<div class="flex gap-4 p-4 bg-surface rounded-2xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+<div class="flex flex-col items-center justify-center px-3 py-1 bg-tertiary/5 rounded-xl border border-tertiary/10 min-w-[60px]">
+<span class="font-label-sm text-tertiary text-[10px]">04:00</span>
+<span class="font-bold text-tertiary">PM</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md font-semibold text-on-surface">Parents-Teacher Council</h4>
+<p class="font-label-sm text-on-surface-variant">Main Auditorium • 90 mins</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Activity -->
+<section class="pb-8">
+<h3 class="font-title-md text-title-md text-on-surface mb-4">Institutional Timeline</h3>
+<div class="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant/20">
+<div class="relative">
+<div class="absolute -left-[23px] top-1 w-4 h-4 rounded-full bg-primary ring-4 ring-background"></div>
+<div class="flex flex-col">
+<span class="font-label-sm text-[10px] text-on-surface-variant">12 minutes ago</span>
+<p class="font-body-md text-on-surface">Admission portal received 15 new applications for Grade 9.</p>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[23px] top-1 w-4 h-4 rounded-full bg-secondary ring-4 ring-background"></div>
+<div class="flex flex-col">
+<span class="font-label-sm text-[10px] text-on-surface-variant">1 hour ago</span>
+<p class="font-body-md text-on-surface">Attendance report for Grade 10-C marked by Mrs. Sarah.</p>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[23px] top-1 w-4 h-4 rounded-full bg-tertiary ring-4 ring-background"></div>
+<div class="flex flex-col">
+<span class="font-label-sm text-[10px] text-on-surface-variant">3 hours ago</span>
+<p class="font-body-md text-on-surface">Monthly fee statements dispatched to 1,200 parents via SMS.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface/90 backdrop-blur-xl border-t border-outline-variant/20 px-4 py-3 pb-safe z-50 flex justify-around items-center">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center text-primary font-bold group" href="#">
+<span class="material-symbols-outlined scale-110 mb-1" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-[10px]">Home</span>
+<div class="w-1 h-1 bg-primary rounded-full mt-1"></div>
+</a>
+<!-- Schedule -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant group active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="event">event</span>
+<span class="font-label-sm text-[10px]">Schedule</span>
+</a>
+<!-- Central FAB -->
+<div class="relative -top-6">
+<button class="w-14 h-14 bg-gradient-to-tr from-primary to-secondary text-on-primary rounded-full flex items-center justify-center shadow-[0_8px_25px_rgba(70,72,212,0.4)] border-4 border-surface active:scale-90 transition-all duration-300">
+<span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
+</button>
+</div>
+<!-- Reports -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant group active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="analytics">analytics</span>
+<span class="font-label-sm text-[10px]">Reports</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant group active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="account_circle">account_circle</span>
+<span class="font-label-sm text-[10px]">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for feedback on tapping action buttons
+        document.querySelectorAll('button, a').forEach(el => {
+            el.addEventListener('click', () => {
+                if (window.navigator.vibrate) {
+                    window.navigator.vibrate(5);
+                }
+            });
+        });
+
+        // Simple scroll behavior to hide header shadow when at top
+        const header = document.querySelector('header');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 10) {
+                header.classList.add('shadow-md');
+                header.classList.remove('border-b');
+            } else {
+                header.classList.remove('shadow-md');
+                header.classList.add('border-b');
+            }
+        });
+    </script>
+</body></html>

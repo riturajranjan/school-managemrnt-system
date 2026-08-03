@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduNexa - Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100;300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#4648d4",
+                        "tertiary-container": "#00885d",
+                        "surface-bright": "#f8f9ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "outline": "#767586",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "background": "#f8f9ff",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "on-primary-fixed": "#07006c",
+                        "on-surface-variant": "#464554",
+                        "primary-container": "#6063ee",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#0b1c30",
+                        "secondary-container": "#8455ef",
+                        "on-secondary-container": "#fffbff",
+                        "inverse-primary": "#c0c1ff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#e9ddff",
+                        "surface-tint": "#494bd6",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "on-error": "#ffffff",
+                        "secondary": "#6b38d4",
+                        "tertiary": "#006c49",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#d0bcff",
+                        "outline-variant": "#c7c4d7",
+                        "error": "#ba1a1a",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "on-secondary-fixed": "#23005c",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary-fixed-variant": "#5516be",
+                        "primary-fixed": "#e1e0ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container-high": "#dce9ff",
+                        "surface": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "sidebar-width": "280px",
+                        "container-padding": "32px",
+                        "card-gap": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "title-md": ["Geist"],
+                        "headline-lg-mobile": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-md": ["Geist"],
+                        "display-lg": ["Geist"],
+                        "label-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Geist', sans-serif; overflow: hidden; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        
+        /* Floating background elements */
+        .float-container { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .floating-obj { position: absolute; opacity: 0.15; filter: blur(2px); transition: transform 0.5s ease-out; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 40px -10px rgba(70, 72, 212, 0.1);
+        }
+        
+        input:focus {
+            box-shadow: 0 0 0 4px rgba(70, 72, 212, 0.15);
+        }
+
+        .login-btn-gradient {
+            background: linear-gradient(135deg, #4648d4 0%, #6b38d4 100%);
+            box-shadow: 0 4px 15px rgba(70, 72, 212, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col transition-colors duration-300">
+<!-- Floating Background Layer (Inspired by https://lh3.googleusercontent.com/aida/AP1WRLtsY6sjyrFNEpoP8oXJAonUvqsKiTTrXOLJnZz04B_vFyej-mqlq4taTIpF1GrdH2YdnF3WCPoweSrVfADsao5JfUykJ22oEXKW7LX36vxVPBHFpdfbNlTBMy49miaP8jnRY8vM9yeAnUq2SJWhEK8rWx7xSIIuaXyGFr_A8Ze-C6hiqcvfBBdcYhfTOk7k1Ejh5-8U0zu6tNgwQnJTUbkeZfRXvOSl20aCn9algKbK5eXMzJlePsDTJw) -->
+<div class="float-container">
+<!-- Floating graduation cap -->
+<div class="floating-obj animate-float top-[10%] left-[5%] w-32 h-32 opacity-20">
+<img class="w-full h-full object-contain" data-alt="A stylized 3D glassmorphic graduation cap floating in a dreamlike digital space, featuring soft purple gradients and translucent materials that catch the light, perfectly matching the EduNexa high-performance institutional aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvHUDY-9eFVYD5a18wQl0hgQ1yDoBTDZV7iPfPIwc32Q5dXGIGTK4mBL8l36CRm29FjEeO1pxl3yd5tVlpYyb2E4KhgeGJyKA3h9_uBznY7uOrLZ2pv3vpjS9H5gO7T70nEfKLJwF62OxSrZ0HkuohWfOslM4vMR4hc_aneH15C-CDYM4DxlNzjq22g2pOHMhqCbXujsLgyZmW_ZLyzY-fGon9GWK8r-9jPE2QSsOw4JH42Z094ls"/>
+</div>
+<!-- Floating book -->
+<div class="floating-obj animate-float top-[60%] right-[10%] w-24 h-24 opacity-10" style="animation-delay: 1.5s;">
+<img class="w-full h-full object-contain" data-alt="A semi-transparent 3D open book floating with pages gently glowing, rendered in a sophisticated glassmorphism style with soft violet and blue highlights, set against a clean light-mode background for a modern educational UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCeJME2VAt23I0Ja81igpgJQBRTi9RtFJHmTbFzxAQPsxgNX6kW0fzDFabCAbvzBgD09FglFB2regCqM20M1YOW7g3aHbkE1x0PG3jHlPguec5dTWwD2yENfPx5U_Jb-5whUx-YeLUJeiCuJSEPKZJIltAvoKYxxpIgM59ThqmUoHPy50-QOqAIVX_PcOjSBnE2dpI6JTQ_ru6-OhaHRZwrRcWFjJ-ds9JARTRa9gJHXw4txeEwJeE"/>
+</div>
+<!-- Floating sphere -->
+<div class="floating-obj animate-float bottom-[15%] left-[15%] w-16 h-16 opacity-15" style="animation-delay: 0.8s;">
+<div class="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary blur-sm"></div>
+</div>
+<!-- Background Gradient Glow -->
+<div class="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-[100px]"></div>
+<div class="absolute -bottom-40 -left-40 w-96 h-96 bg-secondary/5 rounded-full blur-[100px]"></div>
+</div>
+<!-- Main Login Shell (Mobile Focus) -->
+<main class="relative z-10 flex-1 flex flex-col px-container-padding py-8 max-w-md mx-auto w-full">
+<!-- Theme Toggle -->
+<div class="flex justify-end mb-4">
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+</div>
+<!-- Header / Branding -->
+<div class="flex flex-col items-center mb-10">
+<div class="w-24 h-24 mb-6 transition-transform duration-500 hover:scale-105">
+<img alt="EduNexa Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLvHGjW7JIJhKbdM7s1eBKKH_DmFcW9r7ZD3OWKv1JBtoU3sAlo8FhtOfdWNQTuYDzW35ww-usQSVQSK0N4SSgSzkIsFNv_OdVBI67YVg8W-uDupIPcstCrK8MooY6j-STQc-PWHycxNQr2yLts2X3rSmqD6dVZYYvPQrHbe9OSUWw6rI2yxrntdW9S-RBnJ7ICWxgLu748lnZ4GWZFrDXXwxnSC5X6fIs9U2dzugFgA8AWfZF54dBHODw"/>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-center text-on-surface">Welcome Back</h1>
+<p class="font-body-md text-body-md text-on-surface-variant text-center mt-2 px-4">Institutional excellence at your fingertips. Log in to your portal.</p>
+</div>
+<!-- Login Card -->
+<div class="glass-card rounded-3xl p-8 space-y-6">
+<form class="space-y-5" onsubmit="event.preventDefault()">
+<!-- Email/ID Field -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block ml-1" for="email">Email / Student ID</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">person</span>
+<input class="w-full pl-12 pr-4 py-4 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface font-body-md focus:border-primary focus:outline-none transition-all" id="email" placeholder="e.g. STU12345" type="text"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block ml-1" for="password">Password</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">lock</span>
+<input class="w-full pl-12 pr-12 py-4 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface font-body-md focus:border-primary focus:outline-none transition-all" id="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+<!-- Actions Row -->
+<div class="flex items-center justify-between text-label-sm px-1">
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/20" type="checkbox"/>
+<span class="text-on-surface-variant group-hover:text-on-surface transition-colors">Remember me</span>
+</label>
+<a class="text-primary font-bold hover:underline" href="#">Forgot password?</a>
+</div>
+<!-- Login Button -->
+<button class="login-btn-gradient w-full py-4 rounded-xl text-on-primary font-title-md text-title-md transition-all active:scale-95 flex items-center justify-center gap-2" type="submit">
+                    Login
+                    <span class="material-symbols-outlined">login</span>
+</button>
+</form>
+<!-- Divider -->
+<div class="relative py-2">
+<div class="absolute inset-0 flex items-center"><div class="w-full border-t border-outline-variant/30"></div></div>
+<div class="relative flex justify-center"><span class="bg-white/0 px-4 text-label-sm text-outline-variant uppercase">Or continue with</span></div>
+</div>
+<!-- Social Logins -->
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-high transition-all text-on-surface-variant font-label-sm">
+<img alt="Google" class="w-5 h-5" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJ3aPwDWaVnLUYT9t_VZiCqgM2-ykSHmrFJ-4gPFAMOrPP7xtuwdb6NS87dc_YVNk0yi8xi6M9j8hvuJ7yqVpL4yzfF97BJ2ou-pZVq2TlTdUY6E0oyd-RVUOE1DRX9-AWtGLYHqdxg11nlt2u-QUS7a69gRCAQ9u2EHAVJrKffKdHQH4fqCdkK4PGnA2ZM-JiGWHNP6FryWzkEv7OcK7rNvgHkCKYA40qDhuvlRz7kjKt5Er4iU4"/>
+                    Google
+                </button>
+<button class="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-high transition-all text-on-surface-variant font-label-sm">
+<img alt="Microsoft" class="w-5 h-5" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdNwRbXkyMNryYPRmcZTjBQY8yjdTop5WPEzHdxxDROHIedfU3aatGLpUfeDrsm97pHE1-VZSuNdMqsm7FNAEWThUFPLi4BmJBpRAfPMRjpFV4bew3OBp0TDB65O4iQcQr_ooqBOxjHWl_PPHSDVL68AqjnzQ-mRvqPVvoH5vbbkE_pzryG-4e5CcIq2-Mhoqp0Wtx6gEv4aRQbOVZAGsqKcGLgb-SBQLQhoyrFweo6oVTNJlNW9A"/>
+                    Microsoft
+                </button>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="mt-8 flex flex-col items-center space-y-4">
+<a class="flex items-center gap-2 px-6 py-3 rounded-full bg-surface-container text-primary font-title-md text-title-md hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">supervisor_account</span>
+                Login as Parent/Student
+            </a>
+<p class="text-label-sm text-on-surface-variant text-center">
+                New to the institution? <a class="text-secondary font-bold hover:underline" href="#">Contact Administration</a>
+</p>
+</div>
+</main>
+<!-- Footer Decoration -->
+<footer class="mt-auto p-6 text-center text-label-sm text-on-surface-variant/50 relative z-10">
+        © 2024 EduNexa Ecosystem. All Rights Reserved.
+    </footer>
+<script>
+        // Micro-interactions for floating background
+        document.addEventListener('mousemove', (e) => {
+            const objs = document.querySelectorAll('.floating-obj');
+            const x = (window.innerWidth / 2 - e.pageX) / 50;
+            const y = (window.innerHeight / 2 - e.pageY) / 50;
+            
+            objs.forEach((obj, index) => {
+                const speed = (index + 1) * 0.2;
+                obj.style.transform = `translate(${x * speed}px, ${y * speed}px)`;
+            });
+        });
+    </script>
+</body></html>

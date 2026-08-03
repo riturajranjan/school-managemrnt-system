@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduNexa Onboarding - Module Selection</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .module-card.selected {
+            border-color: #4648d4;
+            background-color: rgba(70, 72, 212, 0.04);
+            box-shadow: 0 0 0 4px rgba(70, 72, 212, 0.15);
+        }
+        .module-card.selected .check-icon {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#4648d4",
+                        "tertiary-container": "#00885d",
+                        "surface-bright": "#f8f9ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "outline": "#767586",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "background": "#f8f9ff",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "on-primary-fixed": "#07006c",
+                        "on-surface-variant": "#464554",
+                        "primary-container": "#6063ee",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#0b1c30",
+                        "secondary-container": "#8455ef",
+                        "on-secondary-container": "#fffbff",
+                        "inverse-primary": "#c0c1ff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#e9ddff",
+                        "surface-tint": "#494bd6",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "on-error": "#ffffff",
+                        "secondary": "#6b38d4",
+                        "tertiary": "#006c49",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#d0bcff",
+                        "outline-variant": "#c7c4d7",
+                        "error": "#ba1a1a",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "on-secondary-fixed": "#23005c",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary-fixed-variant": "#5516be",
+                        "primary-fixed": "#e1e0ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container-high": "#dce9ff",
+                        "surface": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "sidebar-width": "280px",
+                        "container-padding": "32px",
+                        "card-gap": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "title-md": ["Geist"],
+                        "headline-lg-mobile": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-md": ["Geist"],
+                        "display-lg": ["Geist"],
+                        "label-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "title-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface font-body-md text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 shadow-sm flex items-center justify-between px-6 h-20">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-3xl">school</span>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">EduNexa</h1>
+</div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+</header>
+<main class="mt-24 px-6 max-w-lg mx-auto">
+<!-- Premium Stepper -->
+<section class="mb-8">
+<div class="flex items-center justify-between mb-4">
+<span class="font-label-sm text-label-sm text-primary tracking-widest uppercase">Step 4 of 5</span>
+<span class="font-label-sm text-label-sm text-outline">80% Complete</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-secondary w-4/5 rounded-full transition-all duration-700"></div>
+</div>
+<h2 class="mt-6 font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Module Selection</h2>
+<p class="text-on-surface-variant mt-2">Customize your institution's experience by selecting the features you need.</p>
+</section>
+<!-- Module Bento Grid -->
+<div class="grid grid-cols-2 gap-4">
+<!-- Student Management -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-primary">groups</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Student Management</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Attendance -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center mb-4 group-hover:bg-tertiary/20 transition-colors">
+<span class="material-symbols-outlined text-tertiary">calendar_today</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Attendance</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Fees -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center mb-4 group-hover:bg-secondary/20 transition-colors">
+<span class="material-symbols-outlined text-secondary">payments</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Fees</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Exams -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-primary">edit_note</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Exams</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Transport -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center mb-4 group-hover:bg-tertiary/20 transition-colors">
+<span class="material-symbols-outlined text-tertiary">directions_bus</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Transport</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Library -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center mb-4 group-hover:bg-secondary/20 transition-colors">
+<span class="material-symbols-outlined text-secondary">local_library</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Library</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Hostel -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-primary">apartment</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Hostel</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Payroll -->
+<button class="module-card group relative flex flex-col p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center mb-4 group-hover:bg-tertiary/20 transition-colors">
+<span class="material-symbols-outlined text-tertiary">account_balance_wallet</span>
+</div>
+<span class="font-title-md text-[16px] text-on-surface font-semibold leading-tight">Payroll</span>
+<div class="check-icon absolute top-3 right-3 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold">check_circle</span>
+</div>
+</button>
+<!-- Communication -->
+<button class="col-span-2 module-card group relative flex items-center gap-4 p-5 bg-surface-container-lowest border border-outline-variant rounded-2xl text-left transition-all duration-200 active:scale-95" onclick="toggleModule(this)">
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center group-hover:bg-secondary/20 transition-colors">
+<span class="material-symbols-outlined text-secondary text-2xl">forum</span>
+</div>
+<div>
+<span class="font-title-md text-[18px] text-on-surface font-bold block">Communication</span>
+<span class="text-on-surface-variant text-sm">Parent-teacher chats &amp; mass SMS</span>
+</div>
+<div class="check-icon absolute top-1/2 -translate-y-1/2 right-5 opacity-0 scale-50 transition-all duration-300">
+<span class="material-symbols-outlined text-primary font-bold text-2xl">check_circle</span>
+</div>
+</button>
+</div>
+</main>
+<!-- Bottom Navigation Actions -->
+<div class="fixed bottom-0 left-0 w-full glass-panel border-t border-outline-variant/30 px-6 py-5 flex items-center gap-4 z-50">
+<button class="flex-1 h-14 rounded-full border border-outline-variant font-title-md text-on-surface active:scale-95 transition-transform">
+            Back
+        </button>
+<button class="flex-[2] h-14 rounded-full bg-gradient-to-r from-primary to-secondary text-white font-title-md shadow-[0_4px_16px_rgba(70,72,212,0.3)] active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Save and Continue
+            <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+<!-- Hidden Navigation Shell (Suppressed as per task context for Task-Focused screens) -->
+<!-- But keeping bottom spacing for the fixed action bar -->
+<script>
+        function toggleModule(element) {
+            element.classList.toggle('selected');
+            
+            // Subtle haptic feel
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(5);
+            }
+        }
+
+        // Initialize some defaults
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.module-card');
+            // Mock selection of primary modules
+            cards[0].classList.add('selected');
+            cards[1].classList.add('selected');
+        });
+    </script>
+</body></html>
