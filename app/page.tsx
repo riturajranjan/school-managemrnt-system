@@ -1,65 +1,62 @@
-import Image from "next/image";
+import { DashboardHeader } from "@/components/shell/dashboard-header"
+import { DashboardHero } from "@/components/dashboard/dashboard-hero"
+import { BentoGrid, BentoItem } from "@/components/dashboard/bento-grid"
+import { AttendancePulseCard } from "@/components/dashboard/attendance-pulse-card"
+import { AIMorningBriefCard } from "@/components/dashboard/ai-morning-brief-card"
+import { CampusActivityCard } from "@/components/dashboard/campus-activity-card"
+import { FeeCollectionCard } from "@/components/dashboard/fee-collection-card"
+import { AcademicHealthCard } from "@/components/dashboard/academic-health-card"
+import { TodayTimetableCard } from "@/components/dashboard/today-timetable-card"
+import { TransportStatusCard } from "@/components/dashboard/transport-status-card"
+import { UpcomingEventsCard } from "@/components/dashboard/upcoming-events-card"
+import { QuickActionsCard } from "@/components/dashboard/quick-actions-card"
 
-export default function Home() {
+export default function CommandCenterPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex flex-col gap-6 pb-6">
+      <DashboardHeader
+        title="Command Center"
+        description="Here is what is happening across your campus today."
+      />
+
+      <div className="flex flex-col gap-1 pt-5 lg:hidden">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Command Center</h1>
+        <p className="text-sm text-muted-foreground">
+          Here is what is happening across your campus today.
+        </p>
+      </div>
+
+      <DashboardHero />
+
+      <BentoGrid>
+        <BentoItem className="md:col-span-2 xl:col-span-2 xl:row-span-2">
+          <AttendancePulseCard />
+        </BentoItem>
+        <BentoItem className="md:col-span-2 xl:col-span-2">
+          <AIMorningBriefCard />
+        </BentoItem>
+        <BentoItem className="xl:row-span-2">
+          <CampusActivityCard />
+        </BentoItem>
+        <BentoItem>
+          <FeeCollectionCard />
+        </BentoItem>
+        <BentoItem className="md:col-span-2 xl:col-span-2">
+          <AcademicHealthCard />
+        </BentoItem>
+        <BentoItem>
+          <TodayTimetableCard />
+        </BentoItem>
+        <BentoItem>
+          <TransportStatusCard />
+        </BentoItem>
+        <BentoItem className="md:col-span-2">
+          <UpcomingEventsCard />
+        </BentoItem>
+        <BentoItem className="md:col-span-2">
+          <QuickActionsCard />
+        </BentoItem>
+      </BentoGrid>
     </div>
-  );
+  )
 }
