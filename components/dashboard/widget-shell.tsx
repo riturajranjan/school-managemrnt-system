@@ -3,6 +3,13 @@
 import { AlertTriangle, Inbox, RefreshCw, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+// Shared header/footer action button: a real 44px tap target on touch
+// viewports (below sm), collapsing to the compact desktop size at sm+ where
+// pointer precision doesn't need it. active:scale gives the "subtle press"
+// feedback the mobile interaction spec calls for, without any hover reliance.
+export const widgetActionButtonClass =
+  "flex min-h-11 items-center gap-xs rounded-md px-sm text-xs font-medium text-primary outline-none transition-colors active:scale-[0.97] hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:py-1";
+
 export function WidgetShell({
   title,
   icon: Icon,
@@ -75,11 +82,7 @@ function WidgetError({ message, onRetry }: { message?: string; onRetry?: () => v
       <p className="text-sm font-medium text-foreground">Couldn&apos;t load this widget</p>
       {message && <p className="max-w-xs text-xs text-muted-foreground">{message}</p>}
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-xs flex items-center gap-xs rounded-md px-sm py-1 text-xs font-medium text-primary outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <button type="button" onClick={onRetry} className={`mt-xs ${widgetActionButtonClass}`}>
           <RefreshCw className="size-3.5" aria-hidden="true" />
           Retry
         </button>

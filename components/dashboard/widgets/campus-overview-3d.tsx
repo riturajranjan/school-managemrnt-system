@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { fetchCampusOverview } from "../data/mock-data";
 import { useWidgetData } from "../use-widget-data";
-import { WidgetShell } from "../widget-shell";
+import { WidgetShell, widgetActionButtonClass } from "../widget-shell";
 import type { CampusZone } from "../data/types";
 
 // The interactive CSS-3D stage is dynamically imported (client-only, no SSR)
@@ -46,7 +46,7 @@ export function CampusOverview3DWidget() {
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="flex items-center gap-xs rounded-md px-sm py-1 text-xs font-medium text-primary outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+            className={widgetActionButtonClass}
           >
             <Maximize2 className="size-3.5" aria-hidden="true" />
             Expand
@@ -74,7 +74,7 @@ export function CampusOverview3DWidget() {
                   style={{ gridColumnStart: zone.col + 1, gridRowStart: zone.row + 1 }}
                   className={`flex flex-col items-center justify-center gap-0.5 rounded-md px-1 py-sm text-center ${PREVIEW_FILL[zone.status]}`}
                 >
-                  <span className="truncate text-[10px] font-medium leading-tight">{zone.name}</span>
+                  <span className="truncate text-xs font-medium leading-tight">{zone.name}</span>
                   <span className="text-xs font-bold">{zone.occupancyPercent}%</span>
                 </div>
               ))}
@@ -107,7 +107,7 @@ export function CampusOverview3DWidget() {
                   <div className="flex items-center justify-between border-b border-border px-md py-sm">
                     <Dialog.Title className="text-sm font-semibold text-foreground">3D Campus Overview</Dialog.Title>
                     <Dialog.Close
-                      className="flex size-9 items-center justify-center rounded-pill text-muted-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex size-11 items-center justify-center rounded-pill text-muted-foreground outline-none transition-colors active:scale-[0.97] hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring sm:size-9"
                       aria-label="Close"
                     >
                       <X className="size-[18px]" aria-hidden="true" />

@@ -7,23 +7,26 @@
 
 :root {
   /* ---- Light theme ---- */
-  --background: #f4f8fb;
+  /* Background sits a deliberate step below surface (was #f4f8fb, ~1.07:1
+     against white — barely perceptible). Card separation must read from the
+     page itself, not from shadow alone, or the UI feels washed out. */
+  --background: #e9eff4;
   --foreground: #102532;
 
   --surface: #ffffff;
   --surface-elevated: #ffffff;
-  --surface-secondary: #eef4f7;
+  --surface-secondary: #dde7ed;
 
-  --muted: #eef4f7;
+  --muted: #dde7ed;
   --muted-foreground: #647784;
 
-  --border: rgba(2, 44, 67, 0.12);
-  --input: rgba(2, 44, 67, 0.18);
+  --border: rgba(2, 44, 67, 0.16);
+  --input: rgba(2, 44, 67, 0.24);
   --ring: #18b0c8;
 
   --primary: #087d95;
   --primary-foreground: #ffffff;
-  --secondary: #eef4f7;
+  --secondary: #dde7ed;
   --secondary-foreground: #102532;
   --accent: #18b0c8;
   --accent-foreground: #022c43;
@@ -77,20 +80,23 @@
   --background: #061923;
   --foreground: #edf9fc;
 
-  --surface: #0b2531;
-  --surface-elevated: #0e2c39;
-  --surface-secondary: #102f3c;
+  /* Surface lifted a step further off the background (was #0b2531, ~1.13:1)
+     so card hierarchy reads without leaning on the border alone. Background
+     itself is untouched — it's already a deep navy, not pure black. */
+  --surface: #0d2a37;
+  --surface-elevated: #102f3d;
+  --surface-secondary: #123847;
 
-  --muted: #102f3c;
+  --muted: #123847;
   --muted-foreground: #98adb6;
 
-  --border: rgba(112, 215, 230, 0.14);
-  --input: rgba(112, 215, 230, 0.2);
+  --border: rgba(112, 215, 230, 0.18);
+  --input: rgba(112, 215, 230, 0.26);
   --ring: #4fd1e1;
 
   --primary: #18b0c8;
   --primary-foreground: #022c43;
-  --secondary: #102f3c;
+  --secondary: #123847;
   --secondary-foreground: #edf9fc;
   --accent: #4fd1e1;
   --accent-foreground: #022c43;
@@ -269,7 +275,7 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
+    width: 3px;
     height: 10px;
   }
 

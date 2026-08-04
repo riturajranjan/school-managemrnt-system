@@ -30,7 +30,12 @@ export function MobileHeader() {
         >
           N
         </span>
-        <h1 className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-foreground">{pageLabel}</h1>
+        {/* Not a heading: the page's real <h1> lives in the page content below.
+            The button's aria-label already carries this text for a11y — this
+            span is the visual label only, so the document keeps exactly one h1. */}
+        <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-foreground" aria-hidden="true">
+          {pageLabel}
+        </span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </button>
       <div className="flex shrink-0 items-center gap-1">

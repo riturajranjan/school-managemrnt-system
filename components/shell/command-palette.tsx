@@ -30,7 +30,7 @@ export function CommandPaletteTrigger({ variant = "header" }: { variant?: "heade
     <button
       type="button"
       onClick={() => setCommandPaletteOpen(true)}
-      className="flex min-h-9 w-40 items-center gap-sm rounded-pill border border-border bg-surface px-md py-xs text-sm text-muted-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring xl:w-64"
+      className="flex min-h-9 w-40 items-center gap-sm rounded-pill border border-input bg-surface px-md py-xs text-sm text-muted-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring xl:w-64"
     >
       <Search className="size-4 shrink-0" aria-hidden="true" />
       <span className="hidden flex-1 text-left xl:inline">Search…</span>

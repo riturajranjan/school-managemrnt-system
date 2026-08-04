@@ -1,8 +1,18 @@
 "use client";
 
-import { Check, Inbox } from "lucide-react";
+import {
+  Award,
+  Check,
+  FileBadge,
+  Inbox,
+  ShoppingCart,
+  UserPlus,
+  Wallet,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useState } from "react";
-import type { ActionInboxItem, PriorityLevel } from "../data/types";
+import type { ActionCategory, ActionInboxItem, PriorityLevel } from "../data/types";
 import { fetchActionInbox } from "../data/mock-data";
 import { DetailDrawer } from "../detail-drawer";
 import { toneClasses } from "../tone";
@@ -15,16 +25,36 @@ const PRIORITY_TONE: Record<PriorityLevel, keyof typeof toneClasses> = {
   low: "neutral",
 };
 
+const CATEGORY_LABEL: Record<ActionCategory, string> = {
+  leave: "Leave request",
+  admission: "Admission approval",
+  "fee-concession": "Fee concession",
+  certificate: "Certificate",
+  "result-publication": "Result publication",
+  purchase: "Purchase approval",
+};
+
+const CATEGORY_ICON: Record<ActionCategory, LucideIcon> = {
+  leave: Check,
+  admission: UserPlus,
+  "fee-concession": Wallet,
+  certificate: FileBadge,
+  "result-publication": Award,
+  purchase: ShoppingCart,
+};
+
+type ResolutionMap = Record<string, "approved" | "rejected">;
+
 export function ActionInboxWidget() {
   const state = useWidgetData(fetchActionInbox);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+  const [resolutions, setResolutions] = useState<ResolutionMap>({});
 
-  const items = state.status === "ready" ? state.data.items.filter((item) => !resolvedIds.has(item.id)) : [];
+  const items = state.status === "ready" ? state.data.items.filter((item) => !resolutions[item.id]) : [];
   const selected = items.find((item) => item.id === selectedId) ?? null;
 
-  function resolve(id: string) {
-    setResolvedIds((prev) => new Set(prev).add(id));
+  function resolve(id: string, outcome: "approved" | "rejected") {
+    setResolutions((prev) => ({ ...prev, [id]: outcome }));
     setSelectedId(null);
   }
 
@@ -47,24 +77,32 @@ export function ActionInboxWidget() {
           ) : undefined
         }
       >
-        <ul className="flex h-full flex-col gap-0.5">
-          {items.slice(0, 5).map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(item.id)}
-                className="flex w-full min-h-11 items-center gap-sm rounded-md px-xs py-1 text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span
-                  className={`shrink-0 rounded-pill px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${toneClasses[PRIORITY_TONE[item.priority]].soft}`}
+        <ul className="flex h-full flex-col gap-0.5 overflow-y-auto">
+          {items.slice(0, 6).map((item) => {
+            const CategoryIcon = CATEGORY_ICON[item.category];
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  className="flex w-full min-h-11 items-start gap-sm rounded-md px-xs py-1 text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {item.priority}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.title}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{item.dueLabel}</span>
-              </button>
-            </li>
-          ))}
+                  <CategoryIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-xs">
+                      <span
+                        className={`shrink-0 rounded-pill px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${toneClasses[PRIORITY_TONE[item.priority]].soft}`}
+                      >
+                        {item.priority}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.title}</span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{item.dueLabel}</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </WidgetShell>
 
@@ -77,17 +115,19 @@ export function ActionInboxWidget() {
             <div className="flex gap-sm">
               <button
                 type="button"
-                onClick={() => resolve(selected.id)}
-                className="flex-1 rounded-md bg-primary px-sm py-xs text-sm font-medium text-primary-foreground outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => resolve(selected.id, "approved")}
+                className="flex min-h-11 flex-1 items-center justify-center gap-xs rounded-md bg-primary px-sm text-sm font-medium text-primary-foreground outline-none transition-colors active:scale-[0.97] hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
               >
+                <Check className="size-4 shrink-0" aria-hidden="true" />
                 Approve
               </button>
               <button
                 type="button"
-                onClick={() => resolve(selected.id)}
-                className="flex-1 rounded-md border border-border px-sm py-xs text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => resolve(selected.id, "rejected")}
+                className="flex min-h-11 flex-1 items-center justify-center gap-xs rounded-md border border-border px-sm text-sm font-medium text-error outline-none transition-colors active:scale-[0.97] hover:bg-error/10 focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Dismiss
+                <X className="size-4 shrink-0" aria-hidden="true" />
+                Reject
               </button>
             </div>
           )
@@ -100,6 +140,7 @@ export function ActionInboxWidget() {
 }
 
 function ActionItemDetail({ item }: { item: ActionInboxItem }) {
+  const CategoryIcon = CATEGORY_ICON[item.category];
   return (
     <div className="flex flex-col gap-md">
       <div className="flex items-center gap-xs">
@@ -108,7 +149,10 @@ function ActionItemDetail({ item }: { item: ActionInboxItem }) {
         >
           {item.priority} priority
         </span>
-        <span className="text-xs text-muted-foreground">{item.category}</span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <CategoryIcon className="size-3.5 shrink-0" aria-hidden="true" />
+          {CATEGORY_LABEL[item.category]}
+        </span>
       </div>
       <p className="text-sm text-foreground">{item.description}</p>
       <dl className="flex flex-col gap-xs text-sm">

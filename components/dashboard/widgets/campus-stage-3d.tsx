@@ -70,7 +70,7 @@ export function CampusStage3D({ zones }: { zones: CampusZone[] }) {
               <div
                 className={`flex size-full flex-col items-center justify-center gap-0.5 rounded-md border-2 border-b-[6px] text-center shadow-[0_10px_18px_-6px_rgba(2,10,20,0.45)] ${STATUS_FILL[zone.status]} ${STATUS_EDGE[zone.status]}`}
               >
-                <span className="px-1 text-[10px] font-semibold leading-tight text-foreground">{zone.name}</span>
+                <span className="px-1 text-xs font-semibold leading-tight text-foreground">{zone.name}</span>
                 <span className="text-xs font-bold text-foreground">{zone.occupancyPercent}%</span>
               </div>
             </div>
@@ -80,7 +80,7 @@ export function CampusStage3D({ zones }: { zones: CampusZone[] }) {
         <button
           type="button"
           onClick={() => rotateZ.set(-8)}
-          className="absolute bottom-sm right-sm flex items-center gap-xs rounded-pill border border-border bg-surface px-sm py-1 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute bottom-sm right-sm flex min-h-11 items-center gap-xs rounded-pill border border-border bg-surface px-sm text-xs font-medium text-muted-foreground outline-none transition-colors active:scale-[0.97] hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:py-1"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" />
           Reset view

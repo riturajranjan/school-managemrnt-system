@@ -80,7 +80,7 @@ export function MobileSearchScreen() {
                   >
                     <ArrowLeft className="size-5" aria-hidden="true" />
                   </button>
-                  <div className="flex min-h-11 flex-1 items-center gap-sm rounded-pill border border-border bg-surface px-md">
+                  <div className="flex min-h-11 flex-1 items-center gap-sm rounded-pill border border-input bg-surface px-md">
                     {tab === "search" ? (
                       <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     ) : (

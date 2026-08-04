@@ -19,6 +19,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ShellProvider>
       <TooltipProvider delayDuration={200} skipDelayDuration={100}>
+        {/* Keyboard users would otherwise tab through the full sidebar nav
+            (and header controls) on every page before reaching content. */}
+        <a
+          href="#main-content"
+          className="sr-only rounded-md bg-primary px-md py-sm text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
+        >
+          Skip to main content
+        </a>
+
         <div className="flex h-dvh w-full overflow-hidden bg-background">
           <Sidebar />
           <TabletDrawer />
@@ -28,7 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Header />
             <MobileHeader />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden outline-none">
               <PageTransition>
                 <div className="w-full px-md py-md pb-[calc(var(--mobile-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] sm:px-lg sm:py-lg md:pb-lg">
                   {children}

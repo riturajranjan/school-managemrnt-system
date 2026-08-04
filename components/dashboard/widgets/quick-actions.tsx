@@ -2,6 +2,7 @@
 
 import { Zap } from "lucide-react";
 import { createActions } from "@/components/shell/nav-config";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Mobile-only launcher — reuses the same action set as the header's quick-create
 // menu (components/shell/nav-config.ts) rather than a second hardcoded list.
@@ -14,16 +15,20 @@ export function QuickActionsWidget() {
         <Zap className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         Quick Actions
       </h2>
-      <div className="grid grid-cols-2 gap-xs">
+      <div className="flex flex-wrap gap-xs" role="group" aria-label="Quick actions">
         {createActions.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            className="flex min-h-11 items-center gap-xs rounded-md border border-border px-sm text-left text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="truncate">{label}</span>
-          </button>
+          <Tooltip key={key}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={label}
+                className="flex size-11 shrink-0 items-center justify-center rounded-md border border-border text-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Icon className="size-4.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+          </Tooltip>
         ))}
       </div>
     </section>
