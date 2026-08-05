@@ -1,6 +1,7 @@
 export type UserRole =
   | "super-admin"
   | "principal"
+  | "academic-coordinator"
   | "admission-officer"
   | "administrator"
   | "teacher"
@@ -11,6 +12,7 @@ export type UserRole =
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
   principal: "Principal",
+  "academic-coordinator": "Academic Coordinator",
   "admission-officer": "Admission Officer",
   administrator: "Administrator",
   teacher: "Teacher",
@@ -39,7 +41,29 @@ export type Permission =
   | "parents.view"
   | "parents.manage"
   | "parents.managePortal"
-  | "communication.send";
+  | "communication.send"
+  // Phase 3 — academics
+  | "academics.view"
+  | "academics.manageClasses"
+  | "academics.manageSubjects"
+  | "academics.manageCurriculum"
+  | "lessonPlans.create"
+  | "lessonPlans.approve"
+  | "homework.manage"
+  | "homework.submit"
+  | "attendance.markOwn"
+  | "attendance.markAny"
+  | "attendance.viewOwn"
+  | "attendance.viewAny"
+  | "attendance.configureRules"
+  | "leave.submit"
+  | "leave.approve"
+  | "staffAttendance.view"
+  | "staffAttendance.manage"
+  | "timetable.view"
+  | "timetable.manage"
+  | "timetable.publish"
+  | "calendar.manage";
 
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
@@ -66,6 +90,26 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "parents.manage",
     "parents.managePortal",
     "communication.send",
+    "academics.view",
+    "academics.manageClasses",
+    "academics.manageSubjects",
+    "academics.manageCurriculum",
+    "lessonPlans.create",
+    "lessonPlans.approve",
+    "homework.manage",
+    "attendance.markOwn",
+    "attendance.markAny",
+    "attendance.viewOwn",
+    "attendance.viewAny",
+    "attendance.configureRules",
+    "leave.submit",
+    "leave.approve",
+    "staffAttendance.view",
+    "staffAttendance.manage",
+    "timetable.view",
+    "timetable.manage",
+    "timetable.publish",
+    "calendar.manage",
   ],
   principal: [
     "admissions.view",
@@ -79,6 +123,33 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "fees.view",
     "parents.view",
     "parents.manage",
+    "communication.send",
+    "academics.view",
+    "lessonPlans.approve",
+    "homework.manage",
+    "attendance.viewAny",
+    "attendance.configureRules",
+    "leave.approve",
+    "staffAttendance.view",
+    "timetable.view",
+    "timetable.publish",
+    "calendar.manage",
+  ],
+  "academic-coordinator": [
+    "students.view",
+    "academics.view",
+    "academics.manageClasses",
+    "academics.manageSubjects",
+    "academics.manageCurriculum",
+    "lessonPlans.create",
+    "lessonPlans.approve",
+    "homework.manage",
+    "attendance.viewAny",
+    "attendance.configureRules",
+    "timetable.view",
+    "timetable.manage",
+    "timetable.publish",
+    "calendar.manage",
     "communication.send",
   ],
   "admission-officer": [
@@ -106,11 +177,31 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "parents.manage",
     "parents.managePortal",
     "communication.send",
+    "academics.view",
+    "academics.manageClasses",
+    "academics.manageSubjects",
+    "attendance.viewAny",
+    "leave.approve",
+    "staffAttendance.view",
+    "staffAttendance.manage",
+    "timetable.view",
+    "calendar.manage",
   ],
-  teacher: ["students.view", "documents.upload", "communication.send"],
+  teacher: [
+    "students.view",
+    "documents.upload",
+    "communication.send",
+    "academics.view",
+    "lessonPlans.create",
+    "homework.manage",
+    "attendance.markOwn",
+    "attendance.viewOwn",
+    "leave.submit",
+    "timetable.view",
+  ],
   accountant: ["students.view", "fees.view", "fees.record", "parents.view"],
-  parent: ["students.view", "fees.view", "communication.send"],
-  student: ["students.view"],
+  parent: ["students.view", "fees.view", "communication.send", "academics.view", "attendance.viewOwn", "timetable.view", "homework.submit"],
+  student: ["students.view", "academics.view", "attendance.viewOwn", "timetable.view", "homework.submit"],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -124,6 +215,7 @@ export function hasAnyPermission(role: UserRole, permissions: Permission[]): boo
 export const allRoles: UserRole[] = [
   "super-admin",
   "principal",
+  "academic-coordinator",
   "admission-officer",
   "administrator",
   "teacher",

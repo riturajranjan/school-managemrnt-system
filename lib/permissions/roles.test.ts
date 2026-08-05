@@ -38,6 +38,39 @@ describe("hasPermission", () => {
   });
 });
 
+describe("Phase 3 academic permissions", () => {
+  it("lets an academic coordinator manage curriculum, timetable and lesson-plan approvals", () => {
+    expect(hasPermission("academic-coordinator", "academics.manageCurriculum")).toBe(true);
+    expect(hasPermission("academic-coordinator", "timetable.manage")).toBe(true);
+    expect(hasPermission("academic-coordinator", "lessonPlans.approve")).toBe(true);
+  });
+
+  it("lets a teacher manage assigned classes, attendance, lesson plans and homework but not approve their own plans", () => {
+    expect(hasPermission("teacher", "attendance.markOwn")).toBe(true);
+    expect(hasPermission("teacher", "lessonPlans.create")).toBe(true);
+    expect(hasPermission("teacher", "homework.manage")).toBe(true);
+    expect(hasPermission("teacher", "lessonPlans.approve")).toBe(false);
+  });
+
+  it("keeps an accountant from confidential staff attendance unless explicitly granted", () => {
+    expect(hasPermission("accountant", "staffAttendance.view")).toBe(false);
+  });
+
+  it("restricts a parent to their own linked children's academic information", () => {
+    expect(hasPermission("parent", "academics.view")).toBe(true);
+    expect(hasPermission("parent", "attendance.viewOwn")).toBe(true);
+    expect(hasPermission("parent", "attendance.viewAny")).toBe(false);
+  });
+
+  it("lets a student view only their own timetable, homework and attendance", () => {
+    expect(hasPermission("student", "timetable.view")).toBe(true);
+    expect(hasPermission("student", "homework.submit")).toBe(true);
+    expect(hasPermission("student", "attendance.viewOwn")).toBe(true);
+    expect(hasPermission("student", "attendance.viewAny")).toBe(false);
+    expect(hasPermission("student", "academics.manageClasses")).toBe(false);
+  });
+});
+
 describe("hasAnyPermission", () => {
   it("returns true if the role has at least one of the listed permissions", () => {
     expect(hasAnyPermission("teacher", ["admissions.approve", "students.view"])).toBe(true);

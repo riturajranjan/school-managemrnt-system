@@ -2,8 +2,38 @@ import type { AdmissionApplication } from "@/lib/types/admissions";
 import type { Guardian, ParentAccount, Student, StudentGuardianLink } from "@/lib/types/students";
 import type { ImportJob } from "@/lib/types/import";
 import type { SavedView } from "@/lib/types/views";
+import type {
+  AcademicEvent,
+  CurriculumUnit,
+  Homework,
+  HomeworkSubmission,
+  LessonPlan,
+  ManagedClass,
+  Room,
+  StudentSupportAlert,
+  Subject,
+  SubjectAssignment,
+  Teacher,
+} from "@/lib/types/academics";
+import type { AttendanceRule, AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
+import type { Timetable } from "@/lib/types/timetable";
 import { generateAdmissionApplications } from "./seed/admissions";
 import { generateStudents } from "./seed/students";
+import {
+  academicEvents,
+  curriculumUnits,
+  generateHomeworkSubmissions,
+  generateStudentSupportAlerts,
+  homeworkList,
+  lessonPlans,
+  managedClasses,
+  rooms,
+  subjectAssignments,
+  subjects,
+  teachers,
+} from "./seed/academics";
+import { attendanceRules, generateAttendanceSessions, leaveRequests, staffAttendanceToday } from "./seed/attendance";
+import { timetables } from "./seed/timetable";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -13,14 +43,58 @@ export type Db = {
   parentAccounts: ParentAccount[];
   importJobs: ImportJob[];
   savedViews: SavedView[];
+  classes: ManagedClass[];
+  teachers: Teacher[];
+  rooms: Room[];
+  subjects: Subject[];
+  subjectAssignments: SubjectAssignment[];
+  curriculumUnits: CurriculumUnit[];
+  lessonPlans: LessonPlan[];
+  homework: Homework[];
+  homeworkSubmissions: HomeworkSubmission[];
+  academicEvents: AcademicEvent[];
+  studentSupportAlerts: StudentSupportAlert[];
+  attendanceSessions: AttendanceSession[];
+  attendanceRules: AttendanceRule[];
+  leaveRequests: LeaveRequest[];
+  staffAttendance: StaffAttendance[];
+  timetables: Timetable[];
 };
 
-const STORAGE_KEY = "novyra-sis-store-v1";
+const STORAGE_KEY = "novyra-sis-store-v2";
 
 function buildSeedDb(): Db {
   const applications = generateAdmissionApplications();
   const { students, guardians, studentGuardianLinks, parentAccounts } = generateStudents();
-  return { applications, students, guardians, studentGuardianLinks, parentAccounts, importJobs: [], savedViews: [] };
+  const homeworkSubmissions = generateHomeworkSubmissions(students, homeworkList);
+  const studentSupportAlerts = generateStudentSupportAlerts(students);
+  const attendanceSessions = generateAttendanceSessions(students);
+
+  return {
+    applications,
+    students,
+    guardians,
+    studentGuardianLinks,
+    parentAccounts,
+    importJobs: [],
+    savedViews: [],
+    classes: structuredClone(managedClasses),
+    teachers,
+    rooms,
+    subjects,
+    subjectAssignments,
+    curriculumUnits,
+    lessonPlans,
+    homework: homeworkList,
+    homeworkSubmissions,
+    academicEvents,
+    studentSupportAlerts,
+    attendanceSessions,
+    attendanceRules,
+    leaveRequests,
+    staffAttendance: staffAttendanceToday,
+    timetables,
+  };
 }
 
 // Seeded deterministically so the very first server-rendered HTML and the
@@ -59,7 +133,7 @@ export function hydrateFromStorage() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Db;
-    if (parsed && Array.isArray(parsed.applications) && Array.isArray(parsed.students)) {
+    if (parsed && Array.isArray(parsed.applications) && Array.isArray(parsed.students) && Array.isArray(parsed.classes)) {
       state = parsed;
       notify();
     }

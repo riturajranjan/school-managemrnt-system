@@ -22,15 +22,10 @@ export type AiBriefData = {
   insights: AiInsight[];
 };
 
-export type PulseFactorKey =
-  | "attendance"
-  | "fees"
-  | "academics"
-  | "staff"
-  | "parentEngagement"
-  | "transport"
-  | "approvals"
-  | "issues";
+// Widened to `string` (was a closed union of School Pulse's 8 factors) so
+// PulseGauge/PulseFactor can be reused for other composite scores — e.g.
+// Phase 3's Academic Pulse — without inventing a parallel gauge component.
+export type PulseFactorKey = string;
 
 export type PulseFactor = {
   key: PulseFactorKey;

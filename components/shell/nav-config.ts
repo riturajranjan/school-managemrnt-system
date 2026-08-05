@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  BookOpenCheck,
   Boxes,
   Briefcase,
   Bus,
@@ -12,7 +13,9 @@ import {
   CalendarCheck,
   CalendarClock,
   CalendarPlus,
+  CalendarRange,
   ClipboardCheck,
+  ClipboardList,
   DoorOpen,
   FileBadge,
   FileText,
@@ -54,7 +57,7 @@ export const navGroups: NavGroup[] = [
     label: "Main",
     items: [
       { key: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
-      { key: "my-day", label: "My Day", href: "/my-day", icon: CalendarCheck },
+      { key: "my-day", label: "My Day", href: "/teacher/my-day", icon: CalendarCheck },
       { key: "action-inbox", label: "Action Inbox", href: "/inbox", icon: Inbox, badge: 5 },
       { key: "calendar", label: "Calendar", href: "/calendar", icon: Calendar },
       { key: "notifications", label: "Notifications", href: "/notifications", icon: Bell, badge: 3 },
@@ -66,7 +69,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { key: "students", label: "Students", href: "/students", icon: GraduationCap },
       { key: "parents", label: "Parents", href: "/parents", icon: Users },
-      { key: "teachers", label: "Teachers", href: "/people/teachers", icon: Presentation },
+      { key: "teachers", label: "Teachers", href: "/teachers", icon: Presentation },
       { key: "staff", label: "Staff", href: "/people/staff", icon: Briefcase },
       { key: "admissions", label: "Admissions", href: "/admissions", icon: UserPlus },
       { key: "visitors", label: "Visitors", href: "/people/visitors", icon: DoorOpen },
@@ -76,11 +79,15 @@ export const navGroups: NavGroup[] = [
     key: "academics",
     label: "Academics",
     items: [
+      { key: "academics-home", label: "Academics", href: "/academics", icon: LayoutDashboard },
       { key: "classes", label: "Classes", href: "/academics/classes", icon: Presentation },
       { key: "subjects", label: "Subjects", href: "/academics/subjects", icon: NotebookPen },
+      { key: "curriculum", label: "Curriculum", href: "/academics/curriculum", icon: BookOpenCheck },
+      { key: "lesson-plans", label: "Lesson Plans", href: "/academics/lesson-plans", icon: ClipboardList },
       { key: "timetable", label: "Timetable", href: "/academics/timetable", icon: CalendarClock },
-      { key: "attendance", label: "Attendance", href: "/academics/attendance", icon: ClipboardCheck },
+      { key: "attendance", label: "Attendance", href: "/attendance", icon: ClipboardCheck },
       { key: "homework", label: "Homework", href: "/academics/homework", icon: FileText },
+      { key: "calendar-academic", label: "Academic Calendar", href: "/academics/calendar", icon: CalendarRange },
       { key: "exams", label: "Exams", href: "/academics/exams", icon: FileBadge },
       { key: "results", label: "Results", href: "/academics/results", icon: Award },
     ],
@@ -117,9 +124,9 @@ export const allNavItems = navGroups.flatMap((group) => group.items);
 // not a subset toggle, since the full IA is too deep to flatten onto 5 tabs.
 export const mobileBottomNavItems: NavItem[] = [
   { key: "home", label: "Home", href: "/", icon: LayoutDashboard },
-  { key: "my-day", label: "My Day", href: "/my-day", icon: CalendarCheck },
+  { key: "my-day", label: "My Day", href: "/teacher/my-day", icon: CalendarCheck },
   { key: "people", label: "People", href: "/students", icon: Users },
-  { key: "academics", label: "Academics", href: "/academics/classes", icon: Presentation },
+  { key: "academics", label: "Academics", href: "/academics", icon: Presentation },
 ];
 
 export const createActions = [
