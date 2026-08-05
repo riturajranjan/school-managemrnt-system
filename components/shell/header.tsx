@@ -7,6 +7,7 @@ import { Breadcrumb } from "./breadcrumb";
 import { CommandPaletteTrigger } from "./command-palette";
 import { NotificationTrigger } from "./notification-trigger";
 import { QuickCreateButton } from "./quick-create-button";
+import { RoleSwitcher } from "./role-switcher";
 import { SchoolSwitcher } from "./school-switcher";
 import { SessionSelector } from "./session-selector";
 import { UserMenu } from "./user-menu";
@@ -27,6 +28,9 @@ export function Header() {
           <BranchSwitcher />
         </div>
         <SessionSelector />
+        <div className="hidden xl:block">
+          <RoleSwitcher />
+        </div>
 
         <div className="hidden xl:block">
           <CommandPaletteTrigger />

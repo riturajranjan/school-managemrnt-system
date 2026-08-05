@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/shell/app-shell";
+import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
 
@@ -41,7 +42,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AppShell>{children}</AppShell>
+          <PermissionsProvider>
+            <AppShell>{children}</AppShell>
+          </PermissionsProvider>
         </ThemeProvider>
       </body>
     </html>

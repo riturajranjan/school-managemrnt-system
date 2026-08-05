@@ -64,11 +64,11 @@ export const navGroups: NavGroup[] = [
     key: "people",
     label: "People",
     items: [
-      { key: "students", label: "Students", href: "/people/students", icon: GraduationCap },
-      { key: "parents", label: "Parents", href: "/people/parents", icon: Users },
+      { key: "students", label: "Students", href: "/students", icon: GraduationCap },
+      { key: "parents", label: "Parents", href: "/parents", icon: Users },
       { key: "teachers", label: "Teachers", href: "/people/teachers", icon: Presentation },
       { key: "staff", label: "Staff", href: "/people/staff", icon: Briefcase },
-      { key: "admissions", label: "Admissions", href: "/people/admissions", icon: UserPlus },
+      { key: "admissions", label: "Admissions", href: "/admissions", icon: UserPlus },
       { key: "visitors", label: "Visitors", href: "/people/visitors", icon: DoorOpen },
     ],
   },
@@ -118,7 +118,7 @@ export const allNavItems = navGroups.flatMap((group) => group.items);
 export const mobileBottomNavItems: NavItem[] = [
   { key: "home", label: "Home", href: "/", icon: LayoutDashboard },
   { key: "my-day", label: "My Day", href: "/my-day", icon: CalendarCheck },
-  { key: "people", label: "People", href: "/people/students", icon: Users },
+  { key: "people", label: "People", href: "/students", icon: Users },
   { key: "academics", label: "Academics", href: "/academics/classes", icon: Presentation },
 ];
 
