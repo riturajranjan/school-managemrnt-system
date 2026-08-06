@@ -71,6 +71,58 @@ describe("Phase 3 academic permissions", () => {
   });
 });
 
+describe("Phase 4 examination permissions", () => {
+  it("gives the examination controller full control of the exam pipeline", () => {
+    expect(hasPermission("examination-controller", "exams.create")).toBe(true);
+    expect(hasPermission("examination-controller", "exams.manageSchedule")).toBe(true);
+    expect(hasPermission("examination-controller", "marks.lock")).toBe(true);
+    expect(hasPermission("examination-controller", "results.calculate")).toBe(true);
+    expect(hasPermission("examination-controller", "results.publish")).toBe(true);
+    expect(hasPermission("examination-controller", "reportCards.generate")).toBe(true);
+  });
+
+  it("lets a teacher enter and submit marks but not verify, calculate, or publish results", () => {
+    expect(hasPermission("teacher", "marks.enter")).toBe(true);
+    expect(hasPermission("teacher", "marks.verify")).toBe(true);
+    expect(hasPermission("teacher", "marks.approve")).toBe(false);
+    expect(hasPermission("teacher", "results.calculate")).toBe(false);
+    expect(hasPermission("teacher", "results.publish")).toBe(false);
+  });
+
+  it("lets the principal approve and publish but not enter marks or manage schedules", () => {
+    expect(hasPermission("principal", "marks.approve")).toBe(true);
+    expect(hasPermission("principal", "results.publish")).toBe(true);
+    expect(hasPermission("principal", "promotion.approve")).toBe(true);
+    expect(hasPermission("principal", "marks.enter")).toBe(false);
+    expect(hasPermission("principal", "exams.manageSchedule")).toBe(false);
+  });
+
+  it("restricts students and parents to viewing their own exams, results and report cards only", () => {
+    for (const role of ["student", "parent"] as const) {
+      expect(hasPermission(role, "exams.view")).toBe(true);
+      expect(hasPermission(role, "results.view")).toBe(true);
+      expect(hasPermission(role, "reportCards.view")).toBe(true);
+      expect(hasPermission(role, "results.viewAnalytics")).toBe(false);
+      expect(hasPermission(role, "marks.enter")).toBe(false);
+      expect(hasPermission(role, "results.publish")).toBe(false);
+      expect(hasPermission(role, "promotion.run")).toBe(false);
+    }
+  });
+
+  it("keeps promotion execution limited to coordinator, controller and super-admin", () => {
+    expect(hasPermission("academic-coordinator", "promotion.run")).toBe(true);
+    expect(hasPermission("examination-controller", "promotion.run")).toBe(true);
+    expect(hasPermission("super-admin", "promotion.run")).toBe(true);
+    expect(hasPermission("teacher", "promotion.run")).toBe(false);
+    expect(hasPermission("accountant", "promotion.run")).toBe(false);
+  });
+
+  it("does not grant admission-officer or accountant any exam permissions", () => {
+    expect(hasAnyPermission("admission-officer", ["exams.view", "marks.enter", "results.view", "reportCards.view", "promotion.view"])).toBe(false);
+    expect(hasAnyPermission("accountant", ["exams.view", "marks.enter", "results.view", "reportCards.view", "promotion.view"])).toBe(false);
+  });
+});
+
 describe("hasAnyPermission", () => {
   it("returns true if the role has at least one of the listed permissions", () => {
     expect(hasAnyPermission("teacher", ["admissions.approve", "students.view"])).toBe(true);

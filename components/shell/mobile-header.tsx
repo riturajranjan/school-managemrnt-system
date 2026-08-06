@@ -17,7 +17,7 @@ export function MobileHeader() {
   const { setMobileContextSheetOpen, setMobileSearchOpen } = useShell();
 
   return (
-    <header className="flex h-[calc(var(--mobile-header-height)_+_env(safe-area-inset-top))] shrink-0 items-center gap-sm border-b border-border bg-surface/90 px-sm pt-[env(safe-area-inset-top)] backdrop-blur-sm md:hidden">
+    <header className="flex h-[calc(var(--mobile-header-height)_+_env(safe-area-inset-top))] shrink-0 items-center gap-sm border-b border-border bg-surface/90 px-sm pt-[env(safe-area-inset-top)] backdrop-blur-sm md:hidden print:hidden">
       <button
         type="button"
         onClick={() => setMobileContextSheetOpen(true)}

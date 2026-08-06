@@ -18,7 +18,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--mobile-bottom-nav-height)_+_env(safe-area-inset-bottom))] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--mobile-bottom-nav-height)_+_env(safe-area-inset-bottom))] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden print:hidden"
     >
       {mobileBottomNavItems.map((item) => {
         const Icon = item.icon;

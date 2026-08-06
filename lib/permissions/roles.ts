@@ -1,6 +1,7 @@
 export type UserRole =
   | "super-admin"
   | "principal"
+  | "examination-controller"
   | "academic-coordinator"
   | "admission-officer"
   | "administrator"
@@ -12,6 +13,7 @@ export type UserRole =
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
   principal: "Principal",
+  "examination-controller": "Examination Controller",
   "academic-coordinator": "Academic Coordinator",
   "admission-officer": "Admission Officer",
   administrator: "Administrator",
@@ -63,7 +65,31 @@ export type Permission =
   | "timetable.view"
   | "timetable.manage"
   | "timetable.publish"
-  | "calendar.manage";
+  | "calendar.manage"
+  // Phase 4 — examinations, marks, results, report cards, promotion
+  | "exams.view"
+  | "exams.create"
+  | "exams.manageSchedule"
+  | "exams.manageSubjects"
+  | "exams.manageAttendance"
+  | "exams.publishSchedule"
+  | "grading.manage"
+  | "marks.enter"
+  | "marks.import"
+  | "marks.verify"
+  | "marks.approve"
+  | "marks.lock"
+  | "results.view"
+  | "results.viewAnalytics"
+  | "results.calculate"
+  | "results.publish"
+  | "reportCards.view"
+  | "reportCards.manageTemplates"
+  | "reportCards.generate"
+  | "reportCards.publish"
+  | "promotion.view"
+  | "promotion.run"
+  | "promotion.approve";
 
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
@@ -110,6 +136,29 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "timetable.manage",
     "timetable.publish",
     "calendar.manage",
+    "exams.view",
+    "exams.create",
+    "exams.manageSchedule",
+    "exams.manageSubjects",
+    "exams.manageAttendance",
+    "exams.publishSchedule",
+    "grading.manage",
+    "marks.enter",
+    "marks.import",
+    "marks.verify",
+    "marks.approve",
+    "marks.lock",
+    "results.view",
+    "results.viewAnalytics",
+    "results.calculate",
+    "results.publish",
+    "reportCards.view",
+    "reportCards.manageTemplates",
+    "reportCards.generate",
+    "reportCards.publish",
+    "promotion.view",
+    "promotion.run",
+    "promotion.approve",
   ],
   principal: [
     "admissions.view",
@@ -134,6 +183,42 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "timetable.view",
     "timetable.publish",
     "calendar.manage",
+    "exams.view",
+    "results.view",
+    "results.viewAnalytics",
+    "results.publish",
+    "marks.approve",
+    "reportCards.view",
+    "reportCards.publish",
+    "promotion.view",
+    "promotion.approve",
+  ],
+  "examination-controller": [
+    "students.view",
+    "academics.view",
+    "communication.send",
+    "exams.view",
+    "exams.create",
+    "exams.manageSchedule",
+    "exams.manageSubjects",
+    "exams.manageAttendance",
+    "exams.publishSchedule",
+    "grading.manage",
+    "marks.enter",
+    "marks.import",
+    "marks.verify",
+    "marks.approve",
+    "marks.lock",
+    "results.view",
+    "results.viewAnalytics",
+    "results.calculate",
+    "results.publish",
+    "reportCards.view",
+    "reportCards.manageTemplates",
+    "reportCards.generate",
+    "reportCards.publish",
+    "promotion.view",
+    "promotion.run",
   ],
   "academic-coordinator": [
     "students.view",
@@ -151,6 +236,20 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "timetable.publish",
     "calendar.manage",
     "communication.send",
+    "exams.view",
+    "exams.create",
+    "exams.manageSchedule",
+    "exams.manageSubjects",
+    "grading.manage",
+    "marks.verify",
+    "results.view",
+    "results.viewAnalytics",
+    "results.calculate",
+    "reportCards.view",
+    "reportCards.manageTemplates",
+    "reportCards.generate",
+    "promotion.view",
+    "promotion.run",
   ],
   "admission-officer": [
     "admissions.view",
@@ -186,6 +285,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "staffAttendance.manage",
     "timetable.view",
     "calendar.manage",
+    "exams.view",
+    "results.view",
+    "reportCards.view",
+    "reportCards.generate",
+    "promotion.view",
   ],
   teacher: [
     "students.view",
@@ -198,10 +302,27 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "attendance.viewOwn",
     "leave.submit",
     "timetable.view",
+    "exams.view",
+    "marks.enter",
+    "marks.import",
+    "marks.verify",
+    "results.view",
+    "reportCards.view",
   ],
   accountant: ["students.view", "fees.view", "fees.record", "parents.view"],
-  parent: ["students.view", "fees.view", "communication.send", "academics.view", "attendance.viewOwn", "timetable.view", "homework.submit"],
-  student: ["students.view", "academics.view", "attendance.viewOwn", "timetable.view", "homework.submit"],
+  parent: [
+    "students.view",
+    "fees.view",
+    "communication.send",
+    "academics.view",
+    "attendance.viewOwn",
+    "timetable.view",
+    "homework.submit",
+    "exams.view",
+    "results.view",
+    "reportCards.view",
+  ],
+  student: ["students.view", "academics.view", "attendance.viewOwn", "timetable.view", "homework.submit", "exams.view", "results.view", "reportCards.view"],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -215,6 +336,7 @@ export function hasAnyPermission(role: UserRole, permissions: Permission[]): boo
 export const allRoles: UserRole[] = [
   "super-admin",
   "principal",
+  "examination-controller",
   "academic-coordinator",
   "admission-officer",
   "administrator",

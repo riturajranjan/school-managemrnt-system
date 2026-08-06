@@ -19,7 +19,7 @@ export function Sidebar() {
   return (
     <div
       style={widthStyle}
-      className="hidden shrink-0 md:block md:w-(--sidebar-width-collapsed) lg:w-(--current-sidebar-width) lg:[perspective:1800px] transition-[width] duration-200 ease-out"
+      className="hidden shrink-0 md:block md:w-(--sidebar-width-collapsed) lg:w-(--current-sidebar-width) lg:[perspective:1800px] transition-[width] duration-200 ease-out print:hidden"
     >
       {/* Outer layer carries shape + shadow; a shadow on the same box that also
           clips (overflow-hidden, for the mesh) would itself get clipped. */}
@@ -59,7 +59,7 @@ export function Sidebar() {
 
             <div className="mx-sm h-px bg-sidebar-border/50" />
 
-            <nav className="flex flex-1 flex-col gap-xs overflow-y-auto px-sm py-sm" aria-label="Sections">
+            <nav className="flex flex-1 flex-col gap-xs overflow-y-auto px-sm pt-sm pb-md" aria-label="Sections">
               {navGroups.map((group, index) => (
                 <div key={group.key}>
                   {index > 0 && <div className="mx-sm mb-xs h-px bg-sidebar-border/30" />}
@@ -68,7 +68,7 @@ export function Sidebar() {
               ))}
             </nav>
 
-            <div className="mt-auto flex flex-col gap-xs border-t border-sidebar-border/50 px-sm py-sm">
+            <div className="mt-auto flex flex-col gap-sm border-t border-sidebar-border/50 px-sm py-sm">
               <UserMenu variant="sidebar" collapsed={sidebarCollapsed} />
               <button
                 type="button"

@@ -1,6 +1,7 @@
 import { getSnapshot, setState, type Db } from "@/lib/data/store";
 import { assignmentsForSection } from "@/lib/data/seed/academics";
-import { periodDefinitions, weekDays, type Timetable, type TimetableConflict, type TimetableSlot, type WeekDay } from "@/lib/types/timetable";
+import { isSafeToAutoResolve, suggestResolution, type SuggestedResolution } from "@/lib/selectors/timetable-conflicts";
+import { periodDefinitions, weekDays, type DismissedConflict, type Timetable, type TimetableConflict, type TimetableSlot, type WeekDay } from "@/lib/types/timetable";
 import { generateId } from "@/lib/utils";
 
 const teachingPeriods = periodDefinitions.filter((p) => !p.isBreak).map((p) => p.index);
@@ -194,6 +195,101 @@ export function proposeTimetable(sectionId: string, version = 1): ProposedTimeta
 
 export function saveProposedTimetable(timetableId: string, slots: TimetableSlot[]) {
   setState((db) => ({ ...db, timetables: db.timetables.map((t) => (t.id === timetableId ? { ...t, slots, updatedAt: new Date().toISOString() } : t)) }));
+}
+
+/** Moves a slot's assignment to a different (currently free) day/period, clearing the source. */
+export function movePeriod(timetableId: string, slotId: string, targetDay: WeekDay, targetPeriodIndex: number) {
+  setState((db) => ({
+    ...db,
+    timetables: db.timetables.map((t) => {
+      if (t.id !== timetableId) return t;
+      const source = t.slots.find((s) => s.id === slotId);
+      if (!source) return t;
+      return {
+        ...t,
+        updatedAt: new Date().toISOString(),
+        slots: t.slots.map((s) => {
+          if (s.id === slotId) return { ...s, subjectId: undefined, teacherId: undefined, roomId: undefined, slotType: "class" };
+          if (s.day === targetDay && s.periodIndex === targetPeriodIndex) {
+            return { ...s, subjectId: source.subjectId, teacherId: source.teacherId, roomId: source.roomId, slotType: source.slotType };
+          }
+          return s;
+        }),
+      };
+    }),
+  }));
+}
+
+/** Copies a slot's assignment onto another slot without clearing the source (locked targets are left untouched). */
+export function copyPeriod(timetableId: string, fromSlotId: string, toSlotId: string) {
+  setState((db) => ({
+    ...db,
+    timetables: db.timetables.map((t) => {
+      if (t.id !== timetableId) return t;
+      const source = t.slots.find((s) => s.id === fromSlotId);
+      if (!source) return t;
+      return {
+        ...t,
+        updatedAt: new Date().toISOString(),
+        slots: t.slots.map((s) => (s.id === toSlotId && !s.locked ? { ...s, subjectId: source.subjectId, teacherId: source.teacherId, roomId: source.roomId } : s)),
+      };
+    }),
+  }));
+}
+
+export function setSlotBreak(timetableId: string, slotId: string, isBreak: boolean) {
+  updateSlot(timetableId, slotId, isBreak ? { slotType: "break", subjectId: undefined, teacherId: undefined, roomId: undefined } : { slotType: "class" });
+}
+
+/** Applies a single suggested fix from suggestResolution() — the only place resolutions actually mutate the store. */
+export function applyResolution(resolution: SuggestedResolution) {
+  if (resolution.kind === "move-room") {
+    updateSlot(resolution.timetableId, resolution.slotId, { roomId: resolution.roomId });
+  } else if (resolution.kind === "move-period") {
+    movePeriod(resolution.timetableId, resolution.slotId, resolution.day, resolution.periodIndex);
+  } else if (resolution.kind === "reassign-teacher") {
+    updateSlot(resolution.timetableId, resolution.slotId, { teacherId: resolution.teacherId });
+  }
+}
+
+export function dismissConflict(conflictId: string, reason: string, dismissedBy: string) {
+  const entry: DismissedConflict = { id: generateId("dismiss"), conflictId, reason, dismissedBy, dismissedAt: new Date().toISOString() };
+  setState((db) => ({ ...db, dismissedConflicts: [entry, ...db.dismissedConflicts.filter((d) => d.conflictId !== conflictId)] }));
+}
+
+export function undismissConflict(conflictId: string) {
+  setState((db) => ({ ...db, dismissedConflicts: db.dismissedConflicts.filter((d) => d.conflictId !== conflictId) }));
+}
+
+/** Clears dismissal records whose underlying conflict no longer occurs — housekeeping for the "Dismiss resolved" action. */
+export function pruneResolvedDismissals(activeConflictIds: Set<string>) {
+  setState((db) => ({ ...db, dismissedConflicts: db.dismissedConflicts.filter((d) => activeConflictIds.has(d.conflictId)) }));
+}
+
+/** Fixes every room-double-booking conflict by moving one side to a free, type-matched room — the only conflict type it's safe to change without a human decision (see isSafeToAutoResolve). */
+export function autoResolveSafeConflicts(conflicts: TimetableConflict[], weekDaysList: readonly WeekDay[]): number {
+  let resolvedCount = 0;
+  setState((db) => {
+    let next = db;
+    for (const conflict of conflicts) {
+      if (!isSafeToAutoResolve(conflict)) continue;
+      // Re-derive the suggestion against the latest `next` so earlier fixes in this same pass are accounted for.
+      const resolution = suggestResolution(next, conflict, weekDaysList);
+      if (resolution.kind === "move-room") {
+        next = {
+          ...next,
+          timetables: next.timetables.map((t) =>
+            t.id === resolution.timetableId
+              ? { ...t, updatedAt: new Date().toISOString(), slots: t.slots.map((s) => (s.id === resolution.slotId ? { ...s, roomId: resolution.roomId } : s)) }
+              : t,
+          ),
+        };
+        resolvedCount += 1;
+      }
+    }
+    return next;
+  });
+  return resolvedCount;
 }
 
 export function createTimetableIfMissing(classId: string, sectionId: string, session: string, branchId: string): Timetable {

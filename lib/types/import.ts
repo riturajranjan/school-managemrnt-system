@@ -50,3 +50,9 @@ export const studentImportOptionalFields = [
 export type StudentImportField =
   | (typeof studentImportRequiredFields)[number]
   | (typeof studentImportOptionalFields)[number];
+
+export const marksImportRequiredFields = ["admissionNumber"] as const;
+
+export const marksImportOptionalFields = ["theory", "practical", "internal", "project", "remark"] as const;
+
+export type MarksImportField = (typeof marksImportRequiredFields)[number] | (typeof marksImportOptionalFields)[number];

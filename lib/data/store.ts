@@ -16,7 +16,13 @@ import type {
   Teacher,
 } from "@/lib/types/academics";
 import type { AttendanceRule, AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
-import type { Timetable } from "@/lib/types/timetable";
+import type { DismissedConflict, Timetable } from "@/lib/types/timetable";
+import type { DismissedExamConflict, Exam, ExamAttendanceRecord, ExamAuditEntry, ExamClass, ExamSubject } from "@/lib/types/exams";
+import type { GradingScheme, ResultRule } from "@/lib/types/grading";
+import type { MarksEntrySession, MarksVerification, StudentMark } from "@/lib/types/marks";
+import type { ReportCard, ReportCardGenerationJob, ReportCardTemplate, TeacherRemark } from "@/lib/types/report-cards";
+import type { ResultPublication, ResultVersion, StudentResult } from "@/lib/types/results";
+import type { PromotionRule, PromotionRun } from "@/lib/types/promotion";
 import { generateAdmissionApplications } from "./seed/admissions";
 import { generateStudents } from "./seed/students";
 import {
@@ -34,6 +40,7 @@ import {
 } from "./seed/academics";
 import { attendanceRules, generateAttendanceSessions, leaveRequests, staffAttendanceToday } from "./seed/attendance";
 import { timetables } from "./seed/timetable";
+import { examClasses, examSubjects, exams, generateExamStudentData, gradingSchemes, reportCardTemplates, resultRules } from "./seed/exams";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -59,6 +66,28 @@ export type Db = {
   leaveRequests: LeaveRequest[];
   staffAttendance: StaffAttendance[];
   timetables: Timetable[];
+  dismissedConflicts: DismissedConflict[];
+  // Phase 4 — examinations, marks, results, report cards, promotion
+  exams: Exam[];
+  examClasses: ExamClass[];
+  examSubjects: ExamSubject[];
+  dismissedExamConflicts: DismissedExamConflict[];
+  examAttendance: ExamAttendanceRecord[];
+  studentMarks: StudentMark[];
+  marksEntrySessions: MarksEntrySession[];
+  marksVerifications: MarksVerification[];
+  gradingSchemes: GradingScheme[];
+  resultRules: ResultRule[];
+  examResults: StudentResult[];
+  resultVersions: ResultVersion[];
+  resultPublications: ResultPublication[];
+  reportCardTemplates: ReportCardTemplate[];
+  reportCards: ReportCard[];
+  reportCardGenerationJobs: ReportCardGenerationJob[];
+  teacherRemarks: TeacherRemark[];
+  promotionRules: PromotionRule[];
+  promotionRuns: PromotionRun[];
+  examAuditLog: ExamAuditEntry[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -69,6 +98,7 @@ function buildSeedDb(): Db {
   const homeworkSubmissions = generateHomeworkSubmissions(students, homeworkList);
   const studentSupportAlerts = generateStudentSupportAlerts(students);
   const attendanceSessions = generateAttendanceSessions(students);
+  const examStudentData = generateExamStudentData(students);
 
   return {
     applications,
@@ -94,6 +124,27 @@ function buildSeedDb(): Db {
     leaveRequests,
     staffAttendance: staffAttendanceToday,
     timetables,
+    dismissedConflicts: [],
+    exams,
+    examClasses,
+    examSubjects,
+    dismissedExamConflicts: [],
+    examAttendance: examStudentData.examAttendance,
+    studentMarks: examStudentData.studentMarks,
+    marksEntrySessions: examStudentData.marksEntrySessions,
+    marksVerifications: examStudentData.marksVerifications,
+    gradingSchemes,
+    resultRules,
+    examResults: examStudentData.studentResults,
+    resultVersions: examStudentData.resultVersions,
+    resultPublications: examStudentData.resultPublications,
+    reportCardTemplates,
+    reportCards: examStudentData.reportCards,
+    reportCardGenerationJobs: [],
+    teacherRemarks: examStudentData.teacherRemarks,
+    promotionRules: [],
+    promotionRuns: [],
+    examAuditLog: [],
   };
 }
 
@@ -134,7 +185,32 @@ export function hydrateFromStorage() {
     if (!raw) return;
     const parsed = JSON.parse(raw) as Db;
     if (parsed && Array.isArray(parsed.applications) && Array.isArray(parsed.students) && Array.isArray(parsed.classes)) {
-      state = parsed;
+      // Older cached snapshots predate the conflict-dismissal feature and the whole Phase 4
+      // exams domain — backfill missing fields rather than force a full reseed.
+      state = {
+        ...parsed,
+        dismissedConflicts: parsed.dismissedConflicts ?? [],
+        exams: parsed.exams ?? exams,
+        examClasses: parsed.examClasses ?? examClasses,
+        examSubjects: parsed.examSubjects ?? examSubjects,
+        dismissedExamConflicts: parsed.dismissedExamConflicts ?? [],
+        examAttendance: parsed.examAttendance ?? [],
+        studentMarks: parsed.studentMarks ?? [],
+        marksEntrySessions: parsed.marksEntrySessions ?? [],
+        marksVerifications: parsed.marksVerifications ?? [],
+        gradingSchemes: parsed.gradingSchemes ?? gradingSchemes,
+        resultRules: parsed.resultRules ?? resultRules,
+        examResults: parsed.examResults ?? [],
+        resultVersions: parsed.resultVersions ?? [],
+        resultPublications: parsed.resultPublications ?? [],
+        reportCardTemplates: parsed.reportCardTemplates ?? reportCardTemplates,
+        reportCards: parsed.reportCards ?? [],
+        reportCardGenerationJobs: parsed.reportCardGenerationJobs ?? [],
+        teacherRemarks: parsed.teacherRemarks ?? [],
+        promotionRules: parsed.promotionRules ?? [],
+        promotionRuns: parsed.promotionRuns ?? [],
+        examAuditLog: parsed.examAuditLog ?? [],
+      };
       notify();
     }
   } catch {

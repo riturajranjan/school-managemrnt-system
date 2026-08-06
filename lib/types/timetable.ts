@@ -35,6 +35,10 @@ export type TimetableSlot = {
   roomId?: ID;
   locked: boolean;
   note?: string;
+  /** Section-level break/activity period (e.g. assembly, sports) — distinct from
+   * the shared break rows in periodDefinitions. Undefined/"class" is the default
+   * for every existing slot, so this is a purely additive, backward-compatible field. */
+  slotType?: "class" | "break";
 };
 
 export type TimetableStatus = "draft" | "published";
@@ -65,4 +69,13 @@ export type TimetableConflict = {
   periodIndex: number;
   slotIds: ID[];
   severity: "error" | "warning";
+};
+
+/** A conflict a user has explicitly reviewed and chosen to keep as-is (e.g. an intentional co-teaching overlap). */
+export type DismissedConflict = {
+  id: ID;
+  conflictId: ID;
+  reason: string;
+  dismissedBy: string;
+  dismissedAt: string;
 };

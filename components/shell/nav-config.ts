@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowUpCircle,
   Award,
   BadgeCheck,
   BarChart3,
@@ -18,6 +19,7 @@ import {
   ClipboardList,
   DoorOpen,
   FileBadge,
+  FileStack,
   FileText,
   GraduationCap,
   IdCard,
@@ -88,8 +90,11 @@ export const navGroups: NavGroup[] = [
       { key: "attendance", label: "Attendance", href: "/attendance", icon: ClipboardCheck },
       { key: "homework", label: "Homework", href: "/academics/homework", icon: FileText },
       { key: "calendar-academic", label: "Academic Calendar", href: "/academics/calendar", icon: CalendarRange },
-      { key: "exams", label: "Exams", href: "/academics/exams", icon: FileBadge },
-      { key: "results", label: "Results", href: "/academics/results", icon: Award },
+      { key: "exams", label: "Exams", href: "/exams", icon: FileBadge },
+      { key: "results", label: "Results", href: "/results", icon: Award },
+      { key: "grading", label: "Grading", href: "/grading/schemes", icon: BadgeCheck },
+      { key: "report-cards", label: "Report Cards", href: "/report-cards", icon: FileStack },
+      { key: "promotion", label: "Promotion", href: "/promotion", icon: ArrowUpCircle },
     ],
   },
   {

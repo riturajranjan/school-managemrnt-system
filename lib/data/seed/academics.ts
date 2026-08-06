@@ -79,7 +79,7 @@ export const subjects: Subject[] = subjectSeed.map((s) => ({
   status: "active",
 }));
 
-function subjectsForGrade(order: number): Subject[] {
+export function subjectsForGrade(order: number): Subject[] {
   return subjects.filter((s) => order >= s.gradeRangeStart && order <= s.gradeRangeEnd);
 }
 

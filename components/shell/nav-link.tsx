@@ -50,17 +50,17 @@ export function NavLink({
       whileTap={reduceMotion ? undefined : { scale: 0.98 }}
       transition={{ type: "spring", stiffness: 420, damping: 24, mass: 0.5 }}
       className={`group relative flex min-h-11 items-center gap-sm overflow-hidden rounded-lg text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-sidebar-foreground/60 ${
-        full ? "px-md" : `justify-center px-0 ${collapsed ? "" : "lg:justify-start lg:px-md"}`
+        full ? "px-md" : `justify-center px-0 ${collapsed ? "" : "lg:min-h-9 lg:justify-start lg:px-md"}`
       }`}
     >
       {active && (
         <motion.span
           layoutId={`nav-active-capsule-${layoutScope}`}
           transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40, mass: 0.6 }}
-          className="absolute inset-0 rounded-lg border border-white/15 bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-sm"
+          className="absolute inset-0 rounded-lg border border-white/8 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-sm"
         >
-          <span className="absolute inset-y-1 left-0 w-[3px] rounded-full bg-sidebar-foreground/90" />
-          <span className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
+          <span className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-accent shadow-[0_0_6px_rgba(24,176,200,0.7)]" />
+          <span className="absolute inset-0 bg-gradient-to-br from-white/12 via-transparent to-transparent" />
         </motion.span>
       )}
 

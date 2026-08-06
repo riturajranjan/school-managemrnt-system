@@ -28,18 +28,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           Skip to main content
         </a>
 
-        <div className="flex h-dvh w-full overflow-hidden bg-background">
+        <div className="flex h-dvh w-full overflow-hidden bg-background print:h-auto print:overflow-visible">
           <Sidebar />
           <TabletDrawer />
 
           {/* min-w-0 lets this column shrink below its content's intrinsic width instead of forcing the page to overflow horizontally. */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
             <Header />
             <MobileHeader />
 
-            <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden outline-none">
+            <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden outline-none print:overflow-visible">
               <PageTransition>
-                <div className="w-full px-md py-md pb-[calc(var(--mobile-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] sm:px-lg sm:py-lg md:pb-lg">
+                <div className="w-full px-md py-md pb-[calc(var(--mobile-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] sm:px-lg sm:py-lg md:pb-lg print:p-0">
                   {children}
                 </div>
               </PageTransition>

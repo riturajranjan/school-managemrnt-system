@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Settings, User } from "lucide-react";
+import { Check, LogOut, Settings, ShieldUser, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,9 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { allRoles, roleLabels } from "@/lib/permissions/roles";
 
-// No auth wired up yet — static placeholder identity.
-const CURRENT_USER = { name: "Alex Rivera", role: "Administrator", initials: "AR" };
+// No auth wired up yet — static placeholder identity. Role comes from the live
+// RBAC context so the "Viewing as" switcher below and this label never disagree.
+const CURRENT_USER = { name: "Alex Rivera", initials: "AR" };
 
 export function UserMenu({
   variant = "header",
@@ -21,10 +24,30 @@ export function UserMenu({
   /** Sidebar-only: rail mode shows the avatar alone, no name/role/chevron. */
   collapsed?: boolean;
 }) {
+  const { role, setRole } = usePermissions();
+
   const avatar = (
     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
       {CURRENT_USER.initials}
     </span>
+  );
+
+  // Phase 2 has no auth backend yet — this lets reviewers see the same screen
+  // gate/ungate actions per role instead of only trusting the permission
+  // matrix in code. Folded into the profile menu (rather than a standalone
+  // header control) to keep the header from getting crowded.
+  const roleSwitchSection = (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Viewing as</DropdownMenuLabel>
+      {allRoles.map((r) => (
+        <DropdownMenuItem key={r} onSelect={() => setRole(r)}>
+          <ShieldUser className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="flex-1">{roleLabels[r]}</span>
+          {r === role && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
+        </DropdownMenuItem>
+      ))}
+    </>
   );
 
   if (variant === "sidebar") {
@@ -39,13 +62,13 @@ export function UserMenu({
           {avatar}
           <span className={`min-w-0 flex-1 text-left ${collapsed ? "hidden" : "hidden lg:block"}`}>
             <span className="block truncate text-sm font-medium text-sidebar-foreground">{CURRENT_USER.name}</span>
-            <span className="block truncate text-xs text-sidebar-foreground/60">{CURRENT_USER.role}</span>
+            <span className="block truncate text-xs text-sidebar-foreground/60">{roleLabels[role]}</span>
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top">
           <DropdownMenuLabel className="normal-case tracking-normal">
             <span className="block text-sm font-medium text-foreground">{CURRENT_USER.name}</span>
-            <span className="block text-xs text-muted-foreground">{CURRENT_USER.role}</span>
+            <span className="block text-xs text-muted-foreground">{roleLabels[role]}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
@@ -56,6 +79,7 @@ export function UserMenu({
             <Settings className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span>Settings</span>
           </DropdownMenuItem>
+          {roleSwitchSection}
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-error">
             <LogOut className="size-4 shrink-0" aria-hidden="true" />
@@ -81,7 +105,7 @@ export function UserMenu({
       <DropdownMenuContent align="end">
         <DropdownMenuLabel className="normal-case tracking-normal">
           <span className="block text-sm font-medium text-foreground">{CURRENT_USER.name}</span>
-          <span className="block text-xs text-muted-foreground">{CURRENT_USER.role}</span>
+          <span className="block text-xs text-muted-foreground">{roleLabels[role]}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
@@ -92,6 +116,7 @@ export function UserMenu({
           <Settings className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span>Settings</span>
         </DropdownMenuItem>
+        {roleSwitchSection}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-error">
           <LogOut className="size-4 shrink-0" aria-hidden="true" />
