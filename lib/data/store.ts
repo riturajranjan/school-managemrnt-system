@@ -23,6 +23,65 @@ import type { MarksEntrySession, MarksVerification, StudentMark } from "@/lib/ty
 import type { ReportCard, ReportCardGenerationJob, ReportCardTemplate, TeacherRemark } from "@/lib/types/report-cards";
 import type { ResultPublication, ResultVersion, StudentResult } from "@/lib/types/results";
 import type { PromotionRule, PromotionRun } from "@/lib/types/promotion";
+import type {
+  Concession,
+  Discount,
+  FeeCategory,
+  FeeRule,
+  FeeStructure,
+  LateFeeRule,
+  ReminderLog,
+  ReminderRule,
+  Scholarship,
+  StudentFeeAssignment,
+  StudentFeeItem,
+} from "@/lib/types/fees";
+import type {
+  BankTransaction,
+  CreditBalance,
+  Invoice,
+  Payment,
+  PaymentAllocation,
+  PaymentLink,
+  ReconciliationRecord,
+  Receipt,
+  Refund,
+} from "@/lib/types/payments";
+import type {
+  BankAccount,
+  Budget,
+  CashAccount,
+  CashierShift,
+  ChartOfAccount,
+  Expense,
+  Income,
+  JournalEntry,
+  LedgerEntry,
+  PurchaseOrder,
+  Vendor,
+} from "@/lib/types/accounting";
+import type { EmployeeAdvance, EmployeeLoan, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
+import type { FinancialAuditEvent } from "@/lib/types/finance-audit";
+import { buildLedgerFromJournal } from "@/lib/selectors/ledger";
+import {
+  bankAccounts,
+  buildFeeStructures,
+  buildLoansAndAdvances,
+  buildPayrollForJuly,
+  buildSalaryStructures,
+  budgets,
+  cashAccounts,
+  chartOfAccounts,
+  expenseJournals,
+  expenses,
+  feeCategories,
+  generateBankTransactions,
+  generateFinanceData,
+  lateFeeRules,
+  purchaseOrders,
+  reminderRules,
+  vendors,
+} from "./seed/finance";
 import { generateAdmissionApplications } from "./seed/admissions";
 import { generateStudents } from "./seed/students";
 import {
@@ -88,6 +147,44 @@ export type Db = {
   promotionRules: PromotionRule[];
   promotionRuns: PromotionRun[];
   examAuditLog: ExamAuditEntry[];
+  // Phase 5 — fees, accounting and payroll
+  feeCategories: FeeCategory[];
+  feeStructures: FeeStructure[];
+  feeRules: FeeRule[];
+  studentFeeAssignments: StudentFeeAssignment[];
+  studentFeeItems: StudentFeeItem[];
+  discounts: Discount[];
+  concessions: Concession[];
+  scholarships: Scholarship[];
+  lateFeeRules: LateFeeRule[];
+  reminderRules: ReminderRule[];
+  reminderLog: ReminderLog[];
+  invoices: Invoice[];
+  payments: Payment[];
+  paymentAllocations: PaymentAllocation[];
+  paymentLinks: PaymentLink[];
+  receipts: Receipt[];
+  refunds: Refund[];
+  creditBalances: CreditBalance[];
+  bankTransactions: BankTransaction[];
+  reconciliationRecords: ReconciliationRecord[];
+  incomes: Income[];
+  expenses: Expense[];
+  vendors: Vendor[];
+  purchaseOrders: PurchaseOrder[];
+  chartOfAccounts: ChartOfAccount[];
+  journalEntries: JournalEntry[];
+  ledgerEntries: LedgerEntry[];
+  bankAccounts: BankAccount[];
+  cashAccounts: CashAccount[];
+  cashierShifts: CashierShift[];
+  budgets: Budget[];
+  salaryStructures: SalaryStructure[];
+  payrollRuns: PayrollRun[];
+  payslips: Payslip[];
+  employeeLoans: EmployeeLoan[];
+  employeeAdvances: EmployeeAdvance[];
+  financialAuditLog: FinancialAuditEvent[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -99,6 +196,13 @@ function buildSeedDb(): Db {
   const studentSupportAlerts = generateStudentSupportAlerts(students);
   const attendanceSessions = generateAttendanceSessions(students);
   const examStudentData = generateExamStudentData(students);
+
+  const feeStructures = buildFeeStructures(managedClasses);
+  const financeData = generateFinanceData(students, feeStructures);
+  const salaryStructures = buildSalaryStructures(teachers);
+  const julyPayroll = buildPayrollForJuly(salaryStructures, teachers);
+  const { loans: employeeLoans, advances: employeeAdvances } = buildLoansAndAdvances(teachers);
+  const allJournalEntries = [...financeData.journalEntries, ...expenseJournals(), julyPayroll.journal];
 
   return {
     applications,
@@ -145,6 +249,43 @@ function buildSeedDb(): Db {
     promotionRules: [],
     promotionRuns: [],
     examAuditLog: [],
+    feeCategories,
+    feeStructures,
+    feeRules: [],
+    studentFeeAssignments: financeData.studentFeeAssignments,
+    studentFeeItems: financeData.studentFeeItems,
+    discounts: financeData.discounts,
+    concessions: financeData.concessions,
+    scholarships: financeData.scholarships,
+    lateFeeRules,
+    reminderRules,
+    reminderLog: [],
+    invoices: [],
+    payments: financeData.payments,
+    paymentAllocations: financeData.paymentAllocations,
+    paymentLinks: [],
+    receipts: financeData.receipts,
+    refunds: [],
+    creditBalances: [],
+    bankTransactions: generateBankTransactions(financeData.payments),
+    reconciliationRecords: [],
+    incomes: [],
+    expenses,
+    vendors,
+    purchaseOrders,
+    chartOfAccounts,
+    journalEntries: allJournalEntries,
+    ledgerEntries: buildLedgerFromJournal(allJournalEntries),
+    bankAccounts,
+    cashAccounts,
+    cashierShifts: [],
+    budgets,
+    salaryStructures,
+    payrollRuns: [julyPayroll.run],
+    payslips: julyPayroll.payslips,
+    employeeLoans,
+    employeeAdvances,
+    financialAuditLog: [],
   };
 }
 
@@ -210,6 +351,47 @@ export function hydrateFromStorage() {
         promotionRules: parsed.promotionRules ?? [],
         promotionRuns: parsed.promotionRuns ?? [],
         examAuditLog: parsed.examAuditLog ?? [],
+        // Older cached snapshots predate the whole Phase 5 finance domain —
+        // static config-like lists fall back to the fresh seed constant,
+        // everything transactional falls back to empty rather than
+        // reseeding a parallel data set into an otherwise-modified snapshot.
+        feeCategories: parsed.feeCategories ?? feeCategories,
+        feeStructures: parsed.feeStructures ?? [],
+        feeRules: parsed.feeRules ?? [],
+        studentFeeAssignments: parsed.studentFeeAssignments ?? [],
+        studentFeeItems: parsed.studentFeeItems ?? [],
+        discounts: parsed.discounts ?? [],
+        concessions: parsed.concessions ?? [],
+        scholarships: parsed.scholarships ?? [],
+        lateFeeRules: parsed.lateFeeRules ?? lateFeeRules,
+        reminderRules: parsed.reminderRules ?? reminderRules,
+        reminderLog: parsed.reminderLog ?? [],
+        invoices: parsed.invoices ?? [],
+        payments: parsed.payments ?? [],
+        paymentAllocations: parsed.paymentAllocations ?? [],
+        paymentLinks: parsed.paymentLinks ?? [],
+        receipts: parsed.receipts ?? [],
+        refunds: parsed.refunds ?? [],
+        creditBalances: parsed.creditBalances ?? [],
+        bankTransactions: parsed.bankTransactions ?? [],
+        reconciliationRecords: parsed.reconciliationRecords ?? [],
+        incomes: parsed.incomes ?? [],
+        expenses: parsed.expenses ?? [],
+        vendors: parsed.vendors ?? vendors,
+        purchaseOrders: parsed.purchaseOrders ?? [],
+        chartOfAccounts: parsed.chartOfAccounts ?? chartOfAccounts,
+        journalEntries: parsed.journalEntries ?? [],
+        ledgerEntries: parsed.ledgerEntries ?? [],
+        bankAccounts: parsed.bankAccounts ?? bankAccounts,
+        cashAccounts: parsed.cashAccounts ?? cashAccounts,
+        cashierShifts: parsed.cashierShifts ?? [],
+        budgets: parsed.budgets ?? [],
+        salaryStructures: parsed.salaryStructures ?? [],
+        payrollRuns: parsed.payrollRuns ?? [],
+        payslips: parsed.payslips ?? [],
+        employeeLoans: parsed.employeeLoans ?? [],
+        employeeAdvances: parsed.employeeAdvances ?? [],
+        financialAuditLog: parsed.financialAuditLog ?? [],
       };
       notify();
     }

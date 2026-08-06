@@ -123,6 +123,74 @@ describe("Phase 4 examination permissions", () => {
   });
 });
 
+describe("Phase 5 finance permissions", () => {
+  it("gives the finance administrator full operational control of fees, accounting and payroll", () => {
+    expect(hasPermission("finance-administrator", "fees.manageStructures")).toBe(true);
+    expect(hasPermission("finance-administrator", "fees.approveRefund")).toBe(true);
+    expect(hasPermission("finance-administrator", "accounting.postJournals")).toBe(true);
+    expect(hasPermission("finance-administrator", "accounting.approveBudgets")).toBe(true);
+    expect(hasPermission("finance-administrator", "payroll.run")).toBe(true);
+    expect(hasPermission("finance-administrator", "payroll.approve")).toBe(true);
+  });
+
+  it("lets an accountant record and reconcile but not manage fee structures or approve refunds", () => {
+    expect(hasPermission("accountant", "fees.record")).toBe(true);
+    expect(hasPermission("accountant", "fees.reconcile")).toBe(true);
+    expect(hasPermission("accountant", "accounting.postJournals")).toBe(true);
+    expect(hasPermission("accountant", "fees.manageStructures")).toBe(false);
+    expect(hasPermission("accountant", "fees.approveRefund")).toBe(false);
+    expect(hasPermission("accountant", "accounting.manageChartOfAccounts")).toBe(false);
+  });
+
+  it("restricts a cashier to collecting payments within the fee module only", () => {
+    expect(hasPermission("cashier", "fees.record")).toBe(true);
+    expect(hasPermission("cashier", "fees.manageStructures")).toBe(false);
+    expect(hasPermission("cashier", "fees.refund")).toBe(false);
+    expect(hasPermission("cashier", "accounting.view")).toBe(false);
+    expect(hasPermission("cashier", "payroll.view")).toBe(false);
+  });
+
+  it("lets a school owner and principal approve at the oversight level without day-to-day recording rights", () => {
+    for (const role of ["school-owner", "principal"] as const) {
+      expect(hasPermission(role, "accounting.approveExpenses")).toBe(true);
+      expect(hasPermission(role, "payroll.approve")).toBe(true);
+      expect(hasPermission(role, "fees.record")).toBe(false);
+      expect(hasPermission(role, "accounting.manageExpenses")).toBe(false);
+    }
+  });
+
+  it("keeps an auditor strictly read-only, even for actions oversight roles can approve", () => {
+    expect(hasPermission("auditor", "fees.view")).toBe(true);
+    expect(hasPermission("auditor", "accounting.viewLedger")).toBe(true);
+    expect(hasPermission("auditor", "finance.auditView")).toBe(true);
+    expect(hasPermission("auditor", "fees.record")).toBe(false);
+    expect(hasPermission("auditor", "fees.approveRefund")).toBe(false);
+    expect(hasPermission("auditor", "accounting.approveExpenses")).toBe(false);
+    expect(hasPermission("auditor", "payroll.approve")).toBe(false);
+    expect(hasPermission("auditor", "payroll.run")).toBe(false);
+  });
+
+  it("scopes parents and students to their own fee information, not staff-level access", () => {
+    expect(hasPermission("parent", "fees.viewOwn")).toBe(true);
+    expect(hasPermission("parent", "fees.payOwn")).toBe(true);
+    expect(hasPermission("parent", "fees.record")).toBe(false);
+    expect(hasPermission("student", "fees.viewOwn")).toBe(true);
+    expect(hasPermission("student", "fees.payOwn")).toBe(true);
+    expect(hasPermission("student", "fees.view")).toBe(false);
+  });
+
+  it("keeps a teacher with no financial access unless explicitly granted", () => {
+    expect(hasAnyPermission("teacher", ["fees.view", "fees.record", "fees.viewOwn", "accounting.view", "payroll.view"])).toBe(false);
+  });
+
+  it("lets an admission officer view and collect fees but not manage structures or reports", () => {
+    expect(hasPermission("admission-officer", "fees.view")).toBe(true);
+    expect(hasPermission("admission-officer", "fees.record")).toBe(true);
+    expect(hasPermission("admission-officer", "fees.manageStructures")).toBe(false);
+    expect(hasPermission("admission-officer", "fees.viewReports")).toBe(false);
+  });
+});
+
 describe("hasAnyPermission", () => {
   it("returns true if the role has at least one of the listed permissions", () => {
     expect(hasAnyPermission("teacher", ["admissions.approve", "students.view"])).toBe(true);

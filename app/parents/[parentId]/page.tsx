@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use } from "react";
-import { Mail, Phone, RefreshCcw, Send, ShieldCheck, ShieldOff, UserPlus } from "lucide-react";
+import { CreditCard, Mail, Phone, RefreshCcw, Send, ShieldCheck, ShieldOff, UserPlus, Wallet } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,13 +14,21 @@ import { TimelineList } from "@/components/timeline/timeline-list";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { findClass, findSection } from "@/lib/data/seed/reference";
 import { useParentProfile } from "@/lib/hooks/use-parents";
+import { useSisStore } from "@/lib/hooks/use-store";
+import { formatMoney, sumMoney } from "@/lib/finance/money";
+import { outstandingForItem, totalOutstanding } from "@/lib/selectors/fee-item-insights";
+import { createPaymentLink } from "@/lib/services/payment-link-service";
 import { resetPortalAccess, sendPortalInvite, suspendPortalAccess, updatePickupAuthorization } from "@/lib/services/parents-service";
 import { studentStatusLabels } from "@/lib/types/students";
 import { initialsOf } from "@/lib/utils";
 
+const ACTOR = { name: "Finance Administrator", role: "Finance Administrator" };
+
 export default function ParentProfilePage({ params }: { params: Promise<{ parentId: string }> }) {
   const { parentId } = use(params);
   const profile = useParentProfile(parentId);
+  const db = useSisStore();
+  const router = useRouter();
   const { can } = usePermissions();
 
   if (!profile) {
@@ -35,6 +44,26 @@ export default function ParentProfilePage({ params }: { params: Promise<{ parent
 
   const { account, guardian, children } = profile;
   const communicationEvents = children.flatMap((c) => c.student.timeline.filter((e) => e.category === "communication"));
+
+  const dueItemsByChild = children.map(({ student }) => ({
+    student,
+    items: db.studentFeeItems.filter((i) => i.studentId === student.id && (i.status === "pending" || i.status === "partial" || i.status === "overdue")),
+  }));
+  const familyOutstanding = totalOutstanding(dueItemsByChild.flatMap((c) => c.items));
+
+  function generateFamilyPaymentLink() {
+    const allDueItems = dueItemsByChild.flatMap((c) => c.items);
+    if (allDueItems.length === 0) return;
+    const amount = sumMoney(allDueItems.map(outstandingForItem), "INR");
+    const link = createPaymentLink(
+      dueItemsByChild.filter((c) => c.items.length > 0).map((c) => c.student.id),
+      allDueItems.map((i) => i.id),
+      amount,
+      7,
+      ACTOR,
+    );
+    router.push(`/pay/${link.id}`);
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -130,6 +159,32 @@ export default function ParentProfilePage({ params }: { params: Promise<{ parent
               </li>
             ))}
           </ul>
+        </div>
+
+        <div className="rounded-lg border border-border p-sm">
+          <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
+            <Wallet className="size-4" /> Family fee summary
+          </h2>
+          <ul className="flex flex-col gap-sm">
+            {dueItemsByChild.map(({ student, items }) => (
+              <li key={student.id} className="flex items-center justify-between gap-sm text-sm">
+                <span className="text-foreground">
+                  {student.profile.firstName} {student.profile.lastName}
+                </span>
+                <span className={items.length > 0 ? "font-medium text-warning" : "text-muted-foreground"}>{items.length > 0 ? formatMoney(sumMoney(items.map(outstandingForItem), "INR")) : "No dues"}</span>
+              </li>
+            ))}
+            {dueItemsByChild.length === 0 && <p className="text-sm text-muted-foreground">No children linked yet.</p>}
+          </ul>
+          <div className="mt-sm flex items-center justify-between border-t border-border pt-sm text-sm font-semibold">
+            <span className="text-foreground">Family total due</span>
+            <span className="text-foreground">{formatMoney(familyOutstanding)}</span>
+          </div>
+          {can("fees.record") && (
+            <Button size="sm" className="mt-sm w-full" disabled={familyOutstanding.minorUnits <= 0} onClick={generateFamilyPaymentLink}>
+              <CreditCard className="size-3.5" /> Generate payment link
+            </Button>
+          )}
         </div>
 
         <div className="rounded-lg border border-border p-sm">
