@@ -58,7 +58,10 @@ function HomeworkPageContent() {
       cell: (h) => (
         <div>
           <p className="text-sm font-medium text-foreground">{h.title}</p>
-          <p className="text-xs text-muted-foreground">{subjects.find((s) => s.id === h.subjectId)?.name}</p>
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="size-1.5 shrink-0 rounded-pill" style={{ backgroundColor: subjects.find((s) => s.id === h.subjectId)?.color }} aria-hidden="true" />
+            {subjects.find((s) => s.id === h.subjectId)?.name}
+          </p>
         </div>
       ),
     },

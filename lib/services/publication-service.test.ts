@@ -43,11 +43,18 @@ describe("publication-service", () => {
 
   it("scheduling a future publication date sets status to scheduled, not published", () => {
     const db = getSnapshot();
-    const anyExam = db.exams.find((e) => e.gradingSchemeId);
+    const anyExam = db.exams.find((e) => e.gradingSchemeId && db.examResults.some((r) => r.examId === e.id));
     if (!anyExam) return;
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
     const publication = publishResults(anyExam.id, "all", {}, ["email"], ACTOR, farFuture);
     expect(publication.status).toBe("scheduled");
+  });
+
+  it("refuses to publish an exam with zero calculated results, even if called directly", () => {
+    const db = getSnapshot();
+    const noResultsExam = db.exams.find((e) => !db.examResults.some((r) => r.examId === e.id));
+    if (!noResultsExam) return;
+    expect(() => publishResults(noResultsExam.id, "all", {}, ["email"], ACTOR)).toThrow(/no results/i);
   });
 
   it("revoking a publication reverts the exam status and marks the publication revoked", () => {

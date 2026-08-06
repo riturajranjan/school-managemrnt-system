@@ -124,6 +124,13 @@ export type CurriculumChapter = {
   topics: CurriculumTopic[];
 };
 
+export type CurriculumUnitNote = {
+  id: ID;
+  text: string;
+  author: string;
+  createdAt: string;
+};
+
 export type CurriculumUnit = {
   id: ID;
   subjectId: ID;
@@ -140,6 +147,7 @@ export type CurriculumUnit = {
   estimatedPeriods: number;
   completedPeriods: number;
   chapters: CurriculumChapter[];
+  notes?: CurriculumUnitNote[];
 };
 
 export type LessonPlanStatus = "draft" | "submitted" | "approved" | "rejected" | "scheduled" | "completed" | "missed" | "rescheduled";

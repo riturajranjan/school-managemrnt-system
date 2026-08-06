@@ -59,7 +59,7 @@ export function Sidebar() {
 
             <div className="mx-sm h-px bg-sidebar-border/50" />
 
-            <nav className="flex flex-1 flex-col gap-xs overflow-y-auto px-sm pt-sm pb-md" aria-label="Sections">
+            <nav className="sidebar-nav-scrollbar flex flex-1 flex-col gap-xs overflow-y-auto px-sm pt-sm pb-md" aria-label="Sections">
               {navGroups.map((group, index) => (
                 <div key={group.key}>
                   {index > 0 && <div className="mx-sm mb-xs h-px bg-sidebar-border/30" />}
@@ -68,7 +68,8 @@ export function Sidebar() {
               ))}
             </nav>
 
-            <div className="mt-auto flex flex-col gap-sm border-t border-sidebar-border/50 px-sm py-sm">
+            {/* shadow-[0_-8px...] gives the scrollable nav above a soft "content continues under here" fade instead of a hard-stop border alone. */}
+            <div className="relative mt-auto flex flex-col gap-sm border-t border-sidebar-border/50 px-sm py-sm shadow-[0_-8px_12px_-8px_rgba(0,0,0,0.28)]">
               <UserMenu variant="sidebar" collapsed={sidebarCollapsed} />
               <button
                 type="button"

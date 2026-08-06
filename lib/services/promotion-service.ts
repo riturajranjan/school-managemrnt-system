@@ -4,7 +4,7 @@ import { updateStudent } from "./students-service";
 import { generateId } from "@/lib/utils";
 import { logExamAudit } from "./exam-audit-service";
 
-const DEFAULT_RULE: Pick<PromotionRule, "minOverallPercent" | "maxFailedSubjects" | "minAttendancePercent"> = {
+export const DEFAULT_PROMOTION_RULE: Pick<PromotionRule, "minOverallPercent" | "maxFailedSubjects" | "minAttendancePercent"> = {
   minOverallPercent: 33,
   maxFailedSubjects: 2,
   minAttendancePercent: 75,
@@ -22,7 +22,7 @@ export type PromotionEligibility = {
 };
 
 export function computePromotionEligibility(db: Db, classId: string, ruleId?: string): PromotionEligibility[] {
-  const rule = db.promotionRules.find((r) => r.id === ruleId) ?? DEFAULT_RULE;
+  const rule = db.promotionRules.find((r) => r.id === ruleId) ?? DEFAULT_PROMOTION_RULE;
   const students = db.students.filter((s) => s.classId === classId && s.status === "active");
 
   return students.map((student) => {
@@ -84,6 +84,12 @@ export function createPromotionRun(fromSession: string, toSession: string, class
   const db = getSnapshot();
   const eligibility = computePromotionEligibility(db, classId, ruleId);
 
+  // Service-layer guard mirroring the readiness panel's block on the hub page — a run
+  // with zero students carrying a real result is not a promotion run, it's a blind guess.
+  if (eligibility.length > 0 && eligibility.every((e) => e.decision === "pending")) {
+    throw new Error("Cannot start a promotion run: no student in this class has a calculated result yet.");
+  }
+
   const decisions: PromotionDecision[] = eligibility.map((e) => ({
     id: generateId("pd"),
     runId: "", // filled in below once the run id is known
@@ -91,6 +97,7 @@ export function createPromotionRun(fromSession: string, toSession: string, class
     fromClassId: e.currentClassId,
     fromSectionId: e.currentSectionId,
     decision: e.decision,
+    originalDecision: e.decision,
     reason: e.reason,
   }));
 
@@ -101,10 +108,26 @@ export function createPromotionRun(fromSession: string, toSession: string, class
   return run;
 }
 
-export function updateDecision(runId: string, studentId: string, patch: Partial<Omit<PromotionDecision, "id" | "runId" | "studentId">>) {
+export function updateDecision(runId: string, studentId: string, patch: Partial<Omit<PromotionDecision, "id" | "runId" | "studentId">>, actor?: { name: string }) {
   setState((db) => ({
     ...db,
-    promotionRuns: db.promotionRuns.map((run) => (run.id === runId ? { ...run, decisions: run.decisions.map((d) => (d.studentId === studentId ? { ...d, ...patch } : d)) } : run)),
+    promotionRuns: db.promotionRuns.map((run) =>
+      run.id === runId
+        ? {
+            ...run,
+            decisions: run.decisions.map((d) => {
+              if (d.studentId !== studentId) return d;
+              const next = { ...d, ...patch };
+              // Track whether the decision now differs from what the eligibility engine
+              // originally computed — this is what "manual override" means here.
+              if (patch.decision !== undefined) {
+                next.overriddenBy = patch.decision !== d.originalDecision ? (actor?.name ?? "Unknown") : undefined;
+              }
+              return next;
+            }),
+          }
+        : run,
+    ),
   }));
 }
 

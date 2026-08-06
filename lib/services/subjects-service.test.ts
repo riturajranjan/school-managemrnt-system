@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData, setState, type Db } from "@/lib/data/store";
-import { createAssignment, validateAssignment } from "./subjects-service";
+import { createAssignment, duplicateSubject, setSubjectStatus, validateAssignment } from "./subjects-service";
 
 /** Removes any existing assignment for this subject+section so a "valid new assignment" test is deterministic, not dependent on what the seed happened to generate. */
 function clearAssignment(subjectId: string, sectionId: string) {
@@ -122,5 +122,35 @@ describe("createAssignment", () => {
 
     expect("errors" in result).toBe(true);
     expect(getSnapshot().subjectAssignments.length).toBe(countBefore);
+  });
+});
+
+describe("duplicateSubject", () => {
+  beforeEach(() => resetDemoData());
+
+  it("creates a new subject copying the source's fields", () => {
+    const db = getSnapshot();
+    const source = db.subjects[0];
+    const copy = duplicateSubject(source.id);
+    expect(copy).toBeDefined();
+    expect(copy?.name).toBe(`Copy of ${source.name}`);
+    expect(copy?.type).toBe(source.type);
+    expect(copy?.status).toBe("active");
+    expect(getSnapshot().subjects.some((s) => s.id === copy?.id)).toBe(true);
+    expect(getSnapshot().subjects.find((s) => s.id === source.id)?.name).toBe(source.name);
+  });
+});
+
+describe("setSubjectStatus", () => {
+  beforeEach(() => resetDemoData());
+
+  it("archives and restores exactly the targeted subject", () => {
+    const db = getSnapshot();
+    const [target, other] = db.subjects;
+    setSubjectStatus(target.id, "inactive");
+    expect(getSnapshot().subjects.find((s) => s.id === target.id)?.status).toBe("inactive");
+    expect(getSnapshot().subjects.find((s) => s.id === other.id)?.status).toBe(other.status);
+    setSubjectStatus(target.id, "active");
+    expect(getSnapshot().subjects.find((s) => s.id === target.id)?.status).toBe("active");
   });
 });

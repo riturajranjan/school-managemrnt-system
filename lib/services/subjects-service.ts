@@ -16,6 +16,15 @@ export function setSubjectStatus(subjectId: string, status: Subject["status"]) {
   updateSubject(subjectId, { status });
 }
 
+export function duplicateSubject(subjectId: string): Subject | undefined {
+  const db = getSnapshot();
+  const source = db.subjects.find((s) => s.id === subjectId);
+  if (!source) return undefined;
+  const copy: Subject = { ...source, id: generateId("subject"), name: `Copy of ${source.name}`, code: `${source.code}-COPY`, status: "active" };
+  setState((current) => ({ ...current, subjects: [...current.subjects, copy] }));
+  return copy;
+}
+
 export type AssignmentValidationResult = { valid: boolean; errors: string[] };
 
 export function validateAssignment(

@@ -32,8 +32,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Sidebar />
           <TabletDrawer />
 
-          {/* min-w-0 lets this column shrink below its content's intrinsic width instead of forcing the page to overflow horizontally. */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
+          {/* min-w-0 lets this column shrink below its content's intrinsic width instead of forcing the page to overflow horizontally.
+              relative z-10: the sidebar's lg: 3D transform (rotateY/translateZ, see sidebar.tsx) opens its own compositing layer,
+              and its rightward shadow-[8px_0_32px...] can bleed a sliver onto this column's left edge in some browsers unless this
+              column has an explicit, higher stacking context to reliably paint above it — this is what was read as the header
+              "clipping" at lg+ widths. */}
+          <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
             <Header />
             <MobileHeader />
 

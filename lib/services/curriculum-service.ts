@@ -45,3 +45,27 @@ export function addUnit(unit: Omit<CurriculumUnit, "id" | "chapters" | "complete
   setState((db) => ({ ...db, curriculumUnits: [...db.curriculumUnits, newUnit] }));
   return newUnit;
 }
+
+export function reschedulePlannedDates(unitId: string, plannedStart: string, plannedEnd: string) {
+  setState((db) => ({
+    ...db,
+    curriculumUnits: mapUnit(db.curriculumUnits, unitId, (u) => ({ ...u, plannedStart, plannedEnd, status: u.status === "delayed" ? "planned" : u.status })),
+  }));
+}
+
+export function markUnitComplete(unitId: string) {
+  setState((db) => ({
+    ...db,
+    curriculumUnits: mapUnit(db.curriculumUnits, unitId, (u) => ({ ...u, status: "completed", completedPeriods: u.estimatedPeriods, actualCompletion: new Date().toISOString() })),
+  }));
+}
+
+export function addUnitNote(unitId: string, text: string, author: string) {
+  setState((db) => ({
+    ...db,
+    curriculumUnits: mapUnit(db.curriculumUnits, unitId, (u) => ({
+      ...u,
+      notes: [...(u.notes ?? []), { id: generateId("note"), text, author, createdAt: new Date().toISOString() }],
+    })),
+  }));
+}

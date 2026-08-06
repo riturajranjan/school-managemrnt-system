@@ -11,11 +11,13 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { ClassMobileCard, buildClassColumns, classCapacity, useGoToClass } from "@/components/academics/classes/class-table";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useManagedClasses } from "@/lib/hooks/use-academics";
+import { useSisStore } from "@/lib/hooks/use-store";
 import { createClass } from "@/lib/services/academics-service";
 import { GraduationCap, Layers, Users } from "lucide-react";
 
 export default function ClassesPage() {
   const classes = useManagedClasses();
+  const db = useSisStore();
   const goToClass = useGoToClass();
   const { can } = usePermissions();
   const [createOpen, setCreateOpen] = useState(false);
@@ -23,7 +25,7 @@ export default function ClassesPage() {
   const [order, setOrder] = useState("");
   const [error, setError] = useState("");
 
-  const columns = buildClassColumns();
+  const columns = buildClassColumns(db);
   const activeClasses = classes.filter((c) => c.status === "active");
   const totals = activeClasses.reduce(
     (acc, c) => {

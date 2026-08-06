@@ -42,6 +42,8 @@ export type GradingScheme = {
   applicableSubjectIds: ID[];
   status: GradingSchemeStatus;
   ranges: GradeRange[];
+  /** At most one scheme should carry this at a time — enforced by setDefaultGradingScheme. */
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 };

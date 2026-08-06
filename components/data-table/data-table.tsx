@@ -108,10 +108,13 @@ export function DataTable<T>({
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-border bg-surface py-2xl text-center">
+      <div className="flex flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-border bg-surface px-md py-2xl text-center">
         {isFiltered ? <SearchX className="size-6 text-muted-foreground" aria-hidden="true" /> : <EmptyIcon className="size-6 text-muted-foreground" aria-hidden="true" />}
         <p className="text-sm font-medium text-foreground">{isFiltered ? "No results match your filters" : emptyTitle}</p>
-        <p className="max-w-xs text-xs text-muted-foreground">{isFiltered ? "Clear filters or try a different search term." : emptyDescription}</p>
+        {/* max-w-sm (384px), not the old max-w-xs (320px) — narrow enough to stay
+            readable as a centered paragraph, wide enough that a normal one-sentence
+            description doesn't wrap into a cramped 3-4 line column. */}
+        <p className="max-w-sm text-xs text-muted-foreground">{isFiltered ? "Clear filters or try a different search term." : emptyDescription}</p>
       </div>
     );
   }

@@ -136,7 +136,10 @@ export default function ResultsAnalyticsPage() {
               <div className="flex flex-col gap-sm">
                 {subjectPerformance.map((s) => (
                   <div key={s.subjectId} className="flex items-center gap-sm">
-                    <span className="w-24 shrink-0 truncate text-xs font-medium text-foreground">{subjectById(s.subjectId)?.name}</span>
+                    <span className="flex w-24 shrink-0 items-center gap-1 truncate text-xs font-medium text-foreground">
+                      <span className="size-1.5 shrink-0 rounded-pill" style={{ backgroundColor: subjectById(s.subjectId)?.color }} aria-hidden="true" />
+                      {subjectById(s.subjectId)?.name}
+                    </span>
                     <div className="flex-1">
                       <MiniBar percent={s.avg} />
                     </div>

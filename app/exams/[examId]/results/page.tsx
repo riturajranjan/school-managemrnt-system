@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AlertTriangle, Calculator, CheckCircle2, ChevronRight, RefreshCcw, RotateCcw, Users } from "lucide-react";
+import { AlertTriangle, Calculator, ChevronRight, RefreshCcw, RotateCcw, Users } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
+import { PipelineStages } from "@/components/results/pipeline-stages";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,11 +22,11 @@ import { useExam, useExamResults, useExams } from "@/lib/hooks/use-exams";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { subjectById } from "@/lib/data/seed/academics";
 import { computeExamReadiness } from "@/lib/selectors/exam-insights";
+import { computeExamPipelineRow } from "@/lib/selectors/results-pipeline";
 import { checkResultCalculationConfig, calculateResults } from "@/lib/services/result-processing-service";
 import { applySupplementaryResults, createSupplementaryExam, getEligibleStudentsForReExam } from "@/lib/services/supplementary-service";
 import { supplementaryReasonLabels, type SupplementaryReason } from "@/lib/types/exams";
 import { overallResultStatusLabels, type StudentResult } from "@/lib/types/results";
-import { cn } from "@/lib/utils";
 
 const ACTOR = { name: "Examination Controller", role: "Examination Controller" };
 
@@ -60,7 +61,6 @@ export default function ExamResultsPage() {
   const [confirmApplySupp, setConfirmApplySupp] = useState(false);
 
   const readiness = useMemo(() => (exam ? computeExamReadiness(db, exam.id) : null), [db, exam]);
-  const configErrors = useMemo(() => (exam ? checkResultCalculationConfig(db, exam.id) : []), [db, exam]);
 
   if (!exam || !readiness) return null;
 
@@ -82,14 +82,7 @@ export default function ExamResultsPage() {
   const isSupplementary = Boolean(exam.parentExamId);
   const parentExam = isSupplementary ? allExams.find((e) => e.id === exam.parentExamId) : undefined;
 
-  const stages = [
-    { label: "Marks complete", done: readiness.marksEntryComplete === "complete" },
-    { label: "Verification complete", done: readiness.verificationComplete === "complete" },
-    { label: "Calculation", done: readiness.resultsCalculated },
-    { label: "Review", done: readiness.resultsCalculated && configErrors.length === 0 },
-    { label: "Report cards", done: readiness.reportCardsGenerated === "complete" },
-    { label: "Publication", done: readiness.published },
-  ];
+  const pipeline = computeExamPipelineRow(db, exam, className(exam.classIds?.[0] ?? ""));
 
   const columns: ColumnDef<StudentResult>[] = [
     { id: "student", header: "Student", alwaysVisible: true, sortValue: (r) => studentName(r.studentId), cell: (r) => <span className="text-sm font-medium text-foreground">{studentName(r.studentId)}</span> },
@@ -127,18 +120,20 @@ export default function ExamResultsPage() {
         )}
       </div>
 
-      {/* Pipeline */}
-      <div className="scrollbar-none flex items-center gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-sm">
-        {stages.map((stage, i) => (
-          <div key={stage.label} className="flex shrink-0 items-center gap-1">
-            <div className={cn("flex items-center gap-1.5 rounded-pill px-sm py-1.5 text-xs font-medium", stage.done ? "bg-success/12 text-success" : "bg-surface-secondary text-muted-foreground")}>
-              {stage.done ? <CheckCircle2 className="size-3.5" /> : <span className="flex size-3.5 items-center justify-center rounded-pill border border-current text-[9px]">{i + 1}</span>}
-              {stage.label}
-            </div>
-            {i < stages.length - 1 && <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" />}
-          </div>
-        ))}
-      </div>
+      <PipelineStages stages={pipeline.stages} />
+
+      {pipeline.inconsistencies.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-lg border border-warning/30 bg-warning/8 p-sm text-sm text-warning">
+          <p className="flex items-center gap-1 font-medium">
+            <AlertTriangle className="size-4" /> Data inconsistency detected
+          </p>
+          {pipeline.inconsistencies.map((issue, i) => (
+            <p key={i} className="text-xs">
+              {issue}
+            </p>
+          ))}
+        </div>
+      )}
 
       {calcErrors.length > 0 && (
         <div className="flex flex-col gap-1 rounded-lg border border-error/30 bg-error/8 p-sm text-sm text-error">

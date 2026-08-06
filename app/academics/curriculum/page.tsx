@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, BookOpenCheck, TrendingUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
 import { LearningPathTimeline } from "@/components/academics/curriculum/learning-path-timeline";
@@ -10,7 +9,10 @@ import { findClass } from "@/lib/data/seed/reference";
 import { teacherById } from "@/lib/data/seed/academics";
 import { curriculumCompletionPercent, delayedUnitCount } from "@/lib/selectors/academics-insights";
 import { useCurriculumUnits, useSubjects } from "@/lib/hooks/use-academics";
-import { progressStatusLabels, progressStatusTone } from "@/lib/types/academics";
+import { progressStatusLabels, type ProgressStatus } from "@/lib/types/academics";
+import { cn } from "@/lib/utils";
+
+const filterableStatuses: ProgressStatus[] = ["not-started", "planned", "in-progress", "delayed", "needs-review", "completed"];
 
 export default function CurriculumPage() {
   const units = useCurriculumUnits();
@@ -21,9 +23,25 @@ export default function CurriculumPage() {
 
   const [classId, setClassId] = useState(trackedClassIds[0] ?? "");
   const [subjectId, setSubjectId] = useState(trackedSubjectIds[0] ?? "");
+  const [statusFilter, setStatusFilter] = useState<Set<ProgressStatus>>(new Set());
 
-  const selectedUnits = units.filter((u) => u.classId === classId && u.subjectId === subjectId);
+  const unitsForSelection = units.filter((u) => u.classId === classId && u.subjectId === subjectId);
+  const selectedUnits = statusFilter.size === 0 ? unitsForSelection : unitsForSelection.filter((u) => statusFilter.has(u.status));
   const delayedUnits = units.filter((u) => u.status === "delayed");
+  const delayedByClass = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const u of delayedUnits) counts.set(u.classId, (counts.get(u.classId) ?? 0) + 1);
+    return [...counts.entries()].map(([id, count]) => ({ classId: id, count }));
+  }, [delayedUnits]);
+
+  function toggleStatusFilter(status: ProgressStatus) {
+    setStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  }
 
   const byClass = trackedClassIds.map((id) => ({ classId: id, percent: curriculumCompletionPercent(units.filter((u) => u.classId === id)) }));
   const bySubject = trackedSubjectIds.map((id) => ({ subjectId: id, percent: curriculumCompletionPercent(units.filter((u) => u.subjectId === id)) }));
@@ -61,7 +79,10 @@ export default function CurriculumPage() {
           <ul className="flex flex-col gap-1 text-sm">
             {bySubject.map((row) => (
               <li key={row.subjectId} className="flex items-center justify-between">
-                <span className="text-foreground">{subjects.find((s) => s.id === row.subjectId)?.name}</span>
+                <span className="flex items-center gap-1 text-foreground">
+                  <span className="size-1.5 shrink-0 rounded-pill" style={{ backgroundColor: subjects.find((s) => s.id === row.subjectId)?.color }} aria-hidden="true" />
+                  {subjects.find((s) => s.id === row.subjectId)?.name}
+                </span>
                 <span className="text-muted-foreground">{row.percent}%</span>
               </li>
             ))}
@@ -83,11 +104,18 @@ export default function CurriculumPage() {
       {delayedUnits.length > 0 && (
         <div className="flex flex-wrap items-center gap-sm rounded-lg border border-error/30 bg-error/10 px-sm py-sm text-xs text-error">
           <AlertTriangle className="size-4 shrink-0" />
-          <span className="font-medium">Delayed units:</span>
-          {delayedUnits.slice(0, 4).map((u) => (
-            <span key={u.id}>
-              {findClass(u.classId)?.name} — {u.title}
-            </span>
+          <span className="font-medium">
+            {delayedUnits.length} unit{delayedUnits.length === 1 ? "" : "s"} delayed across {delayedByClass.length} class{delayedByClass.length === 1 ? "" : "es"}:
+          </span>
+          {delayedByClass.map(({ classId: id, count }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setClassId(id)}
+              className="rounded-pill border border-error/30 bg-surface px-sm py-0.5 font-medium text-error outline-none hover:bg-error/10 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {findClass(id)?.name} ({count})
+            </button>
           ))}
         </div>
       )}
@@ -122,18 +150,35 @@ export default function CurriculumPage() {
             </Select>
           </div>
         </div>
+        <div className="mb-sm flex flex-wrap items-center gap-1">
+          <span className="text-xs text-muted-foreground">Filter by status:</span>
+          {filterableStatuses.map((status) => {
+            const active = statusFilter.has(status);
+            const countForStatus = unitsForSelection.filter((u) => u.status === status).length;
+            if (countForStatus === 0) return null;
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => toggleStatusFilter(status)}
+                aria-pressed={active}
+                className={cn(
+                  "rounded-pill px-sm py-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                  active ? "bg-primary text-primary-foreground" : "bg-surface-secondary text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {progressStatusLabels[status]} ({countForStatus})
+              </button>
+            );
+          })}
+          {statusFilter.size > 0 && (
+            <button type="button" onClick={() => setStatusFilter(new Set())} className="text-[11px] font-medium text-primary underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+              Clear
+            </button>
+          )}
+        </div>
         <LearningPathTimeline units={selectedUnits} />
       </div>
-
-      {selectedUnits.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {selectedUnits.map((u) => (
-            <Badge key={u.id} tone={progressStatusTone[u.status]}>
-              {u.title}: {progressStatusLabels[u.status]}
-            </Badge>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

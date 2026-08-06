@@ -37,6 +37,9 @@ export type PromotionDecision = {
   toSectionId?: ID;
   newRollNumber?: string;
   decision: PromotionDecisionType;
+  /** The decision computed by the eligibility engine when the run was created — compared
+   * against `decision` to detect and surface a manual override. */
+  originalDecision: PromotionDecisionType;
   reason?: string;
   overriddenBy?: string;
   overrideReason?: string;

@@ -3,15 +3,17 @@
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
+import type { Db } from "@/lib/data/store";
 import { teacherById } from "@/lib/data/seed/academics";
+import { classAttendanceTodayPercent, classCurriculumCompletionPercent, classRoomNames, classTeacherNames } from "@/lib/selectors/class-insights";
 import type { ManagedClass } from "@/lib/types/academics";
-import { cn } from "@/lib/utils";
+import { CapacityBar } from "./capacity-bar";
 
 export function classCapacity(c: ManagedClass): { capacity: number; enrolled: number } {
   return c.sections.reduce((acc, s) => ({ capacity: acc.capacity + s.capacity, enrolled: acc.enrolled + s.enrolledCount }), { capacity: 0, enrolled: 0 });
 }
 
-export function buildClassColumns(): ColumnDef<ManagedClass>[] {
+export function buildClassColumns(db: Db): ColumnDef<ManagedClass>[] {
   return [
     {
       id: "name",
@@ -21,7 +23,7 @@ export function buildClassColumns(): ColumnDef<ManagedClass>[] {
       cell: (c) => (
         <div>
           <p className="text-sm font-medium text-foreground">{c.name}</p>
-          <p className="text-xs text-muted-foreground">Grade {c.order}</p>
+          <p className="text-xs text-muted-foreground">{c.sections.length} section{c.sections.length === 1 ? "" : "s"}</p>
         </div>
       ),
     },
@@ -44,18 +46,34 @@ export function buildClassColumns(): ColumnDef<ManagedClass>[] {
       defaultVisible: false,
     },
     {
+      id: "room",
+      header: "Room",
+      cell: (c) => <span className="text-xs text-muted-foreground">{classRoomNames(c).join(", ") || "Unassigned"}</span>,
+      defaultVisible: false,
+    },
+    {
       id: "students",
-      header: "Students",
+      header: "Capacity",
       sortValue: (c) => classCapacity(c).enrolled,
       cell: (c) => {
         const { capacity, enrolled } = classCapacity(c);
-        const nearFull = capacity > 0 && enrolled / capacity > 0.9;
-        return (
-          <span className={cn("text-sm", nearFull ? "font-medium text-warning" : "text-foreground")}>
-            {enrolled} / {capacity}
-          </span>
-        );
+        return <CapacityBar enrolled={enrolled} capacity={capacity} compact />;
       },
+    },
+    {
+      id: "attendance",
+      header: "Attendance today",
+      cell: (c) => {
+        const percent = classAttendanceTodayPercent(db, c);
+        return <span className="text-sm text-foreground">{percent === null ? "—" : `${percent}%`}</span>;
+      },
+      defaultVisible: false,
+    },
+    {
+      id: "curriculum",
+      header: "Curriculum progress",
+      cell: (c) => <span className="text-sm text-foreground">{classCurriculumCompletionPercent(db, c.id)}%</span>,
+      defaultVisible: false,
     },
     {
       id: "subjects",
@@ -74,20 +92,18 @@ export function buildClassColumns(): ColumnDef<ManagedClass>[] {
 
 export function ClassMobileCard({ schoolClass, onOpen }: { schoolClass: ManagedClass; onOpen: () => void }) {
   const { capacity, enrolled } = classCapacity(schoolClass);
-  const teacherNames = schoolClass.sections.map((s) => teacherById(s.classTeacherId)?.name).filter(Boolean);
+  const teacherNames = classTeacherNames(schoolClass);
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="surface-3d flex w-full min-h-11 flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+      className="surface-3d flex w-full min-h-11 flex-col gap-1.5 rounded-lg border border-border bg-surface p-sm text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
     >
       <div className="flex items-center justify-between gap-xs">
         <p className="text-sm font-semibold text-foreground">{schoolClass.name}</p>
         <Badge tone={schoolClass.status === "active" ? "success" : "neutral"}>{schoolClass.status}</Badge>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {schoolClass.sections.length} section{schoolClass.sections.length === 1 ? "" : "s"} · {enrolled}/{capacity} students
-      </p>
+      <CapacityBar enrolled={enrolled} capacity={capacity} />
       <p className="truncate text-xs text-muted-foreground">{teacherNames.join(", ") || "No class teacher assigned"}</p>
     </button>
   );

@@ -23,6 +23,41 @@ export function archiveGradingScheme(schemeId: string) {
   updateGradingScheme(schemeId, { status: "archived" });
 }
 
+export function unarchiveGradingScheme(schemeId: string) {
+  updateGradingScheme(schemeId, { status: "draft" });
+}
+
+export function duplicateGradingScheme(schemeId: string): GradingScheme | undefined {
+  const db = getSnapshot();
+  const source = db.gradingSchemes.find((s) => s.id === schemeId);
+  if (!source) return undefined;
+  const now = new Date().toISOString();
+  const copy: GradingScheme = {
+    ...source,
+    id: generateId("gs"),
+    name: `Copy of ${source.name}`,
+    status: "draft",
+    isDefault: false,
+    ranges: source.ranges.map((r) => ({ ...r, id: generateId("gr") })),
+    createdAt: now,
+    updatedAt: now,
+  };
+  setState((current) => ({ ...current, gradingSchemes: [...current.gradingSchemes, copy] }));
+  return copy;
+}
+
+/** Only one scheme is ever the default — setting one clears the flag on every other. */
+export function setDefaultGradingScheme(schemeId: string) {
+  setState((db) => ({
+    ...db,
+    gradingSchemes: db.gradingSchemes.map((s) => ({ ...s, isDefault: s.id === schemeId, updatedAt: s.id === schemeId ? new Date().toISOString() : s.updatedAt })),
+  }));
+}
+
+export function assignSchemeClasses(schemeId: string, classIds: string[]) {
+  updateGradingScheme(schemeId, { applicableClassIds: classIds });
+}
+
 export type GradeRangeValidation = { valid: boolean; errors: string[] };
 
 /** Validates a candidate range set before it's saved — the same non-overlap check the result engine relies on, so a bad scheme can never reach calculation. */

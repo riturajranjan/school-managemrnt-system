@@ -41,6 +41,7 @@ export default function ExamPublishPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [revokeReason, setRevokeReason] = useState("");
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const checklist = useMemo(() => (exam ? computePublicationChecklist(db, exam.id) : []), [db, exam]);
   const allDone = checklist.every((c) => c.done);
@@ -161,12 +162,18 @@ export default function ExamPublishPage() {
           </div>
 
           {canPublish && (
-            <Button onClick={() => setConfirmOpen(true)} disabled={!allDone || (scope === "class" && !classId) || (scope === "section" && !sectionId)}>
+            <Button onClick={() => { setPublishError(null); setConfirmOpen(true); }} disabled={!allDone || (scope === "class" && !classId) || (scope === "section" && !sectionId)}>
               <Send className="size-3.5" />
               Publish results
             </Button>
           )}
           {!allDone && <p className="text-xs text-warning">Complete the checklist above before publishing.</p>}
+          {publishError && (
+            <p className="flex items-center gap-1.5 text-xs text-error">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              {publishError}
+            </p>
+          )}
         </div>
       )}
 
@@ -177,7 +184,12 @@ export default function ExamPublishPage() {
         description="This makes results immediately visible to students and parents through the selected channels. This action is logged and can be revoked if needed."
         confirmLabel="Publish now"
         onConfirm={() => {
-          publishResults(exam.id, scope, { classId: classId || undefined, sectionId: sectionId || undefined }, channels, ACTOR);
+          try {
+            publishResults(exam.id, scope, { classId: classId || undefined, sectionId: sectionId || undefined }, channels, ACTOR);
+            setPublishError(null);
+          } catch (err) {
+            setPublishError(err instanceof Error ? err.message : "Unable to publish results.");
+          }
           setConfirmOpen(false);
         }}
       />

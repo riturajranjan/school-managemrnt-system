@@ -73,12 +73,19 @@ describe("promotion-service", () => {
 
   it("refuses to confirm when a destination section is missing", () => {
     const db = getSnapshot();
-    const someClass = db.classes[0];
+    const someClass = db.classes.find((c) => computePromotionEligibility(db, c.id).some((e) => e.decision !== "pending"));
     if (!someClass) return;
     const run = createPromotionRun("2026-2027", "2027-2028", someClass.id, undefined, ACTOR);
     const promoteDecision = run.decisions.find((d) => d.decision === "promote");
     if (!promoteDecision) return; // nothing to promote in this random draw, nothing to assert
     const result = confirmPromotionRun(run.id, ACTOR);
     expect(result.ok).toBe(false);
+  });
+
+  it("refuses to start a run when every student in the class is missing a result", () => {
+    const db = getSnapshot();
+    const classWithoutResults = db.classes.find((c) => computePromotionEligibility(db, c.id).length > 0 && computePromotionEligibility(db, c.id).every((e) => e.decision === "pending"));
+    if (!classWithoutResults) return;
+    expect(() => createPromotionRun("2026-2027", "2027-2028", classWithoutResults.id, undefined, ACTOR)).toThrow(/no student/i);
   });
 });

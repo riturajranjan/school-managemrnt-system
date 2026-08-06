@@ -57,10 +57,10 @@ export function NavLink({
         <motion.span
           layoutId={`nav-active-capsule-${layoutScope}`}
           transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40, mass: 0.6 }}
-          className="absolute inset-0 rounded-lg border border-white/8 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-sm"
+          className="absolute inset-y-0.5 inset-x-0 rounded-lg border border-white/6 bg-white/7 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm"
         >
           <span className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-accent shadow-[0_0_6px_rgba(24,176,200,0.7)]" />
-          <span className="absolute inset-0 bg-gradient-to-br from-white/12 via-transparent to-transparent" />
+          <span className="absolute inset-0 bg-gradient-to-br from-white/8 via-transparent to-transparent" />
         </motion.span>
       )}
 

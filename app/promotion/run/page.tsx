@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -70,13 +70,20 @@ function PromotionRunContent() {
           return (
             <div key={decision.studentId} className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{student ? `${student.profile.firstName} ${student.profile.lastName}` : decision.studentId}</p>
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
+                  <span className="truncate">{student ? `${student.profile.firstName} ${student.profile.lastName}` : decision.studentId}</span>
+                  {decision.overriddenBy && (
+                    <Badge tone="warning">
+                      <UserCog className="size-3" /> Overridden by {decision.overriddenBy}
+                    </Badge>
+                  )}
+                </p>
                 <p className="text-xs text-muted-foreground">{decision.reason}</p>
               </div>
               <div className="flex flex-wrap items-center gap-xs">
                 <Select
                   value={decision.decision}
-                  onValueChange={(v) => updateDecision(run.id, decision.studentId, { decision: v as PromotionDecisionType, toClassId: v === "promote" || v === "conditional-promotion" ? (decision.toClassId ?? defaultTargetClass?.id) : undefined })}
+                  onValueChange={(v) => updateDecision(run.id, decision.studentId, { decision: v as PromotionDecisionType, toClassId: v === "promote" || v === "conditional-promotion" ? (decision.toClassId ?? defaultTargetClass?.id) : undefined }, ACTOR)}
                   disabled={run.status === "completed" || !canApprove}
                 >
                   <SelectTrigger className="w-44" aria-label="Decision">

@@ -12,14 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CapacityBar } from "@/components/academics/classes/capacity-bar";
 import { classCapacity } from "@/components/academics/classes/class-table";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { subjectById, teacherById } from "@/lib/data/seed/academics";
+import { roomById, subjectById, teacherById } from "@/lib/data/seed/academics";
 import { useManagedClass, useSubjects, useTeachers } from "@/lib/hooks/use-academics";
 import { useHomeworkList } from "@/lib/hooks/use-academics";
 import { useAttendanceSessions } from "@/lib/hooks/use-attendance";
 import { useLessonPlans } from "@/lib/hooks/use-academics";
 import { useSisStore } from "@/lib/hooks/use-store";
+import { classAttendanceTodayPercent, classCurriculumCompletionPercent, classRoomNames, classTeacherNames } from "@/lib/selectors/class-insights";
 import { createAssignment } from "@/lib/services/subjects-service";
 import { homeworkStatusTone } from "@/lib/types/academics";
 import { formatDate } from "@/lib/utils";
@@ -83,15 +85,36 @@ export default function ClassDetailPage({ params }: { params: Promise<{ classId:
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
-      <div className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-sm sm:flex-row sm:items-center sm:justify-between sm:p-md">
-        <div>
-          <div className="flex items-center gap-xs">
-            <h1 className="text-base font-semibold text-foreground">{schoolClass.name}</h1>
-            <Badge tone={schoolClass.status === "active" ? "success" : "neutral"}>{schoolClass.status}</Badge>
+      <div className="flex flex-col gap-md rounded-lg border border-border bg-surface p-sm sm:p-md">
+        <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-xs">
+              <h1 className="text-base font-semibold text-foreground">{schoolClass.name}</h1>
+              <Badge tone={schoolClass.status === "active" ? "success" : "neutral"}>{schoolClass.status}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">{schoolClass.sections.length} section{schoolClass.sections.length === 1 ? "" : "s"}</p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {schoolClass.sections.length} sections · {enrolled}/{capacity} students · Grade {schoolClass.order}
-          </p>
+          <div className="sm:w-48">
+            <CapacityBar enrolled={enrolled} capacity={capacity} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-sm border-t border-border pt-sm text-xs sm:grid-cols-4">
+          <div>
+            <p className="text-muted-foreground">Class teacher(s)</p>
+            <p className="font-medium text-foreground">{classTeacherNames(schoolClass).join(", ") || "Unassigned"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Room(s)</p>
+            <p className="font-medium text-foreground">{classRoomNames(schoolClass).join(", ") || "Unassigned"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Attendance today</p>
+            <p className="font-medium text-foreground">{classAttendanceTodayPercent(db, schoolClass) ?? "—"}%</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Curriculum progress</p>
+            <p className="font-medium text-foreground">{classCurriculumCompletionPercent(db, classId)}%</p>
+          </div>
         </div>
       </div>
 
@@ -112,15 +135,14 @@ export default function ClassDetailPage({ params }: { params: Promise<{ classId:
         <TabsContent value="overview" className="mt-md">
           <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
             {schoolClass.sections.map((section) => (
-              <div key={section.id} className="rounded-lg border border-border p-sm">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">Section {section.name}</p>
-                  <Badge tone="neutral">
-                    {section.enrolledCount}/{section.capacity}
-                  </Badge>
+              <div key={section.id} className="flex flex-col gap-sm rounded-lg border border-border p-sm">
+                <p className="text-sm font-semibold text-foreground">Section {section.name}</p>
+                <CapacityBar enrolled={section.enrolledCount} capacity={section.capacity} />
+                <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                  <p>Class teacher: {teacherById(section.classTeacherId)?.name ?? "Unassigned"}</p>
+                  <p>Room: {roomById(section.roomId)?.name ?? "Unassigned"}</p>
+                  <p>Shift: {section.shift}</p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">Class teacher: {teacherById(section.classTeacherId)?.name ?? "Unassigned"}</p>
-                <p className="text-xs text-muted-foreground">Shift: {section.shift}</p>
               </div>
             ))}
           </div>

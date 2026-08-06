@@ -39,6 +39,14 @@ export function publishResults(
   actor: { name: string; role: string },
   publishAt?: string,
 ) {
+  const db = getSnapshot();
+  const resultCount = db.examResults.filter((r) => r.examId === examId).length;
+  if (resultCount === 0) {
+    // Service-layer guard, independent of the publish page's checklist gate — results
+    // must exist before an exam can ever be marked published.
+    throw new Error("Cannot publish: no results have been calculated for this exam yet.");
+  }
+
   const now = new Date().toISOString();
   const publication = {
     id: generateId("rp"),
