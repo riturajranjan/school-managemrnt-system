@@ -28,7 +28,10 @@ export type StudentProfile = {
   house?: string;
 };
 
-export type StudentTransportAssignment = {
+/** Lightweight, denormalized display snapshot embedded on the student record
+ * for cards/lists — the Phase 6 transport module owns the real relational
+ * assignment (see `StudentTransportAssignment` in lib/types/transport.ts). */
+export type StudentTransportSummary = {
   routeId: string;
   routeName: string;
   stopName: string;
@@ -141,7 +144,7 @@ export type Student = {
   address: Address;
   guardianIds: ID[];
   primaryGuardianId: ID;
-  transport?: StudentTransportAssignment;
+  transport?: StudentTransportSummary;
   hostel?: StudentHostelAssignment;
   academics: StudentAcademicSummary;
   attendance: StudentAttendanceSummary;

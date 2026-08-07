@@ -62,6 +62,38 @@ import type {
 } from "@/lib/types/accounting";
 import type { EmployeeAdvance, EmployeeLoan, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
 import type { FinancialAuditEvent } from "@/lib/types/finance-audit";
+import type {
+  Attendant,
+  Driver,
+  DriverAvailability,
+  DriverDocument,
+  DriverTraining,
+  DropRecord,
+  FuelRecord,
+  MaintenanceRecord,
+  PickupRecord,
+  RouteStop,
+  StaffTransportAssignment,
+  StudentTransportAssignment,
+  TransportAttendance,
+  TransportFeeCharge,
+  TransportFeeRule,
+  TransportIncident,
+  TransportNotification,
+  TransportNotificationRule,
+  TransportRoute,
+  TransportShiftPolicy,
+  TransportStop,
+  TransportTrip,
+  TripStop,
+  TripStudent,
+  Vehicle,
+  VehicleAssignment,
+  VehicleDocument,
+  VehicleSeat,
+} from "@/lib/types/transport";
+import type { GPSDevice, GPSPosition, RouteDeviation } from "@/lib/types/gps";
+import type { TransportAuditEvent } from "@/lib/types/transport-audit";
 import { buildLedgerFromJournal } from "@/lib/selectors/ledger";
 import {
   bankAccounts,
@@ -100,6 +132,21 @@ import {
 import { attendanceRules, generateAttendanceSessions, leaveRequests, staffAttendanceToday } from "./seed/attendance";
 import { timetables } from "./seed/timetable";
 import { examClasses, examSubjects, exams, generateExamStudentData, gradingSchemes, reportCardTemplates, resultRules } from "./seed/exams";
+import {
+  attendants,
+  driverDocuments,
+  driverTraining,
+  drivers,
+  generateTransportData,
+  gpsDevices,
+  routeStops,
+  transportRoutes,
+  transportStops,
+  vehicleAssignments,
+  vehicleDocuments,
+  vehicleSeats,
+  vehicles,
+} from "./seed/transport";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -185,9 +232,49 @@ export type Db = {
   employeeLoans: EmployeeLoan[];
   employeeAdvances: EmployeeAdvance[];
   financialAuditLog: FinancialAuditEvent[];
+  // Phase 6 — transport and fleet operations
+  transportShiftPolicies: TransportShiftPolicy[];
+  transportStops: TransportStop[];
+  transportRoutes: TransportRoute[];
+  routeStops: RouteStop[];
+  vehicles: Vehicle[];
+  vehicleSeats: VehicleSeat[];
+  vehicleDocuments: VehicleDocument[];
+  vehicleAssignments: VehicleAssignment[];
+  drivers: Driver[];
+  driverDocuments: DriverDocument[];
+  driverTraining: DriverTraining[];
+  driverAvailability: DriverAvailability[];
+  attendants: Attendant[];
+  studentTransportAssignments: StudentTransportAssignment[];
+  staffTransportAssignments: StaffTransportAssignment[];
+  transportTrips: TransportTrip[];
+  tripStops: TripStop[];
+  tripStudents: TripStudent[];
+  pickupRecords: PickupRecord[];
+  dropRecords: DropRecord[];
+  transportAttendance: TransportAttendance[];
+  gpsDevices: GPSDevice[];
+  gpsPositions: GPSPosition[];
+  routeDeviations: RouteDeviation[];
+  transportIncidents: TransportIncident[];
+  maintenanceRecords: MaintenanceRecord[];
+  fuelRecords: FuelRecord[];
+  transportNotificationRules: TransportNotificationRule[];
+  transportNotifications: TransportNotification[];
+  transportFeeRules: TransportFeeRule[];
+  transportFeeCharges: TransportFeeCharge[];
+  transportAuditLog: TransportAuditEvent[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
+
+const DEFAULT_SHIFT_POLICIES: TransportShiftPolicy[] = [
+  { shift: "morning", defaultPickupTime: "07:00", defaultDropTime: "15:30" },
+  { shift: "afternoon", defaultPickupTime: "12:00", defaultDropTime: "18:00" },
+  { shift: "evening", defaultPickupTime: "16:00", defaultDropTime: "20:00" },
+  { shift: "both", defaultPickupTime: "07:00", defaultDropTime: "15:30" },
+];
 
 function buildSeedDb(): Db {
   const applications = generateAdmissionApplications();
@@ -203,10 +290,15 @@ function buildSeedDb(): Db {
   const julyPayroll = buildPayrollForJuly(salaryStructures, teachers);
   const { loans: employeeLoans, advances: employeeAdvances } = buildLoansAndAdvances(teachers);
   const allJournalEntries = [...financeData.journalEntries, ...expenseJournals(), julyPayroll.journal];
+  const transportData = generateTransportData(students, teachers);
+  const studentsWithTransport = students.map((s) => {
+    const summary = transportData.studentSummaries.get(s.id);
+    return summary ? { ...s, transport: summary } : s;
+  });
 
   return {
     applications,
-    students,
+    students: studentsWithTransport,
     guardians,
     studentGuardianLinks,
     parentAccounts,
@@ -286,6 +378,38 @@ function buildSeedDb(): Db {
     employeeLoans,
     employeeAdvances,
     financialAuditLog: [],
+    transportShiftPolicies: structuredClone(DEFAULT_SHIFT_POLICIES),
+    transportStops: structuredClone(transportStops),
+    transportRoutes: structuredClone(transportRoutes),
+    routeStops: structuredClone(routeStops),
+    vehicles: structuredClone(vehicles),
+    vehicleSeats: transportData.vehicleSeats,
+    vehicleDocuments: structuredClone(vehicleDocuments),
+    vehicleAssignments: structuredClone(vehicleAssignments),
+    drivers: structuredClone(drivers),
+    driverDocuments: structuredClone(driverDocuments),
+    driverTraining: structuredClone(driverTraining),
+    driverAvailability: [],
+    attendants: structuredClone(attendants),
+    studentTransportAssignments: transportData.studentAssignments,
+    staffTransportAssignments: transportData.staffAssignments,
+    transportTrips: transportData.trips,
+    tripStops: transportData.tripStops,
+    tripStudents: transportData.tripStudents,
+    pickupRecords: transportData.pickupRecords,
+    dropRecords: transportData.dropRecords,
+    transportAttendance: transportData.transportAttendance,
+    gpsDevices: structuredClone(gpsDevices),
+    gpsPositions: transportData.gpsPositions,
+    routeDeviations: transportData.routeDeviations,
+    transportIncidents: transportData.incidents,
+    maintenanceRecords: transportData.maintenanceRecords,
+    fuelRecords: transportData.fuelRecords,
+    transportNotificationRules: transportData.notificationRules,
+    transportNotifications: transportData.notifications,
+    transportFeeRules: transportData.feeRules,
+    transportFeeCharges: transportData.feeCharges,
+    transportAuditLog: [],
   };
 }
 
@@ -392,6 +516,40 @@ export function hydrateFromStorage() {
         employeeLoans: parsed.employeeLoans ?? [],
         employeeAdvances: parsed.employeeAdvances ?? [],
         financialAuditLog: parsed.financialAuditLog ?? [],
+        // Older cached snapshots predate the whole Phase 6 transport domain —
+        // same fallback convention as Phase 5 above.
+        transportShiftPolicies: parsed.transportShiftPolicies ?? DEFAULT_SHIFT_POLICIES,
+        transportStops: parsed.transportStops ?? transportStops,
+        transportRoutes: parsed.transportRoutes ?? transportRoutes,
+        routeStops: parsed.routeStops ?? routeStops,
+        vehicles: parsed.vehicles ?? vehicles,
+        vehicleSeats: parsed.vehicleSeats ?? vehicleSeats,
+        vehicleDocuments: parsed.vehicleDocuments ?? vehicleDocuments,
+        vehicleAssignments: parsed.vehicleAssignments ?? vehicleAssignments,
+        drivers: parsed.drivers ?? drivers,
+        driverDocuments: parsed.driverDocuments ?? driverDocuments,
+        driverTraining: parsed.driverTraining ?? driverTraining,
+        driverAvailability: parsed.driverAvailability ?? [],
+        attendants: parsed.attendants ?? attendants,
+        studentTransportAssignments: parsed.studentTransportAssignments ?? [],
+        staffTransportAssignments: parsed.staffTransportAssignments ?? [],
+        transportTrips: parsed.transportTrips ?? [],
+        tripStops: parsed.tripStops ?? [],
+        tripStudents: parsed.tripStudents ?? [],
+        pickupRecords: parsed.pickupRecords ?? [],
+        dropRecords: parsed.dropRecords ?? [],
+        transportAttendance: parsed.transportAttendance ?? [],
+        gpsDevices: parsed.gpsDevices ?? gpsDevices,
+        gpsPositions: parsed.gpsPositions ?? [],
+        routeDeviations: parsed.routeDeviations ?? [],
+        transportIncidents: parsed.transportIncidents ?? [],
+        maintenanceRecords: parsed.maintenanceRecords ?? [],
+        fuelRecords: parsed.fuelRecords ?? [],
+        transportNotificationRules: parsed.transportNotificationRules ?? [],
+        transportNotifications: parsed.transportNotifications ?? [],
+        transportFeeRules: parsed.transportFeeRules ?? [],
+        transportFeeCharges: parsed.transportFeeCharges ?? [],
+        transportAuditLog: parsed.transportAuditLog ?? [],
       };
       notify();
     }

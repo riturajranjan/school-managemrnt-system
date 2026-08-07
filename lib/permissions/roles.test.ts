@@ -189,6 +189,49 @@ describe("Phase 5 finance permissions", () => {
     expect(hasPermission("admission-officer", "fees.manageStructures")).toBe(false);
     expect(hasPermission("admission-officer", "fees.viewReports")).toBe(false);
   });
+
+  it("gives Transport Administrator full route/vehicle/driver control but keeps Transport Manager limited to daily operations", () => {
+    expect(hasPermission("transport-administrator", "transport.manageRoutes")).toBe(true);
+    expect(hasPermission("transport-administrator", "transport.manageVehicles")).toBe(true);
+    expect(hasPermission("transport-administrator", "transport.manageSettings")).toBe(true);
+    expect(hasPermission("transport-manager", "transport.manageRoutes")).toBe(false);
+    expect(hasPermission("transport-manager", "transport.manageVehicles")).toBe(false);
+    expect(hasPermission("transport-manager", "transport.manageSettings")).toBe(false);
+    expect(hasPermission("transport-manager", "transport.manageTrips")).toBe(true);
+    expect(hasPermission("transport-manager", "transport.manageMaintenance")).toBe(true);
+  });
+
+  it("scopes driver and attendant to their own operational access, not fleet management", () => {
+    expect(hasPermission("driver", "transport.driverAccess")).toBe(true);
+    expect(hasPermission("driver", "transport.manageVehicles")).toBe(false);
+    expect(hasPermission("driver", "transport.manageRoutes")).toBe(false);
+    expect(hasPermission("attendant", "transport.attendantAccess")).toBe(true);
+    expect(hasPermission("attendant", "transport.markAttendance")).toBe(true);
+    expect(hasPermission("attendant", "transport.manageVehicles")).toBe(false);
+  });
+
+  it("keeps a dispatcher able to monitor and communicate but not manage the fleet or approve incidents", () => {
+    expect(hasPermission("dispatcher", "transport.viewLive")).toBe(true);
+    expect(hasPermission("dispatcher", "transport.manageTrips")).toBe(true);
+    expect(hasPermission("dispatcher", "transport.manageVehicles")).toBe(false);
+    expect(hasPermission("dispatcher", "transport.manageDrivers")).toBe(false);
+  });
+
+  it("scopes parent and student transport visibility to their own record only", () => {
+    expect(hasPermission("parent", "transport.viewOwn")).toBe(true);
+    expect(hasPermission("parent", "transport.view")).toBe(false);
+    expect(hasPermission("parent", "transport.manageRoutes")).toBe(false);
+    expect(hasPermission("student", "transport.viewOwn")).toBe(true);
+    expect(hasPermission("student", "transport.manageTrips")).toBe(false);
+  });
+
+  it("keeps an auditor read-only for transport too — visibility without any manage/approve permission", () => {
+    expect(hasPermission("auditor", "transport.view")).toBe(true);
+    expect(hasPermission("auditor", "transport.viewReports")).toBe(true);
+    expect(hasPermission("auditor", "transport.manageRoutes")).toBe(false);
+    expect(hasPermission("auditor", "transport.manageVehicles")).toBe(false);
+    expect(hasPermission("auditor", "transport.manageIncidents")).toBe(false);
+  });
 });
 
 describe("hasAnyPermission", () => {

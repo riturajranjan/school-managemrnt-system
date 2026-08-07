@@ -9,6 +9,13 @@ export type UserRole =
   | "finance-administrator"
   | "accountant"
   | "cashier"
+  | "transport-administrator"
+  | "transport-manager"
+  | "dispatcher"
+  | "driver"
+  | "attendant"
+  | "mechanic"
+  | "receptionist"
   | "teacher"
   | "parent"
   | "student"
@@ -25,6 +32,13 @@ export const roleLabels: Record<UserRole, string> = {
   "finance-administrator": "Finance Administrator",
   accountant: "Accountant",
   cashier: "Cashier",
+  "transport-administrator": "Transport Administrator",
+  "transport-manager": "Transport Manager",
+  dispatcher: "Dispatcher",
+  driver: "Driver",
+  attendant: "Attendant",
+  mechanic: "Mechanic",
+  receptionist: "Receptionist",
   teacher: "Teacher",
   parent: "Parent",
   student: "Student",
@@ -135,7 +149,32 @@ export type Permission =
   | "payroll.run"
   | "payroll.approve"
   | "payroll.viewPayslips"
-  | "payroll.manageLoans";
+  | "payroll.manageLoans"
+  // Phase 6 — transport and fleet operations
+  | "transport.view"
+  | "transport.manageRoutes"
+  | "transport.manageStops"
+  | "transport.manageVehicles"
+  | "transport.manageDrivers"
+  | "transport.manageAttendants"
+  | "transport.assignStudents"
+  | "transport.manageTrips"
+  | "transport.viewLive"
+  | "transport.markAttendance"
+  | "transport.reportIncident"
+  | "transport.manageIncidents"
+  | "transport.manageMaintenance"
+  | "transport.manageFuel"
+  | "transport.manageDocuments"
+  | "transport.manageFees"
+  | "transport.viewReports"
+  | "transport.manageNotifications"
+  | "transport.manageSettings"
+  | "transport.viewGpsHistory"
+  | "transport.viewCosts"
+  | "transport.driverAccess"
+  | "transport.attendantAccess"
+  | "transport.viewOwn";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),
@@ -170,6 +209,25 @@ const ACCOUNTING_OVERSIGHT: Permission[] = ["accounting.view", "accounting.viewR
 
 const PAYROLL_MANAGE: Permission[] = ["payroll.view", "payroll.manageStructures", "payroll.run", "payroll.approve", "payroll.viewPayslips", "payroll.manageLoans"];
 const PAYROLL_OVERSIGHT: Permission[] = ["payroll.view", "payroll.approve"];
+
+// Transport permission groups — mirrors the Phase 5 FEES_*/ACCOUNTING_* shape.
+// OPERATE = day-to-day dispatch/ops work; MANAGE adds routes/vehicles/drivers/
+// settings (Transport Administrator only); OVERSIGHT is read-only visibility
+// for principal/school-owner.
+const TRANSPORT_OPERATE: Permission[] = [
+  "transport.view",
+  "transport.manageTrips",
+  "transport.viewLive",
+  "transport.markAttendance",
+  "transport.reportIncident",
+  "transport.manageIncidents",
+  "transport.manageMaintenance",
+  "transport.manageFuel",
+  "transport.viewReports",
+  "transport.viewGpsHistory",
+];
+const TRANSPORT_MANAGE: Permission[] = [...TRANSPORT_OPERATE, "transport.manageRoutes", "transport.manageStops", "transport.manageVehicles", "transport.manageDrivers", "transport.manageAttendants", "transport.assignStudents", "transport.manageDocuments", "transport.manageFees", "transport.manageNotifications", "transport.manageSettings", "transport.viewCosts"];
+const TRANSPORT_OVERSIGHT: Permission[] = ["transport.view", "transport.viewReports", "transport.viewLive", "transport.viewGpsHistory"];
 
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
@@ -244,6 +302,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...FEES_MANAGE,
     ...ACCOUNTING_MANAGE,
     ...PAYROLL_MANAGE,
+    ...TRANSPORT_MANAGE,
   ],
   "school-owner": [
     "admissions.view",
@@ -269,6 +328,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...FEES_OVERSIGHT,
     ...ACCOUNTING_OVERSIGHT,
     ...PAYROLL_OVERSIGHT,
+    ...TRANSPORT_OVERSIGHT,
   ],
   principal: [
     "admissions.view",
@@ -307,6 +367,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...FEES_OVERSIGHT,
     ...ACCOUNTING_OVERSIGHT,
     ...PAYROLL_OVERSIGHT,
+    ...TRANSPORT_OVERSIGHT,
   ],
   "examination-controller": [
     "students.view",
@@ -390,6 +451,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...FEES_MANAGE,
     ...ACCOUNTING_MANAGE,
     ...PAYROLL_MANAGE,
+    "transport.view",
+    "transport.manageFees",
+    "transport.viewCosts",
+    "transport.viewReports",
   ],
   cashier: ["students.view", "fees.view", "fees.record", "finance.viewDashboard"],
   // Strictly read-only — an auditor never gets an approve/manage/record permission,
@@ -411,6 +476,9 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "accounting.viewLedger",
     "accounting.viewReports",
     "payroll.view",
+    "transport.view",
+    "transport.viewReports",
+    "transport.viewGpsHistory",
   ],
   administrator: [
     "admissions.view",
@@ -457,7 +525,14 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "results.view",
     "reportCards.view",
   ],
-  accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE],
+  accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports"],
+  "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE],
+  "transport-manager": ["students.view", "parents.view", "communication.send", ...TRANSPORT_OPERATE, "transport.viewCosts"],
+  dispatcher: ["students.view", "transport.view", "transport.viewLive", "transport.manageTrips", "transport.markAttendance", "transport.reportIncident", "transport.viewGpsHistory"],
+  driver: ["transport.driverAccess", "transport.reportIncident"],
+  attendant: ["transport.attendantAccess", "transport.markAttendance", "transport.reportIncident"],
+  mechanic: ["transport.view", "transport.manageMaintenance", "transport.manageFuel", "transport.manageDocuments", "transport.viewCosts"],
+  receptionist: ["students.view", "parents.view", "communication.send", "transport.view", "transport.viewLive"],
   parent: [
     "students.view",
     "fees.view",
@@ -471,6 +546,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "exams.view",
     "results.view",
     "reportCards.view",
+    "transport.viewOwn",
   ],
   student: [
     "students.view",
@@ -483,6 +559,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.view",
     "fees.viewOwn",
     "fees.payOwn",
+    "transport.viewOwn",
   ],
 };
 
@@ -505,6 +582,13 @@ export const allRoles: UserRole[] = [
   "finance-administrator",
   "accountant",
   "cashier",
+  "transport-administrator",
+  "transport-manager",
+  "dispatcher",
+  "driver",
+  "attendant",
+  "mechanic",
+  "receptionist",
   "teacher",
   "parent",
   "student",

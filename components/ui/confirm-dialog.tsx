@@ -42,12 +42,14 @@ export function ConfirmDialog({
             </Dialog.Overlay>
             <Dialog.Content asChild forceMount>
               <motion.div
-                className="fixed inset-x-0 bottom-0 z-50 w-full rounded-t-2xl border-t border-border bg-surface p-md shadow-floating sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border"
+                className="fixed inset-x-0 bottom-0 z-50 w-full rounded-t-2xl border-t border-border bg-surface p-md shadow-floating sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-full sm: sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border"
                 initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-                transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
-              >
+                transition={{
+                  duration: reduceMotion ? 0 : 0.18,
+                  ease: "easeOut",
+                }}>
                 <div className="mb-sm flex items-start gap-sm">
                   {destructive && (
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-pill bg-error/15 text-error">
@@ -55,8 +57,12 @@ export function ConfirmDialog({
                     </span>
                   )}
                   <div className="min-w-0">
-                    <Dialog.Title className="text-sm font-semibold text-foreground">{title}</Dialog.Title>
-                    <Dialog.Description className="mt-1 text-sm text-muted-foreground">{description}</Dialog.Description>
+                    <Dialog.Title className="text-sm font-semibold text-foreground">
+                      {title}
+                    </Dialog.Title>
+                    <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                      {description}
+                    </Dialog.Description>
                   </div>
                 </div>
                 <div className="flex justify-end gap-sm pt-sm">
@@ -68,8 +74,7 @@ export function ConfirmDialog({
                     onClick={() => {
                       onConfirm();
                       onOpenChange(false);
-                    }}
-                  >
+                    }}>
                     {confirmLabel}
                   </Button>
                 </div>

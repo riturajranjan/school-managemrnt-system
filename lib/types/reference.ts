@@ -28,7 +28,10 @@ export type FeeStructure = {
   installments: number;
 };
 
-export type TransportRoute = {
+/** A minimal lookup shape used only by the admissions intake dropdown — the
+ * Phase 6 transport module owns the real `TransportRoute` entity (see
+ * lib/types/transport.ts). */
+export type TransportRouteRef = {
   id: ID;
   name: string;
   stops: string[];

@@ -1,4 +1,4 @@
-import type { FeeStructure, HostelBlock, SchoolClass, StaffMemberRef, TransportRoute } from "@/lib/types/reference";
+import type { FeeStructure, HostelBlock, SchoolClass, StaffMemberRef, TransportRouteRef } from "@/lib/types/reference";
 import { staffNames } from "./names";
 
 const classNames = ["Nursery", "LKG", "UKG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
@@ -47,7 +47,7 @@ export const feeStructures: FeeStructure[] = schoolClasses.map((schoolClass) => 
   installments: 4,
 }));
 
-export const transportRoutes: TransportRoute[] = [
+export const transportRoutes: TransportRouteRef[] = [
   { id: "route-1", name: "Route 1 — Indiranagar", stops: ["Indiranagar", "Domlur", "HAL"], vehicleNumber: "KA-05-AB-1234", capacity: 45, occupied: 38, monthlyFee: 2400 },
   { id: "route-2", name: "Route 2 — Whitefield", stops: ["Whitefield", "Marathahalli", "Brookefield"], vehicleNumber: "KA-05-AB-5678", capacity: 45, occupied: 41, monthlyFee: 2800 },
   { id: "route-3", name: "Route 3 — Koramangala", stops: ["Koramangala", "BTM Layout", "Jayanagar"], vehicleNumber: "KA-05-AB-9012", capacity: 45, occupied: 29, monthlyFee: 2200 },

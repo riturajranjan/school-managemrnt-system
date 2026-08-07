@@ -105,7 +105,7 @@ export const navGroups: NavGroup[] = [
       { key: "fees", label: "Fees", href: "/fees", icon: Wallet },
       { key: "accounting", label: "Accounting", href: "/accounting", icon: Calculator },
       { key: "payroll", label: "Payroll", href: "/payroll", icon: HandCoins },
-      { key: "transport", label: "Transport", href: "/operations/transport", icon: Bus },
+      { key: "transport", label: "Transport", href: "/transport", icon: Bus },
       { key: "library", label: "Library", href: "/operations/library", icon: Library },
       { key: "hr", label: "HR", href: "/operations/hr", icon: IdCard },
       { key: "inventory", label: "Inventory", href: "/operations/inventory", icon: Boxes },
