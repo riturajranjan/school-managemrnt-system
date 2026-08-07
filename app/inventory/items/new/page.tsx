@@ -7,7 +7,13 @@ import { ArrowLeft, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useSisStore } from "@/lib/hooks/use-store";
@@ -22,7 +28,9 @@ export default function NewItemPage() {
 
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
-  const [categoryId, setCategoryId] = useState(db.inventoryCategories[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(
+    db.inventoryCategories[0]?.id ?? "",
+  );
   const [unit, setUnit] = useState("piece");
   const [opening, setOpening] = useState("0");
   const [minimum, setMinimum] = useState("10");
@@ -31,7 +39,14 @@ export default function NewItemPage() {
   const [cost, setCost] = useState("50");
   const [error, setError] = useState<string | null>(null);
 
-  if (!can("inventory.manageItems")) return <PermissionDenied action="add inventory items" role={roleLabels[role]} backHref="/inventory" />;
+  if (!can("inventory.manageItems"))
+    return (
+      <PermissionDenied
+        action="add inventory items"
+        role={roleLabels[role]}
+        backHref="/inventory"
+      />
+    );
 
   function submit() {
     setError(null);
@@ -58,21 +73,36 @@ export default function NewItemPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-md pb-20 sm:pb-0">
+    <div className="mx-auto flex w-full  flex-col gap-md pb-20 sm:pb-0">
       <div className="flex items-center gap-sm">
-        <Button asChild size="icon" variant="ghost" aria-label="Back"><Link href="/inventory/items"><ArrowLeft className="size-4" /></Link></Button>
-        <h1 className="text-lg font-semibold text-foreground">Add inventory item</h1>
+        <Button asChild size="icon" variant="ghost" aria-label="Back">
+          <Link href="/inventory/items">
+            <ArrowLeft className="size-4" />
+          </Link>
+        </Button>
+        <h1 className="text-lg font-semibold text-foreground">
+          Add inventory item
+        </h1>
       </div>
 
       <div className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Item name *</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sku">SKU *</Label>
-            <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-0001" />
+            <Input
+              id="sku"
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              placeholder="SKU-0001"
+            />
           </div>
         </div>
 
@@ -80,15 +110,25 @@ export default function NewItemPage() {
           <div className="flex flex-col gap-1.5">
             <Label>Category</Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
               <SelectContent>
-                {db.inventoryCategories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {db.inventoryCategories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="unit">Unit</Label>
-            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
+            <Input
+              id="unit"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            />
           </div>
         </div>
 
@@ -102,22 +142,43 @@ export default function NewItemPage() {
           <Field label="Unit cost (₹)" value={cost} onChange={setCost} />
         </div>
 
-        {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
+        {error && (
+          <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">
+            {error}
+          </p>
+        )}
 
         <div className="flex justify-end gap-xs">
-          <Button asChild variant="outline"><Link href="/inventory/items">Cancel</Link></Button>
-          <Button onClick={submit}><PackagePlus className="size-4" /> Create item</Button>
+          <Button asChild variant="outline">
+            <Link href="/inventory/items">Cancel</Link>
+          </Button>
+          <Button onClick={submit}>
+            <PackagePlus className="size-4" /> Create item
+          </Button>
         </div>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <Label>{label}</Label>
-      <Input type="number" inputMode="numeric" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        type="number"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
