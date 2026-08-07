@@ -127,6 +127,28 @@ import type {
 } from "@/lib/types/inventory";
 import type { Asset, AssetAssignment, AssetCategory, AssetDepreciation, AssetDisposal, AssetMaintenance } from "@/lib/types/assets";
 import type {
+  Announcement,
+  Broadcast,
+  CommNotification,
+  CommunicationGroup,
+  CommunicationTemplate,
+  Conversation,
+  ConversationParticipant,
+  Delivery,
+  FrontDeskIncident,
+  GatePass,
+  HelpdeskTicket,
+  KnowledgeArticle,
+  Message,
+  Notice,
+  NotificationSettings,
+  ReceptionCall,
+  ScheduledCommunication,
+  TicketReply,
+  Visitor,
+  VisitorAppointment,
+} from "@/lib/types/communication";
+import type {
   Candidate,
   Contract,
   Department,
@@ -221,6 +243,7 @@ import {
 import { inventoryCategories, inventoryIssues, inventoryItems, inventoryMovements } from "./seed/inventory";
 import { assetAssignments, assetCategories, assetMaintenance, assets } from "./seed/assets";
 import { buildHrData, departments, designations, shifts } from "./seed/hr";
+import { buildCommunicationData } from "./seed/communication";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -401,6 +424,27 @@ export type Db = {
   staffLetters: StaffLetter[];
   hrAnnouncements: HrAnnouncement[];
   hrPolicies: HrPolicy[];
+  // Phase 9 — communication, notifications, helpdesk, front desk (frontend mock)
+  conversations: Conversation[];
+  conversationParticipants: ConversationParticipant[];
+  messages: Message[];
+  commGroups: CommunicationGroup[];
+  commAnnouncements: Announcement[];
+  commNotices: Notice[];
+  commBroadcasts: Broadcast[];
+  scheduledCommunications: ScheduledCommunication[];
+  commTemplates: CommunicationTemplate[];
+  commNotifications: CommNotification[];
+  notificationSettings: NotificationSettings;
+  helpdeskTickets: HelpdeskTicket[];
+  ticketReplies: TicketReply[];
+  knowledgeArticles: KnowledgeArticle[];
+  visitors: Visitor[];
+  visitorAppointments: VisitorAppointment[];
+  gatePasses: GatePass[];
+  receptionCalls: ReceptionCall[];
+  deliveries: Delivery[];
+  frontDeskIncidents: FrontDeskIncident[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -429,6 +473,7 @@ function buildSeedDb(): Db {
   const transportData = generateTransportData(students, teachers);
   const libraryData = buildLibraryData(students, teachers);
   const hrData = buildHrData(teachers);
+  const commData = buildCommunicationData(students, teachers);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -606,6 +651,26 @@ function buildSeedDb(): Db {
     staffLetters: hrData.letters,
     hrAnnouncements: hrData.announcements,
     hrPolicies: hrData.policies,
+    conversations: commData.conversations,
+    conversationParticipants: commData.participants,
+    messages: commData.messages,
+    commGroups: commData.groups,
+    commAnnouncements: commData.announcements,
+    commNotices: commData.notices,
+    commBroadcasts: commData.broadcasts,
+    scheduledCommunications: commData.scheduled,
+    commTemplates: commData.templates,
+    commNotifications: commData.notifications,
+    notificationSettings: commData.notificationSettings,
+    helpdeskTickets: commData.tickets,
+    ticketReplies: commData.replies,
+    knowledgeArticles: commData.knowledge,
+    visitors: commData.visitors,
+    visitorAppointments: commData.appointments,
+    gatePasses: commData.gatePasses,
+    receptionCalls: commData.calls,
+    deliveries: commData.deliveries,
+    frontDeskIncidents: commData.incidents,
   };
 }
 
@@ -842,6 +907,57 @@ export function hydrateFromStorage() {
             staffLetters: hr.letters,
             hrAnnouncements: hr.announcements,
             hrPolicies: hr.policies,
+          };
+        })(),
+        // Phase 9 communication — legacy snapshots predate this domain; regenerate
+        // from the cached students/teachers so the module always has data.
+        ...(() => {
+          if (parsed.conversations && parsed.notificationSettings) {
+            return {
+              conversations: parsed.conversations,
+              conversationParticipants: parsed.conversationParticipants ?? [],
+              messages: parsed.messages ?? [],
+              commGroups: parsed.commGroups ?? [],
+              commAnnouncements: parsed.commAnnouncements ?? [],
+              commNotices: parsed.commNotices ?? [],
+              commBroadcasts: parsed.commBroadcasts ?? [],
+              scheduledCommunications: parsed.scheduledCommunications ?? [],
+              commTemplates: parsed.commTemplates ?? [],
+              commNotifications: parsed.commNotifications ?? [],
+              notificationSettings: parsed.notificationSettings,
+              helpdeskTickets: parsed.helpdeskTickets ?? [],
+              ticketReplies: parsed.ticketReplies ?? [],
+              knowledgeArticles: parsed.knowledgeArticles ?? [],
+              visitors: parsed.visitors ?? [],
+              visitorAppointments: parsed.visitorAppointments ?? [],
+              gatePasses: parsed.gatePasses ?? [],
+              receptionCalls: parsed.receptionCalls ?? [],
+              deliveries: parsed.deliveries ?? [],
+              frontDeskIncidents: parsed.frontDeskIncidents ?? [],
+            };
+          }
+          const c = buildCommunicationData(parsed.students ?? [], parsed.teachers ?? teachers);
+          return {
+            conversations: c.conversations,
+            conversationParticipants: c.participants,
+            messages: c.messages,
+            commGroups: c.groups,
+            commAnnouncements: c.announcements,
+            commNotices: c.notices,
+            commBroadcasts: c.broadcasts,
+            scheduledCommunications: c.scheduled,
+            commTemplates: c.templates,
+            commNotifications: c.notifications,
+            notificationSettings: c.notificationSettings,
+            helpdeskTickets: c.tickets,
+            ticketReplies: c.replies,
+            knowledgeArticles: c.knowledge,
+            visitors: c.visitors,
+            visitorAppointments: c.appointments,
+            gatePasses: c.gatePasses,
+            receptionCalls: c.calls,
+            deliveries: c.deliveries,
+            frontDeskIncidents: c.incidents,
           };
         })(),
       };

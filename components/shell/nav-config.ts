@@ -27,6 +27,7 @@ import {
   Inbox,
   LayoutDashboard,
   Library,
+  LifeBuoy,
   Megaphone,
   MessageSquare,
   NotebookPen,
@@ -117,6 +118,8 @@ export const navGroups: NavGroup[] = [
     label: "More",
     items: [
       { key: "communication", label: "Communication", href: "/communication", icon: MessageSquare },
+      { key: "helpdesk", label: "Helpdesk", href: "/helpdesk", icon: LifeBuoy },
+      { key: "front-desk", label: "Front Desk", href: "/front-desk", icon: DoorOpen },
       { key: "certificates", label: "Certificates", href: "/certificates", icon: FileBadge },
       { key: "reports", label: "Reports", href: "/reports", icon: BarChart3 },
       { key: "integrations", label: "Integrations", href: "/integrations", icon: Plug },
