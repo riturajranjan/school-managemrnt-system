@@ -7,7 +7,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { schoolClasses } from "@/lib/data/seed/reference";
 import { useStudent } from "@/lib/hooks/use-students";
 import { updateStudent } from "@/lib/services/students-service";
@@ -59,7 +65,12 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
 
   function onSubmit(values: EditValues) {
     updateStudent(studentId, {
-      profile: { ...student!.profile, firstName: values.firstName, lastName: values.lastName, house: values.house || undefined },
+      profile: {
+        ...student!.profile,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        house: values.house || undefined,
+      },
       rollNumber: values.rollNumber || undefined,
       classId: values.classId,
       sectionId: values.sectionId,
@@ -70,18 +81,30 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-md">
+    <div className="mx-auto flex  flex-col gap-md">
       <h1 className="text-lg font-semibold text-foreground">Edit student</h1>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
-        {saved && <p className="rounded-md border border-success/30 bg-success/10 p-sm text-xs text-success">Saved — redirecting…</p>}
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
+        {saved && (
+          <p className="rounded-md border border-success/30 bg-success/10 p-sm text-xs text-success">
+            Saved — redirecting…
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
           <div>
             <Label htmlFor="firstName">First name</Label>
-            <Input id="firstName" {...form.register("firstName", { required: true })} />
+            <Input
+              id="firstName"
+              {...form.register("firstName", { required: true })}
+            />
           </div>
           <div>
             <Label htmlFor="lastName">Last name</Label>
-            <Input id="lastName" {...form.register("lastName", { required: true })} />
+            <Input
+              id="lastName"
+              {...form.register("lastName", { required: true })}
+            />
           </div>
           <div>
             <Label htmlFor="rollNumber">Roll number</Label>
@@ -97,7 +120,12 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
               control={form.control}
               name="classId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={(v) => { field.onChange(v); form.setValue("sectionId", ""); }}>
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => {
+                    field.onChange(v);
+                    form.setValue("sectionId", "");
+                  }}>
                   <SelectTrigger aria-label="Class">
                     <SelectValue />
                   </SelectTrigger>
@@ -144,11 +172,13 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(studentStatusLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
+                    {Object.entries(studentStatusLabels).map(
+                      ([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
               )}
@@ -157,7 +187,10 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
         </div>
 
         <div className="flex justify-end gap-sm border-t border-border pt-md">
-          <Button type="button" variant="outline" onClick={() => router.push(`/students/${studentId}`)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(`/students/${studentId}`)}>
             Cancel
           </Button>
           <Button type="submit">Save changes</Button>

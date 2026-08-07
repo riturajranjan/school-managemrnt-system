@@ -25,7 +25,11 @@ export type UserRole =
   | "assistant-librarian"
   | "inventory-manager"
   | "storekeeper"
-  | "department-head";
+  | "department-head"
+  // Phase 8 — HR & people operations
+  | "hr-manager"
+  | "hr-executive"
+  | "recruiter";
 
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
@@ -54,6 +58,9 @@ export const roleLabels: Record<UserRole, string> = {
   "inventory-manager": "Inventory Manager",
   storekeeper: "Storekeeper",
   "department-head": "Department Head",
+  "hr-manager": "HR Manager",
+  "hr-executive": "HR Executive",
+  recruiter: "Recruiter",
 };
 
 export type Permission =
@@ -218,7 +225,24 @@ export type Permission =
   | "assets.runDepreciation"
   | "assets.dispose"
   | "assets.approveDisposal"
-  | "assets.viewReports";
+  | "assets.viewReports"
+  // Phase 8 — HR & people operations
+  | "hr.view"
+  | "hr.viewOwn"
+  | "hr.manageStaff"
+  | "hr.viewSensitive"
+  | "hr.manageDepartments"
+  | "hr.manageAttendance"
+  | "hr.manageLeave"
+  | "hr.approveLeave"
+  | "hr.manageContracts"
+  | "hr.manageDocuments"
+  | "hr.manageRecruitment"
+  | "hr.manageOnboarding"
+  | "hr.managePerformance"
+  | "hr.manageTraining"
+  | "hr.manageLetters"
+  | "hr.viewAnalytics";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),
@@ -285,6 +309,27 @@ const INVENTORY_OVERSIGHT: Permission[] = ["inventory.view", "inventory.viewRepo
 
 const ASSETS_MANAGE: Permission[] = ["assets.view", "assets.manageRegister", "assets.assign", "assets.manageMaintenance", "assets.runDepreciation", "assets.dispose", "assets.viewReports"];
 const ASSETS_OVERSIGHT: Permission[] = ["assets.view", "assets.viewReports", "assets.approveDisposal"];
+
+// Phase 8 HR permission groups — same compose-from-group shape as prior phases.
+const HR_ALL: Permission[] = [
+  "hr.view",
+  "hr.manageStaff",
+  "hr.viewSensitive",
+  "hr.manageDepartments",
+  "hr.manageAttendance",
+  "hr.manageLeave",
+  "hr.approveLeave",
+  "hr.manageContracts",
+  "hr.manageDocuments",
+  "hr.manageRecruitment",
+  "hr.manageOnboarding",
+  "hr.managePerformance",
+  "hr.manageTraining",
+  "hr.manageLetters",
+  "hr.viewAnalytics",
+];
+const HR_OPERATE: Permission[] = ["hr.view", "hr.manageStaff", "hr.manageAttendance", "hr.manageLeave", "hr.manageDocuments", "hr.manageOnboarding", "hr.manageTraining", "hr.viewAnalytics"];
+const HR_OVERSIGHT: Permission[] = ["hr.view", "hr.approveLeave", "hr.viewAnalytics"];
 
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
@@ -364,6 +409,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...INVENTORY_MANAGE,
     ...ASSETS_MANAGE,
     "assets.approveDisposal",
+    ...HR_ALL,
   ],
   "school-owner": [
     "admissions.view",
@@ -393,6 +439,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...LIBRARY_OVERSIGHT,
     ...INVENTORY_OVERSIGHT,
     ...ASSETS_OVERSIGHT,
+    ...HR_OVERSIGHT,
   ],
   principal: [
     "admissions.view",
@@ -436,6 +483,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "library.waiveFines",
     ...INVENTORY_OVERSIGHT,
     ...ASSETS_OVERSIGHT,
+    ...HR_OVERSIGHT,
+    "hr.viewSensitive",
   ],
   "examination-controller": [
     "students.view",
@@ -553,6 +602,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "inventory.viewReports",
     "assets.view",
     "assets.viewReports",
+    "hr.view",
+    "hr.viewAnalytics",
   ],
   administrator: [
     "admissions.view",
@@ -580,6 +631,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.view",
     "reportCards.generate",
     "promotion.view",
+    ...HR_OPERATE,
   ],
   teacher: [
     "students.view",
@@ -600,8 +652,9 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.view",
     "library.view",
     "library.viewOwn",
+    "hr.viewOwn",
   ],
-  accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports", "library.view", "library.manageFines", "library.viewReports", "inventory.view", "inventory.manageProcurement", "inventory.viewReports", "assets.view", "assets.runDepreciation", "assets.approveDisposal", "assets.viewReports"],
+  accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports", "library.view", "library.manageFines", "library.viewReports", "inventory.view", "inventory.manageProcurement", "inventory.viewReports", "assets.view", "assets.runDepreciation", "assets.approveDisposal", "assets.viewReports", "hr.view", "hr.viewAnalytics"],
   "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE],
   "transport-manager": ["students.view", "parents.view", "communication.send", ...TRANSPORT_OPERATE, "transport.viewCosts"],
   dispatcher: ["students.view", "transport.view", "transport.viewLive", "transport.manageTrips", "transport.markAttendance", "transport.reportIncident", "transport.viewGpsHistory"],
@@ -644,7 +697,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   "assistant-librarian": ["students.view", ...LIBRARY_CIRCULATE],
   "inventory-manager": ["communication.send", ...INVENTORY_MANAGE, "assets.view", "assets.viewReports"],
   storekeeper: ["inventory.view", "inventory.receive", "inventory.issue", "inventory.manageStocktake"],
-  "department-head": ["students.view", "library.view", "inventory.view", "assets.view", "assets.assign", "assets.viewReports", "assets.approveDisposal"],
+  "department-head": ["students.view", "library.view", "inventory.view", "assets.view", "assets.assign", "assets.viewReports", "assets.approveDisposal", "hr.view", "hr.approveLeave", "hr.managePerformance", "hr.viewAnalytics"],
+  "hr-manager": ["students.view", "communication.send", "payroll.view", "payroll.viewPayslips", ...HR_ALL],
+  "hr-executive": ["students.view", "communication.send", ...HR_OPERATE],
+  recruiter: ["hr.view", "hr.manageRecruitment"],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -682,4 +738,7 @@ export const allRoles: UserRole[] = [
   "inventory-manager",
   "storekeeper",
   "department-head",
+  "hr-manager",
+  "hr-executive",
+  "recruiter",
 ];

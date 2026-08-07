@@ -126,6 +126,33 @@ import type {
   InventoryTransfer,
 } from "@/lib/types/inventory";
 import type { Asset, AssetAssignment, AssetCategory, AssetDepreciation, AssetDisposal, AssetMaintenance } from "@/lib/types/assets";
+import type {
+  Candidate,
+  Contract,
+  Department,
+  Designation,
+  Employee,
+  EmployeeAssetLink,
+  EmployeeTimelineEvent,
+  Feedback,
+  HrAnnouncement,
+  HrAttendanceRecord,
+  HrLeaveRequest,
+  HrPolicy,
+  Interview,
+  LeaveBalance,
+  OffboardingCase,
+  OnboardingTask,
+  PerformanceCycle,
+  PerformanceGoal,
+  PerformanceReview,
+  RecruitmentJob,
+  Shift,
+  StaffDocument,
+  StaffLetter,
+  TrainingCourse,
+  TrainingEnrollment,
+} from "@/lib/types/hr";
 import { buildLedgerFromJournal } from "@/lib/selectors/ledger";
 import {
   bankAccounts,
@@ -193,6 +220,7 @@ import {
 } from "./seed/library";
 import { inventoryCategories, inventoryIssues, inventoryItems, inventoryMovements } from "./seed/inventory";
 import { assetAssignments, assetCategories, assetMaintenance, assets } from "./seed/assets";
+import { buildHrData, departments, designations, shifts } from "./seed/hr";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -347,6 +375,32 @@ export type Db = {
   assetDepreciation: AssetDepreciation[];
   assetDisposals: AssetDisposal[];
   resourceAuditLog: ResourceAuditEvent[];
+  // Phase 8 — HR & people operations (frontend mock state)
+  departments: Department[];
+  designations: Designation[];
+  shifts: Shift[];
+  employees: Employee[];
+  contracts: Contract[];
+  staffDocuments: StaffDocument[];
+  hrAttendance: HrAttendanceRecord[];
+  leaveBalances: LeaveBalance[];
+  hrLeaveRequests: HrLeaveRequest[];
+  recruitmentJobs: RecruitmentJob[];
+  candidates: Candidate[];
+  interviews: Interview[];
+  onboardingTasks: OnboardingTask[];
+  offboardingCases: OffboardingCase[];
+  performanceCycles: PerformanceCycle[];
+  performanceReviews: PerformanceReview[];
+  performanceGoals: PerformanceGoal[];
+  hrFeedback: Feedback[];
+  trainingCourses: TrainingCourse[];
+  trainingEnrollments: TrainingEnrollment[];
+  employeeAssets: EmployeeAssetLink[];
+  employeeTimeline: EmployeeTimelineEvent[];
+  staffLetters: StaffLetter[];
+  hrAnnouncements: HrAnnouncement[];
+  hrPolicies: HrPolicy[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -374,6 +428,7 @@ function buildSeedDb(): Db {
   const allJournalEntries = [...financeData.journalEntries, ...expenseJournals(), julyPayroll.journal];
   const transportData = generateTransportData(students, teachers);
   const libraryData = buildLibraryData(students, teachers);
+  const hrData = buildHrData(teachers);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -526,6 +581,31 @@ function buildSeedDb(): Db {
     assetDepreciation: [],
     assetDisposals: [],
     resourceAuditLog: [],
+    departments: structuredClone(departments),
+    designations: structuredClone(designations),
+    shifts: structuredClone(shifts),
+    employees: hrData.employees,
+    contracts: hrData.contracts,
+    staffDocuments: hrData.documents,
+    hrAttendance: hrData.attendance,
+    leaveBalances: hrData.leaveBalances,
+    hrLeaveRequests: hrData.leaveRequests,
+    recruitmentJobs: hrData.jobs,
+    candidates: hrData.candidates,
+    interviews: hrData.interviews,
+    onboardingTasks: hrData.onboardingTasks,
+    offboardingCases: hrData.offboarding,
+    performanceCycles: hrData.cycles,
+    performanceReviews: hrData.reviews,
+    performanceGoals: hrData.goals,
+    hrFeedback: hrData.feedback,
+    trainingCourses: hrData.courses,
+    trainingEnrollments: hrData.enrollments,
+    employeeAssets: hrData.assetLinks,
+    employeeTimeline: hrData.timelines,
+    staffLetters: hrData.letters,
+    hrAnnouncements: hrData.announcements,
+    hrPolicies: hrData.policies,
   };
 }
 
@@ -702,6 +782,68 @@ export function hydrateFromStorage() {
         assetDepreciation: parsed.assetDepreciation ?? [],
         assetDisposals: parsed.assetDisposals ?? [],
         resourceAuditLog: parsed.resourceAuditLog ?? [],
+        // Phase 8 HR — legacy snapshots predate this domain; regenerate the
+        // workforce from the (cached) teachers so the module has data, config
+        // lists fall back to the fresh seed constants.
+        ...(() => {
+          if (parsed.employees) {
+            return {
+              departments: parsed.departments ?? departments,
+              designations: parsed.designations ?? designations,
+              shifts: parsed.shifts ?? shifts,
+              employees: parsed.employees,
+              contracts: parsed.contracts ?? [],
+              staffDocuments: parsed.staffDocuments ?? [],
+              hrAttendance: parsed.hrAttendance ?? [],
+              leaveBalances: parsed.leaveBalances ?? [],
+              hrLeaveRequests: parsed.hrLeaveRequests ?? [],
+              recruitmentJobs: parsed.recruitmentJobs ?? [],
+              candidates: parsed.candidates ?? [],
+              interviews: parsed.interviews ?? [],
+              onboardingTasks: parsed.onboardingTasks ?? [],
+              offboardingCases: parsed.offboardingCases ?? [],
+              performanceCycles: parsed.performanceCycles ?? [],
+              performanceReviews: parsed.performanceReviews ?? [],
+              performanceGoals: parsed.performanceGoals ?? [],
+              hrFeedback: parsed.hrFeedback ?? [],
+              trainingCourses: parsed.trainingCourses ?? [],
+              trainingEnrollments: parsed.trainingEnrollments ?? [],
+              employeeAssets: parsed.employeeAssets ?? [],
+              employeeTimeline: parsed.employeeTimeline ?? [],
+              staffLetters: parsed.staffLetters ?? [],
+              hrAnnouncements: parsed.hrAnnouncements ?? [],
+              hrPolicies: parsed.hrPolicies ?? [],
+            };
+          }
+          const hr = buildHrData(parsed.teachers ?? teachers);
+          return {
+            departments,
+            designations,
+            shifts,
+            employees: hr.employees,
+            contracts: hr.contracts,
+            staffDocuments: hr.documents,
+            hrAttendance: hr.attendance,
+            leaveBalances: hr.leaveBalances,
+            hrLeaveRequests: hr.leaveRequests,
+            recruitmentJobs: hr.jobs,
+            candidates: hr.candidates,
+            interviews: hr.interviews,
+            onboardingTasks: hr.onboardingTasks,
+            offboardingCases: hr.offboarding,
+            performanceCycles: hr.cycles,
+            performanceReviews: hr.reviews,
+            performanceGoals: hr.goals,
+            hrFeedback: hr.feedback,
+            trainingCourses: hr.courses,
+            trainingEnrollments: hr.enrollments,
+            employeeAssets: hr.assetLinks,
+            employeeTimeline: hr.timelines,
+            staffLetters: hr.letters,
+            hrAnnouncements: hr.announcements,
+            hrPolicies: hr.policies,
+          };
+        })(),
       };
       notify();
     }
