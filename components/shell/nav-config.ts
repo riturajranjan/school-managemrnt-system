@@ -23,6 +23,9 @@ import {
   FileText,
   GraduationCap,
   HandCoins,
+  HandHeart,
+  HeartPulse,
+  Hotel,
   IdCard,
   Inbox,
   LayoutDashboard,
@@ -35,6 +38,7 @@ import {
   Presentation,
   Settings,
   UserPlus,
+  UtensilsCrossed,
   Users,
   Wallet,
 } from "lucide-react";
@@ -111,6 +115,17 @@ export const navGroups: NavGroup[] = [
       { key: "inventory", label: "Inventory", href: "/inventory", icon: Boxes },
       { key: "assets", label: "Assets", href: "/assets", icon: Boxes },
       { key: "hr", label: "HR", href: "/hr", icon: IdCard },
+    ],
+  },
+  {
+    key: "campus-life",
+    label: "Student Life",
+    items: [
+      { key: "student-life", label: "Campus Services", href: "/campus-life", icon: LayoutDashboard },
+      { key: "hostel", label: "Hostel", href: "/hostel", icon: Hotel },
+      { key: "health", label: "Health", href: "/health", icon: HeartPulse },
+      { key: "counselling", label: "Counselling", href: "/counselling", icon: HandHeart },
+      { key: "cafeteria", label: "Cafeteria", href: "/cafeteria", icon: UtensilsCrossed },
     ],
   },
   {

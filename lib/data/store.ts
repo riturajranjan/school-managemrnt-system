@@ -127,6 +127,38 @@ import type {
 } from "@/lib/types/inventory";
 import type { Asset, AssetAssignment, AssetCategory, AssetDepreciation, AssetDisposal, AssetMaintenance } from "@/lib/types/assets";
 import type {
+  HostelAllocation,
+  HostelAttendance,
+  HostelBed,
+  HostelBuilding,
+  HostelComplaint,
+  HostelFloor,
+  HostelLeave,
+  HostelMaintenance,
+  HostelMess,
+  HostelRoom,
+  HostelVisitor,
+} from "@/lib/types/hostel";
+import type {
+  CounsellingAppointment,
+  CounsellingResource,
+  HealthAppointment,
+  HealthIncident,
+  HealthProfile,
+  HealthVisit,
+  MedicationRecord,
+} from "@/lib/types/health";
+import type {
+  CafeteriaCounter,
+  CafeteriaFeedback,
+  CafeteriaInventoryItem,
+  CafeteriaOrder,
+  MealPlan,
+  MealPlanEnrollment,
+  MenuItem,
+  WeeklyMenuSlot,
+} from "@/lib/types/cafeteria";
+import type {
   Announcement,
   Broadcast,
   CommNotification,
@@ -244,6 +276,7 @@ import { inventoryCategories, inventoryIssues, inventoryItems, inventoryMovement
 import { assetAssignments, assetCategories, assetMaintenance, assets } from "./seed/assets";
 import { buildHrData, departments, designations, shifts } from "./seed/hr";
 import { buildCommunicationData } from "./seed/communication";
+import { buildCampusData } from "./seed/campus";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -445,6 +478,33 @@ export type Db = {
   receptionCalls: ReceptionCall[];
   deliveries: Delivery[];
   frontDeskIncidents: FrontDeskIncident[];
+  // Phase 10 — student life & campus services (frontend mock)
+  hostelBuildings: HostelBuilding[];
+  hostelFloors: HostelFloor[];
+  hostelRooms: HostelRoom[];
+  hostelBeds: HostelBed[];
+  hostelAllocations: HostelAllocation[];
+  hostelAttendance: HostelAttendance[];
+  hostelLeave: HostelLeave[];
+  hostelVisitors: HostelVisitor[];
+  hostelComplaints: HostelComplaint[];
+  hostelMaintenance: HostelMaintenance[];
+  hostelMess: HostelMess[];
+  healthProfiles: HealthProfile[];
+  healthVisits: HealthVisit[];
+  healthIncidents: HealthIncident[];
+  medicationRecords: MedicationRecord[];
+  healthAppointments: HealthAppointment[];
+  counsellingAppointments: CounsellingAppointment[];
+  counsellingResources: CounsellingResource[];
+  menuItems: MenuItem[];
+  weeklyMenu: WeeklyMenuSlot[];
+  mealPlans: MealPlan[];
+  mealPlanEnrollments: MealPlanEnrollment[];
+  cafeteriaCounters: CafeteriaCounter[];
+  cafeteriaOrders: CafeteriaOrder[];
+  cafeteriaFeedback: CafeteriaFeedback[];
+  cafeteriaInventory: CafeteriaInventoryItem[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -474,6 +534,7 @@ function buildSeedDb(): Db {
   const libraryData = buildLibraryData(students, teachers);
   const hrData = buildHrData(teachers);
   const commData = buildCommunicationData(students, teachers);
+  const campusData = buildCampusData(students);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -671,6 +732,32 @@ function buildSeedDb(): Db {
     receptionCalls: commData.calls,
     deliveries: commData.deliveries,
     frontDeskIncidents: commData.incidents,
+    hostelBuildings: campusData.buildings,
+    hostelFloors: campusData.floors,
+    hostelRooms: campusData.rooms,
+    hostelBeds: campusData.beds,
+    hostelAllocations: campusData.allocations,
+    hostelAttendance: campusData.attendance,
+    hostelLeave: campusData.leave,
+    hostelVisitors: campusData.visitors,
+    hostelComplaints: campusData.complaints,
+    hostelMaintenance: campusData.maintenance,
+    hostelMess: campusData.mess,
+    healthProfiles: campusData.profiles,
+    healthVisits: campusData.visits,
+    healthIncidents: campusData.incidents,
+    medicationRecords: campusData.medications,
+    healthAppointments: campusData.healthAppointments,
+    counsellingAppointments: campusData.counsellingAppointments,
+    counsellingResources: campusData.counsellingResources,
+    menuItems: campusData.menuItems,
+    weeklyMenu: campusData.weeklyMenu,
+    mealPlans: campusData.mealPlans,
+    mealPlanEnrollments: campusData.mealPlanEnrollments,
+    cafeteriaCounters: campusData.counters,
+    cafeteriaOrders: campusData.orders,
+    cafeteriaFeedback: campusData.feedback,
+    cafeteriaInventory: campusData.inventory,
   };
 }
 
@@ -958,6 +1045,48 @@ export function hydrateFromStorage() {
             receptionCalls: c.calls,
             deliveries: c.deliveries,
             frontDeskIncidents: c.incidents,
+          };
+        })(),
+        // Phase 10 campus services — legacy snapshots predate this domain;
+        // regenerate from the cached students so the module always has data.
+        ...(() => {
+          if (parsed.hostelBuildings && parsed.menuItems) {
+            return {
+              hostelBuildings: parsed.hostelBuildings,
+              hostelFloors: parsed.hostelFloors ?? [],
+              hostelRooms: parsed.hostelRooms ?? [],
+              hostelBeds: parsed.hostelBeds ?? [],
+              hostelAllocations: parsed.hostelAllocations ?? [],
+              hostelAttendance: parsed.hostelAttendance ?? [],
+              hostelLeave: parsed.hostelLeave ?? [],
+              hostelVisitors: parsed.hostelVisitors ?? [],
+              hostelComplaints: parsed.hostelComplaints ?? [],
+              hostelMaintenance: parsed.hostelMaintenance ?? [],
+              hostelMess: parsed.hostelMess ?? [],
+              healthProfiles: parsed.healthProfiles ?? [],
+              healthVisits: parsed.healthVisits ?? [],
+              healthIncidents: parsed.healthIncidents ?? [],
+              medicationRecords: parsed.medicationRecords ?? [],
+              healthAppointments: parsed.healthAppointments ?? [],
+              counsellingAppointments: parsed.counsellingAppointments ?? [],
+              counsellingResources: parsed.counsellingResources ?? [],
+              menuItems: parsed.menuItems,
+              weeklyMenu: parsed.weeklyMenu ?? [],
+              mealPlans: parsed.mealPlans ?? [],
+              mealPlanEnrollments: parsed.mealPlanEnrollments ?? [],
+              cafeteriaCounters: parsed.cafeteriaCounters ?? [],
+              cafeteriaOrders: parsed.cafeteriaOrders ?? [],
+              cafeteriaFeedback: parsed.cafeteriaFeedback ?? [],
+              cafeteriaInventory: parsed.cafeteriaInventory ?? [],
+            };
+          }
+          const cs = buildCampusData(parsed.students ?? []);
+          return {
+            hostelBuildings: cs.buildings, hostelFloors: cs.floors, hostelRooms: cs.rooms, hostelBeds: cs.beds, hostelAllocations: cs.allocations,
+            hostelAttendance: cs.attendance, hostelLeave: cs.leave, hostelVisitors: cs.visitors, hostelComplaints: cs.complaints, hostelMaintenance: cs.maintenance, hostelMess: cs.mess,
+            healthProfiles: cs.profiles, healthVisits: cs.visits, healthIncidents: cs.incidents, medicationRecords: cs.medications, healthAppointments: cs.healthAppointments,
+            counsellingAppointments: cs.counsellingAppointments, counsellingResources: cs.counsellingResources,
+            menuItems: cs.menuItems, weeklyMenu: cs.weeklyMenu, mealPlans: cs.mealPlans, mealPlanEnrollments: cs.mealPlanEnrollments, cafeteriaCounters: cs.counters, cafeteriaOrders: cs.orders, cafeteriaFeedback: cs.feedback, cafeteriaInventory: cs.inventory,
           };
         })(),
       };

@@ -31,7 +31,12 @@ export type UserRole =
   | "hr-executive"
   | "recruiter"
   // Phase 9 — communication
-  | "communication-admin";
+  | "communication-admin"
+  // Phase 10 — student life & campus services
+  | "hostel-warden"
+  | "nurse"
+  | "counsellor"
+  | "cafeteria-manager";
 
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
@@ -64,6 +69,10 @@ export const roleLabels: Record<UserRole, string> = {
   "hr-executive": "HR Executive",
   recruiter: "Recruiter",
   "communication-admin": "Communication Admin",
+  "hostel-warden": "Hostel Warden",
+  nurse: "Infirmary Nurse",
+  counsellor: "Counsellor",
+  "cafeteria-manager": "Cafeteria Manager",
 };
 
 export type Permission =
@@ -262,7 +271,27 @@ export type Permission =
   | "helpdesk.viewOwn"
   | "frontdesk.view"
   | "frontdesk.manage"
-  | "gatepass.approve";
+  | "gatepass.approve"
+  // Phase 10 — student life & campus services
+  | "hostel.view"
+  | "hostel.manage"
+  | "hostel.allocate"
+  | "hostel.attendance"
+  | "hostel.leave"
+  | "hostel.complaints"
+  | "hostel.viewOwn"
+  | "health.view"
+  | "health.manage"
+  | "health.viewSensitive"
+  | "health.viewOwn"
+  | "counselling.view"
+  | "counselling.manage"
+  | "counselling.private"
+  | "counselling.viewOwn"
+  | "cafeteria.view"
+  | "cafeteria.manage"
+  | "cafeteria.order"
+  | "cafeteria.viewOwn";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),
@@ -356,6 +385,10 @@ const COMM_ALL: Permission[] = ["comm.view", "comm.message", "comm.manageAnnounc
 const COMM_OVERSIGHT: Permission[] = ["comm.view", "comm.manageAnnouncements", "comm.emergency", "comm.viewAnalytics"];
 const FRONTDESK_MANAGE: Permission[] = ["frontdesk.view", "frontdesk.manage", "gatepass.approve"];
 
+// Phase 10 campus-service groups.
+const HOSTEL_MANAGE: Permission[] = ["hostel.view", "hostel.manage", "hostel.allocate", "hostel.attendance", "hostel.leave", "hostel.complaints"];
+const CAMPUS_OVERSIGHT: Permission[] = ["hostel.view", "health.view", "counselling.view", "cafeteria.view"];
+
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
 // gating and the mock service layer can import the same source of truth.
@@ -439,6 +472,15 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "helpdesk.view",
     "helpdesk.manage",
     ...FRONTDESK_MANAGE,
+    ...HOSTEL_MANAGE,
+    "health.view",
+    "health.manage",
+    "health.viewSensitive",
+    "counselling.view",
+    "counselling.manage",
+    "counselling.private",
+    "cafeteria.view",
+    "cafeteria.manage",
   ],
   "school-owner": [
     "admissions.view",
@@ -472,6 +514,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...COMM_OVERSIGHT,
     "helpdesk.view",
     "frontdesk.view",
+    ...CAMPUS_OVERSIGHT,
   ],
   principal: [
     "admissions.view",
@@ -521,6 +564,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "comm.broadcast",
     "helpdesk.view",
     "frontdesk.view",
+    ...CAMPUS_OVERSIGHT,
+    "hostel.manage",
   ],
   "examination-controller": [
     "students.view",
@@ -644,6 +689,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "comm.viewAnalytics",
     "helpdesk.view",
     "frontdesk.view",
+    ...CAMPUS_OVERSIGHT,
   ],
   administrator: [
     "admissions.view",
@@ -678,6 +724,12 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "helpdesk.view",
     "helpdesk.manage",
     "frontdesk.view",
+    "hostel.view",
+    "hostel.manage",
+    "health.view",
+    "counselling.view",
+    "cafeteria.view",
+    "cafeteria.manage",
   ],
   teacher: [
     "students.view",
@@ -704,6 +756,9 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "comm.viewOwn",
     "helpdesk.view",
     "helpdesk.viewOwn",
+    "hostel.view",
+    "counselling.view",
+    "cafeteria.view",
   ],
   accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports", "library.view", "library.manageFines", "library.viewReports", "inventory.view", "inventory.manageProcurement", "inventory.viewReports", "assets.view", "assets.runDepreciation", "assets.approveDisposal", "assets.viewReports", "hr.view", "hr.viewAnalytics", "comm.view", "comm.viewAnalytics", "helpdesk.view"],
   "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE],
@@ -730,6 +785,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "library.viewOwn",
     "comm.viewOwn",
     "helpdesk.viewOwn",
+    "hostel.viewOwn",
+    "health.viewOwn",
+    "counselling.viewOwn",
+    "cafeteria.viewOwn",
+    "cafeteria.order",
   ],
   student: [
     "students.view",
@@ -746,6 +806,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "library.viewOwn",
     "comm.viewOwn",
     "helpdesk.viewOwn",
+    "hostel.viewOwn",
+    "health.viewOwn",
+    "counselling.viewOwn",
+    "cafeteria.viewOwn",
+    "cafeteria.order",
   ],
   // Phase 7 — library, inventory and asset operations roles
   librarian: ["students.view", "parents.view", "communication.send", ...LIBRARY_MANAGE],
@@ -757,6 +822,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   "hr-executive": ["students.view", "communication.send", ...HR_OPERATE, "comm.view", "comm.message"],
   recruiter: ["hr.view", "hr.manageRecruitment", "comm.view", "comm.message"],
   "communication-admin": ["students.view", "parents.view", "communication.send", ...COMM_ALL, "helpdesk.view", "helpdesk.manage", "frontdesk.view"],
+  // Phase 10 — student life & campus services roles
+  "hostel-warden": ["students.view", "parents.view", "communication.send", ...HOSTEL_MANAGE, "cafeteria.view"],
+  nurse: ["students.view", "communication.send", "health.view", "health.manage", "health.viewSensitive"],
+  counsellor: ["students.view", "communication.send", "counselling.view", "counselling.manage", "counselling.private"],
+  "cafeteria-manager": ["communication.send", "cafeteria.view", "cafeteria.manage"],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -798,4 +868,8 @@ export const allRoles: UserRole[] = [
   "hr-executive",
   "recruiter",
   "communication-admin",
+  "hostel-warden",
+  "nurse",
+  "counsellor",
+  "cafeteria-manager",
 ];
