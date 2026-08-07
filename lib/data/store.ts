@@ -159,6 +159,31 @@ import type {
   WeeklyMenuSlot,
 } from "@/lib/types/cafeteria";
 import type {
+  Achievement,
+  Award,
+  BracketMatch,
+  Certificate,
+  CertificateTemplate,
+  Club,
+  ClubMeeting,
+  ClubMembership,
+  Competition,
+  CompetitionParticipant,
+  EventAttendance,
+  EventBudgetLine,
+  EventRegistration,
+  EventResult,
+  EventTask,
+  Fixture,
+  House,
+  HousePointEntry,
+  SchoolEvent,
+  Sport,
+  SportsTeam,
+  TeamMember,
+  Tournament,
+} from "@/lib/types/activities";
+import type {
   Announcement,
   Broadcast,
   CommNotification,
@@ -277,6 +302,7 @@ import { assetAssignments, assetCategories, assetMaintenance, assets } from "./s
 import { buildHrData, departments, designations, shifts } from "./seed/hr";
 import { buildCommunicationData } from "./seed/communication";
 import { buildCampusData } from "./seed/campus";
+import { buildActivitiesData } from "./seed/activities";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -505,6 +531,30 @@ export type Db = {
   cafeteriaOrders: CafeteriaOrder[];
   cafeteriaFeedback: CafeteriaFeedback[];
   cafeteriaInventory: CafeteriaInventoryItem[];
+  // Phase 11 — events, clubs, sports, competitions & house system (frontend mock)
+  houses: House[];
+  schoolEvents: SchoolEvent[];
+  eventTasks: EventTask[];
+  eventBudget: EventBudgetLine[];
+  eventRegistrations: EventRegistration[];
+  eventAttendance: EventAttendance[];
+  eventResults: EventResult[];
+  clubs: Club[];
+  clubMemberships: ClubMembership[];
+  clubMeetings: ClubMeeting[];
+  sports: Sport[];
+  sportsTeams: SportsTeam[];
+  teamMembers: TeamMember[];
+  fixtures: Fixture[];
+  tournaments: Tournament[];
+  bracketMatches: BracketMatch[];
+  competitions: Competition[];
+  competitionParticipants: CompetitionParticipant[];
+  housePoints: HousePointEntry[];
+  achievements: Achievement[];
+  awards: Award[];
+  certificateTemplates: CertificateTemplate[];
+  certificates: Certificate[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -535,6 +585,7 @@ function buildSeedDb(): Db {
   const hrData = buildHrData(teachers);
   const commData = buildCommunicationData(students, teachers);
   const campusData = buildCampusData(students);
+  const activitiesData = buildActivitiesData(students, teachers);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -758,6 +809,29 @@ function buildSeedDb(): Db {
     cafeteriaOrders: campusData.orders,
     cafeteriaFeedback: campusData.feedback,
     cafeteriaInventory: campusData.inventory,
+    houses: activitiesData.houses,
+    schoolEvents: activitiesData.events,
+    eventTasks: activitiesData.eventTasks,
+    eventBudget: activitiesData.eventBudget,
+    eventRegistrations: activitiesData.registrations,
+    eventAttendance: activitiesData.attendance,
+    eventResults: activitiesData.results,
+    clubs: activitiesData.clubs,
+    clubMemberships: activitiesData.clubMemberships,
+    clubMeetings: activitiesData.clubMeetings,
+    sports: activitiesData.sports,
+    sportsTeams: activitiesData.teams,
+    teamMembers: activitiesData.teamMembers,
+    fixtures: activitiesData.fixtures,
+    tournaments: activitiesData.tournaments,
+    bracketMatches: activitiesData.brackets,
+    competitions: activitiesData.competitions,
+    competitionParticipants: activitiesData.compParticipants,
+    housePoints: activitiesData.housePoints,
+    achievements: activitiesData.achievements,
+    awards: activitiesData.awards,
+    certificateTemplates: activitiesData.certificateTemplates,
+    certificates: activitiesData.certificates,
   };
 }
 
@@ -1087,6 +1161,46 @@ export function hydrateFromStorage() {
             healthProfiles: cs.profiles, healthVisits: cs.visits, healthIncidents: cs.incidents, medicationRecords: cs.medications, healthAppointments: cs.healthAppointments,
             counsellingAppointments: cs.counsellingAppointments, counsellingResources: cs.counsellingResources,
             menuItems: cs.menuItems, weeklyMenu: cs.weeklyMenu, mealPlans: cs.mealPlans, mealPlanEnrollments: cs.mealPlanEnrollments, cafeteriaCounters: cs.counters, cafeteriaOrders: cs.orders, cafeteriaFeedback: cs.feedback, cafeteriaInventory: cs.inventory,
+          };
+        })(),
+        // Phase 11 activities — legacy snapshots predate this domain; regenerate
+        // from cached students/teachers so events/clubs/sports/houses always exist.
+        ...(() => {
+          if (parsed.houses && parsed.schoolEvents) {
+            return {
+              houses: parsed.houses,
+              schoolEvents: parsed.schoolEvents,
+              eventTasks: parsed.eventTasks ?? [],
+              eventBudget: parsed.eventBudget ?? [],
+              eventRegistrations: parsed.eventRegistrations ?? [],
+              eventAttendance: parsed.eventAttendance ?? [],
+              eventResults: parsed.eventResults ?? [],
+              clubs: parsed.clubs ?? [],
+              clubMemberships: parsed.clubMemberships ?? [],
+              clubMeetings: parsed.clubMeetings ?? [],
+              sports: parsed.sports ?? [],
+              sportsTeams: parsed.sportsTeams ?? [],
+              teamMembers: parsed.teamMembers ?? [],
+              fixtures: parsed.fixtures ?? [],
+              tournaments: parsed.tournaments ?? [],
+              bracketMatches: parsed.bracketMatches ?? [],
+              competitions: parsed.competitions ?? [],
+              competitionParticipants: parsed.competitionParticipants ?? [],
+              housePoints: parsed.housePoints ?? [],
+              achievements: parsed.achievements ?? [],
+              awards: parsed.awards ?? [],
+              certificateTemplates: parsed.certificateTemplates ?? [],
+              certificates: parsed.certificates ?? [],
+            };
+          }
+          const ac = buildActivitiesData(parsed.students ?? [], parsed.teachers ?? teachers);
+          return {
+            houses: ac.houses, schoolEvents: ac.events, eventTasks: ac.eventTasks, eventBudget: ac.eventBudget,
+            eventRegistrations: ac.registrations, eventAttendance: ac.attendance, eventResults: ac.results,
+            clubs: ac.clubs, clubMemberships: ac.clubMemberships, clubMeetings: ac.clubMeetings,
+            sports: ac.sports, sportsTeams: ac.teams, teamMembers: ac.teamMembers, fixtures: ac.fixtures,
+            tournaments: ac.tournaments, bracketMatches: ac.brackets, competitions: ac.competitions, competitionParticipants: ac.compParticipants,
+            housePoints: ac.housePoints, achievements: ac.achievements, awards: ac.awards, certificateTemplates: ac.certificateTemplates, certificates: ac.certificates,
           };
         })(),
       };

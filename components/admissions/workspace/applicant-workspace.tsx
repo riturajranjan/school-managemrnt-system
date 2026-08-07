@@ -14,7 +14,14 @@ import {
   Sparkles,
   UserCheck,
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +31,11 @@ import { usePermissions } from "@/components/providers/permissions-provider";
 import { EnrollmentWizard } from "@/components/admissions/enrollment/enrollment-wizard";
 import { findClass } from "@/lib/data/seed/reference";
 import { useAdmissionApplication } from "@/lib/hooks/use-admissions";
-import { admissionStageDefinitions, forwardStageOrder, type AdmissionStageKey } from "@/lib/types/admissions";
+import {
+  admissionStageDefinitions,
+  forwardStageOrder,
+  type AdmissionStageKey,
+} from "@/lib/types/admissions";
 import {
   approveApplication,
   moveApplicationStage,
@@ -43,16 +54,24 @@ import { NotesTab } from "./notes-tab";
 import { TimelineList } from "@/components/timeline/timeline-list";
 import { addApplicationNote } from "@/lib/services/admissions-service";
 
-export function ApplicantWorkspace({ applicationId }: { applicationId: string }) {
+export function ApplicantWorkspace({
+  applicationId,
+}: {
+  applicationId: string;
+}) {
   const application = useAdmissionApplication(applicationId);
   const { can } = usePermissions();
-  const [confirmAction, setConfirmAction] = useState<"reject" | "waitlist" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    "reject" | "waitlist" | null
+  >(null);
   const [enrollOpen, setEnrollOpen] = useState(false);
 
   if (!application) {
     return (
       <div className="flex flex-col items-center gap-sm py-2xl text-center">
-        <p className="text-sm font-medium text-foreground">Application not found</p>
+        <p className="text-sm font-medium text-foreground">
+          Application not found
+        </p>
         <Button asChild variant="outline">
           <Link href="/admissions">Back to Admissions</Link>
         </Button>
@@ -61,22 +80,38 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
   }
 
   const name = `${application.student.firstName} ${application.student.lastName}`;
-  const primaryGuardian = application.guardians.find((g) => g.isPrimary) ?? application.guardians[0];
+  const primaryGuardian =
+    application.guardians.find((g) => g.isPrimary) ?? application.guardians[0];
   const currentForwardIndex = forwardStageOrder.indexOf(application.stage);
-  const nextStage = currentForwardIndex >= 0 ? forwardStageOrder[currentForwardIndex + 1] : undefined;
-  const prevStage = currentForwardIndex > 0 ? forwardStageOrder[currentForwardIndex - 1] : undefined;
-  const canConvert = (application.stage === "approved" || application.stage === "fee-pending") && !application.convertedStudentId;
+  const nextStage =
+    currentForwardIndex >= 0
+      ? forwardStageOrder[currentForwardIndex + 1]
+      : undefined;
+  const prevStage =
+    currentForwardIndex > 0
+      ? forwardStageOrder[currentForwardIndex - 1]
+      : undefined;
+  const canConvert =
+    (application.stage === "approved" || application.stage === "fee-pending") &&
+    !application.convertedStudentId;
   const canEdit = can("admissions.edit");
   const canApprove = can("admissions.approve");
 
   if (application.draft) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-sm rounded-lg border border-dashed border-border bg-surface py-2xl text-center">
+      <div className="mx-auto flex  flex-col items-center gap-sm rounded-lg border border-dashed border-border bg-surface py-2xl text-center">
         <Sparkles className="size-6 text-muted-foreground" aria-hidden="true" />
-        <p className="text-sm font-medium text-foreground">This application is still a draft</p>
-        <p className="text-xs text-muted-foreground">{name || "This applicant"} hasn&apos;t submitted the application form yet.</p>
+        <p className="text-sm font-medium text-foreground">
+          This application is still a draft
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {name || "This applicant"} hasn&apos;t submitted the application form
+          yet.
+        </p>
         <Button asChild>
-          <Link href={`/admissions/new?draft=${application.id}`}>Continue application</Link>
+          <Link href={`/admissions/new?draft=${application.id}`}>
+            Continue application
+          </Link>
         </Button>
       </div>
     );
@@ -87,21 +122,41 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
       <div className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-sm sm:flex-row sm:items-start sm:justify-between sm:p-md">
         <div className="flex items-start gap-sm">
           <Avatar className="size-12">
-            <AvatarFallback className="text-sm">{initialsOf(application.student.firstName, application.student.lastName)}</AvatarFallback>
+            <AvatarFallback className="text-sm">
+              {initialsOf(
+                application.student.firstName,
+                application.student.lastName,
+              )}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-xs">
-              <h1 className="text-base font-semibold text-foreground">{name}</h1>
-              <Badge tone={stageTone[application.stage]}>{admissionStageDefinitions.find((s) => s.key === application.stage)?.label}</Badge>
-              {application.priority === "high" && <Badge tone="error">High priority</Badge>}
+              <h1 className="text-base font-semibold text-foreground">
+                {name}
+              </h1>
+              <Badge tone={stageTone[application.stage]}>
+                {
+                  admissionStageDefinitions.find(
+                    (s) => s.key === application.stage,
+                  )?.label
+                }
+              </Badge>
+              {application.priority === "high" && (
+                <Badge tone="error">High priority</Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {application.applicationNumber} · {findClass(application.appliedClassId)?.name} · Officer: {application.assignedOfficerName ?? "Unassigned"}
+              {application.applicationNumber} ·{" "}
+              {findClass(application.appliedClassId)?.name} · Officer:{" "}
+              {application.assignedOfficerName ?? "Unassigned"}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-sm gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <Calendar1 className="size-3" aria-hidden="true" />
-                Submitted {application.submittedAt ? formatDate(application.submittedAt) : "—"}
+                Submitted{" "}
+                {application.submittedAt
+                  ? formatDate(application.submittedAt)
+                  : "—"}
               </span>
               {primaryGuardian && (
                 <>
@@ -128,12 +183,18 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
               Convert to student
             </Button>
           )}
-          {canApprove && application.stage !== "approved" && application.stage !== "enrolled" && application.stage !== "rejected" && (
-            <Button size="sm" variant="outline" onClick={() => approveApplication(application.id, "Principal")}>
-              <CheckCircle2 className="size-3.5" />
-              Approve
-            </Button>
-          )}
+          {canApprove &&
+            application.stage !== "approved" &&
+            application.stage !== "enrolled" &&
+            application.stage !== "rejected" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => approveApplication(application.id, "Principal")}>
+                <CheckCircle2 className="size-3.5" />
+                Approve
+              </Button>
+            )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline">
@@ -143,15 +204,37 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Move stage</DropdownMenuLabel>
               {nextStage && canEdit && (
-                <DropdownMenuItem onSelect={() => moveApplicationStage(application.id, nextStage as AdmissionStageKey, "Admission Officer")}>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    moveApplicationStage(
+                      application.id,
+                      nextStage as AdmissionStageKey,
+                      "Admission Officer",
+                    )
+                  }>
                   <ArrowRightCircle className="size-3.5" />
-                  Advance to {admissionStageDefinitions.find((s) => s.key === nextStage)?.label}
+                  Advance to{" "}
+                  {
+                    admissionStageDefinitions.find((s) => s.key === nextStage)
+                      ?.label
+                  }
                 </DropdownMenuItem>
               )}
               {prevStage && canEdit && (
-                <DropdownMenuItem onSelect={() => moveApplicationStage(application.id, prevStage as AdmissionStageKey, "Admission Officer")}>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    moveApplicationStage(
+                      application.id,
+                      prevStage as AdmissionStageKey,
+                      "Admission Officer",
+                    )
+                  }>
                   <ArrowLeftCircle className="size-3.5" />
-                  Return to {admissionStageDefinitions.find((s) => s.key === prevStage)?.label}
+                  Return to{" "}
+                  {
+                    admissionStageDefinitions.find((s) => s.key === prevStage)
+                      ?.label
+                  }
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -162,7 +245,9 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
                 </DropdownMenuItem>
               )}
               {canApprove && (
-                <DropdownMenuItem onSelect={() => setConfirmAction("reject")} className="text-error">
+                <DropdownMenuItem
+                  onSelect={() => setConfirmAction("reject")}
+                  className="text-error">
                   <Ban className="size-3.5" />
                   Reject
                 </DropdownMenuItem>
@@ -203,7 +288,12 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
           <PaymentsTab application={application} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
-          <TimelineList events={application.timeline} onAddNote={(body) => addApplicationNote(application.id, body, "Staff", "Note")} />
+          <TimelineList
+            events={application.timeline}
+            onAddNote={(body) =>
+              addApplicationNote(application.id, body, "Staff", "Note")
+            }
+          />
         </TabsContent>
         <TabsContent value="notes" className="mt-md">
           <NotesTab application={application} />
@@ -217,7 +307,13 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
         description="This moves the applicant out of the active pipeline. You can move it back to any stage later if needed."
         confirmLabel="Reject"
         destructive
-        onConfirm={() => rejectApplication(application.id, "Does not meet admission criteria", "Principal")}
+        onConfirm={() =>
+          rejectApplication(
+            application.id,
+            "Does not meet admission criteria",
+            "Principal",
+          )
+        }
       />
       <ConfirmDialog
         open={confirmAction === "waitlist"}
@@ -225,10 +321,17 @@ export function ApplicantWorkspace({ applicationId }: { applicationId: string })
         title="Move to waitlist?"
         description="The applicant will be held pending seat availability."
         confirmLabel="Waitlist"
-        onConfirm={() => waitlistApplication(application.id, "Admission Officer")}
+        onConfirm={() =>
+          waitlistApplication(application.id, "Admission Officer")
+        }
       />
 
-      {enrollOpen && <EnrollmentWizard application={application} onClose={() => setEnrollOpen(false)} />}
+      {enrollOpen && (
+        <EnrollmentWizard
+          application={application}
+          onClose={() => setEnrollOpen(false)}
+        />
+      )}
     </div>
   );
 }

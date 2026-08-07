@@ -22,11 +22,15 @@ export function SeatingView({
   const reduceMotion = useReducedMotion();
   const { ref, inView } = useInView<HTMLDivElement>();
   const rows: Student[][] = [];
-  for (let i = 0; i < students.length; i += SEATS_PER_ROW) rows.push(students.slice(i, i + SEATS_PER_ROW));
+  for (let i = 0; i < students.length; i += SEATS_PER_ROW)
+    rows.push(students.slice(i, i + SEATS_PER_ROW));
 
   return (
-    <div ref={ref} className="rounded-lg border border-border bg-surface-secondary/30 p-sm sm:p-md" style={{ perspective: reduceMotion ? undefined : 900 }}>
-      <div className="mx-auto mb-md w-full max-w-md rounded-full bg-surface-secondary py-1 text-center text-xs font-medium text-muted-foreground">
+    <div
+      ref={ref}
+      className="rounded-lg border border-border bg-surface-secondary/30 p-sm sm:p-md"
+      style={{ perspective: reduceMotion ? undefined : 900 }}>
+      <div className="mx-auto mb-md w-full  rounded-full bg-surface-secondary py-1 text-center text-xs font-medium text-muted-foreground">
         Front of classroom
       </div>
       <div className="flex flex-col items-center gap-sm">
@@ -34,8 +38,11 @@ export function SeatingView({
           <div
             key={rowIndex}
             className="flex gap-sm sm:gap-md"
-            style={{ transform: reduceMotion ? undefined : `translateZ(${-rowIndex * 6}px) scale(${1 - rowIndex * 0.015})` }}
-          >
+            style={{
+              transform: reduceMotion
+                ? undefined
+                : `translateZ(${-rowIndex * 6}px) scale(${1 - rowIndex * 0.015})`,
+            }}>
             {row.map((student) => {
               const status = statusFor(student.id);
               const tone = attendanceStatusTone[status];
@@ -44,7 +51,9 @@ export function SeatingView({
                   key={student.id}
                   type="button"
                   onClick={() => onToggle(student.id)}
-                  initial={!reduceMotion && inView ? { opacity: 0, y: 6 } : false}
+                  initial={
+                    !reduceMotion && inView ? { opacity: 0, y: 6 } : false
+                  }
                   animate={{ opacity: 1, y: 0 }}
                   whileTap={reduceMotion ? undefined : { scale: 0.94, y: 2 }}
                   transition={{ duration: 0.15 }}
@@ -54,12 +63,20 @@ export function SeatingView({
                     toneClasses[tone].ring,
                     status !== "not-marked" && "ring-2",
                   )}
-                  aria-label={`${student.profile.firstName} ${student.profile.lastName}: ${status}`}
-                >
-                  <span className={cn("flex size-6 items-center justify-center rounded-pill text-[10px] font-bold sm:size-7", toneClasses[tone].soft)}>
-                    {initialsOf(student.profile.firstName, student.profile.lastName)}
+                  aria-label={`${student.profile.firstName} ${student.profile.lastName}: ${status}`}>
+                  <span
+                    className={cn(
+                      "flex size-6 items-center justify-center rounded-pill text-[10px] font-bold sm:size-7",
+                      toneClasses[tone].soft,
+                    )}>
+                    {initialsOf(
+                      student.profile.firstName,
+                      student.profile.lastName,
+                    )}
                   </span>
-                  <span className="max-w-full truncate px-0.5 text-[9px] text-muted-foreground">{student.profile.firstName}</span>
+                  <span className="max-w-full truncate px-0.5 text-[9px] text-muted-foreground">
+                    {student.profile.firstName}
+                  </span>
                 </motion.button>
               );
             })}

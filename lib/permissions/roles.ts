@@ -36,7 +36,11 @@ export type UserRole =
   | "hostel-warden"
   | "nurse"
   | "counsellor"
-  | "cafeteria-manager";
+  | "cafeteria-manager"
+  // Phase 11 — activities
+  | "activities-coordinator"
+  | "sports-coordinator"
+  | "house-master";
 
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
@@ -73,6 +77,9 @@ export const roleLabels: Record<UserRole, string> = {
   nurse: "Infirmary Nurse",
   counsellor: "Counsellor",
   "cafeteria-manager": "Cafeteria Manager",
+  "activities-coordinator": "Activities Coordinator",
+  "sports-coordinator": "Sports Coordinator",
+  "house-master": "House Master",
 };
 
 export type Permission =
@@ -291,7 +298,21 @@ export type Permission =
   | "cafeteria.view"
   | "cafeteria.manage"
   | "cafeteria.order"
-  | "cafeteria.viewOwn";
+  | "cafeteria.viewOwn"
+  // Phase 11 — events, clubs, sports, competitions & houses
+  | "activities.view"
+  | "activities.manageEvents"
+  | "activities.manageRegistrations"
+  | "activities.recordResults"
+  | "activities.manageClubs"
+  | "activities.manageSports"
+  | "activities.manageCompetitions"
+  | "activities.manageHouses"
+  | "activities.awardPoints"
+  | "activities.manageAwards"
+  | "activities.manageCertificates"
+  | "activities.viewAnalytics"
+  | "activities.viewOwn";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),
@@ -389,6 +410,11 @@ const FRONTDESK_MANAGE: Permission[] = ["frontdesk.view", "frontdesk.manage", "g
 const HOSTEL_MANAGE: Permission[] = ["hostel.view", "hostel.manage", "hostel.allocate", "hostel.attendance", "hostel.leave", "hostel.complaints"];
 const CAMPUS_OVERSIGHT: Permission[] = ["hostel.view", "health.view", "counselling.view", "cafeteria.view"];
 
+// Phase 11 activities groups.
+const ACTIVITIES_ALL: Permission[] = ["activities.view", "activities.manageEvents", "activities.manageRegistrations", "activities.recordResults", "activities.manageClubs", "activities.manageSports", "activities.manageCompetitions", "activities.manageHouses", "activities.awardPoints", "activities.manageAwards", "activities.manageCertificates", "activities.viewAnalytics"];
+const ACTIVITIES_OVERSIGHT: Permission[] = ["activities.view", "activities.viewAnalytics"];
+const ACTIVITIES_TEACHER: Permission[] = ["activities.view", "activities.manageEvents", "activities.manageRegistrations", "activities.recordResults", "activities.manageClubs", "activities.manageCertificates"];
+
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
 // gating and the mock service layer can import the same source of truth.
@@ -481,6 +507,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "counselling.private",
     "cafeteria.view",
     "cafeteria.manage",
+    ...ACTIVITIES_ALL,
   ],
   "school-owner": [
     "admissions.view",
@@ -515,6 +542,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "helpdesk.view",
     "frontdesk.view",
     ...CAMPUS_OVERSIGHT,
+    ...ACTIVITIES_OVERSIGHT,
   ],
   principal: [
     "admissions.view",
@@ -566,6 +594,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "frontdesk.view",
     ...CAMPUS_OVERSIGHT,
     "hostel.manage",
+    ...ACTIVITIES_OVERSIGHT,
+    "activities.manageEvents",
+    "activities.manageAwards",
+    "activities.manageHouses",
   ],
   "examination-controller": [
     "students.view",
@@ -690,6 +722,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "helpdesk.view",
     "frontdesk.view",
     ...CAMPUS_OVERSIGHT,
+    ...ACTIVITIES_OVERSIGHT,
   ],
   administrator: [
     "admissions.view",
@@ -730,6 +763,13 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "counselling.view",
     "cafeteria.view",
     "cafeteria.manage",
+    ...ACTIVITIES_TEACHER,
+    "activities.manageSports",
+    "activities.manageCompetitions",
+    "activities.manageAwards",
+    "activities.manageHouses",
+    "activities.awardPoints",
+    "activities.viewAnalytics",
   ],
   teacher: [
     "students.view",
@@ -759,6 +799,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "hostel.view",
     "counselling.view",
     "cafeteria.view",
+    ...ACTIVITIES_TEACHER,
   ],
   accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports", "library.view", "library.manageFines", "library.viewReports", "inventory.view", "inventory.manageProcurement", "inventory.viewReports", "assets.view", "assets.runDepreciation", "assets.approveDisposal", "assets.viewReports", "hr.view", "hr.viewAnalytics", "comm.view", "comm.viewAnalytics", "helpdesk.view"],
   "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE],
@@ -790,6 +831,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "counselling.viewOwn",
     "cafeteria.viewOwn",
     "cafeteria.order",
+    "activities.viewOwn",
   ],
   student: [
     "students.view",
@@ -811,6 +853,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "counselling.viewOwn",
     "cafeteria.viewOwn",
     "cafeteria.order",
+    "activities.viewOwn",
   ],
   // Phase 7 — library, inventory and asset operations roles
   librarian: ["students.view", "parents.view", "communication.send", ...LIBRARY_MANAGE],
@@ -827,6 +870,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   nurse: ["students.view", "communication.send", "health.view", "health.manage", "health.viewSensitive"],
   counsellor: ["students.view", "communication.send", "counselling.view", "counselling.manage", "counselling.private"],
   "cafeteria-manager": ["communication.send", "cafeteria.view", "cafeteria.manage"],
+  // Phase 11 — events, clubs, sports, competitions & house system roles
+  "activities-coordinator": ["students.view", "communication.send", ...ACTIVITIES_ALL, "activities.manageAwards", "activities.manageCertificates"],
+  "sports-coordinator": ["students.view", "communication.send", "activities.view", "activities.manageSports", "activities.recordResults", "activities.manageCompetitions", "activities.manageEvents", "activities.manageRegistrations", "activities.viewAnalytics"],
+  "house-master": ["students.view", "communication.send", "activities.view", "activities.manageHouses", "activities.awardPoints", "activities.manageAwards", "activities.viewAnalytics"],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -872,4 +919,7 @@ export const allRoles: UserRole[] = [
   "nurse",
   "counsellor",
   "cafeteria-manager",
+  "activities-coordinator",
+  "sports-coordinator",
+  "house-master",
 ];
