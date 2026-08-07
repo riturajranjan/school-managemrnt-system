@@ -312,7 +312,22 @@ export type Permission =
   | "activities.manageAwards"
   | "activities.manageCertificates"
   | "activities.viewAnalytics"
-  | "activities.viewOwn";
+  | "activities.viewOwn"
+  // Phase 12 — document studio, id cards, certificates, letters, print centre
+  | "documents.view"
+  | "documents.manageTemplates"
+  | "documents.generate"
+  | "documents.batch"
+  | "documents.print"
+  | "documents.manageIdCards"
+  | "documents.manageCertificates"
+  | "documents.manageLetters"
+  | "documents.manageAdmitCards"
+  | "documents.verifyToken"
+  | "documents.revoke"
+  | "documents.manageSettings"
+  | "documents.viewAnalytics"
+  | "documents.viewOwn";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),
@@ -415,6 +430,11 @@ const ACTIVITIES_ALL: Permission[] = ["activities.view", "activities.manageEvent
 const ACTIVITIES_OVERSIGHT: Permission[] = ["activities.view", "activities.viewAnalytics"];
 const ACTIVITIES_TEACHER: Permission[] = ["activities.view", "activities.manageEvents", "activities.manageRegistrations", "activities.recordResults", "activities.manageClubs", "activities.manageCertificates"];
 
+// Phase 12 document-studio groups. DOCUMENTS_ALL = full print/document control;
+// OVERSIGHT = read + verify + analytics for leadership/audit.
+const DOCUMENTS_ALL: Permission[] = ["documents.view", "documents.manageTemplates", "documents.generate", "documents.batch", "documents.print", "documents.manageIdCards", "documents.manageCertificates", "documents.manageLetters", "documents.manageAdmitCards", "documents.verifyToken", "documents.revoke", "documents.manageSettings", "documents.viewAnalytics"];
+const DOCUMENTS_OVERSIGHT: Permission[] = ["documents.view", "documents.verifyToken", "documents.viewAnalytics"];
+
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
 // gating and the mock service layer can import the same source of truth.
@@ -508,6 +528,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "cafeteria.view",
     "cafeteria.manage",
     ...ACTIVITIES_ALL,
+    ...DOCUMENTS_ALL,
   ],
   "school-owner": [
     "admissions.view",
@@ -543,6 +564,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "frontdesk.view",
     ...CAMPUS_OVERSIGHT,
     ...ACTIVITIES_OVERSIGHT,
+    ...DOCUMENTS_OVERSIGHT,
   ],
   principal: [
     "admissions.view",
@@ -598,6 +620,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "activities.manageEvents",
     "activities.manageAwards",
     "activities.manageHouses",
+    ...DOCUMENTS_OVERSIGHT,
+    "documents.generate",
+    "documents.manageCertificates",
+    "documents.print",
   ],
   "examination-controller": [
     "students.view",
@@ -625,6 +651,12 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.publish",
     "promotion.view",
     "promotion.run",
+    "documents.view",
+    "documents.generate",
+    "documents.batch",
+    "documents.print",
+    "documents.manageAdmitCards",
+    "documents.verifyToken",
   ],
   "academic-coordinator": [
     "students.view",
@@ -723,6 +755,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "frontdesk.view",
     ...CAMPUS_OVERSIGHT,
     ...ACTIVITIES_OVERSIGHT,
+    ...DOCUMENTS_OVERSIGHT,
   ],
   administrator: [
     "admissions.view",
@@ -763,6 +796,16 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "counselling.view",
     "cafeteria.view",
     "cafeteria.manage",
+    "documents.view",
+    "documents.generate",
+    "documents.batch",
+    "documents.print",
+    "documents.manageIdCards",
+    "documents.manageCertificates",
+    "documents.manageTemplates",
+    "documents.manageSettings",
+    "documents.verifyToken",
+    "documents.revoke",
     ...ACTIVITIES_TEACHER,
     "activities.manageSports",
     "activities.manageCompetitions",
@@ -800,15 +843,18 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "counselling.view",
     "cafeteria.view",
     ...ACTIVITIES_TEACHER,
+    "documents.view",
+    "documents.generate",
+    "documents.viewOwn",
   ],
   accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports", "library.view", "library.manageFines", "library.viewReports", "inventory.view", "inventory.manageProcurement", "inventory.viewReports", "assets.view", "assets.runDepreciation", "assets.approveDisposal", "assets.viewReports", "hr.view", "hr.viewAnalytics", "comm.view", "comm.viewAnalytics", "helpdesk.view"],
-  "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE],
-  "transport-manager": ["students.view", "parents.view", "communication.send", ...TRANSPORT_OPERATE, "transport.viewCosts"],
+  "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE, "documents.view", "documents.manageIdCards", "documents.generate", "documents.print"],
+  "transport-manager": ["students.view", "parents.view", "communication.send", ...TRANSPORT_OPERATE, "transport.viewCosts", "documents.view", "documents.manageIdCards", "documents.generate"],
   dispatcher: ["students.view", "transport.view", "transport.viewLive", "transport.manageTrips", "transport.markAttendance", "transport.reportIncident", "transport.viewGpsHistory"],
   driver: ["transport.driverAccess", "transport.reportIncident"],
   attendant: ["transport.attendantAccess", "transport.markAttendance", "transport.reportIncident"],
   mechanic: ["transport.view", "transport.manageMaintenance", "transport.manageFuel", "transport.manageDocuments", "transport.viewCosts"],
-  receptionist: ["students.view", "parents.view", "communication.send", "transport.view", "transport.viewLive", "comm.view", "comm.message", ...FRONTDESK_MANAGE, "helpdesk.view"],
+  receptionist: ["students.view", "parents.view", "communication.send", "transport.view", "transport.viewLive", "comm.view", "comm.message", ...FRONTDESK_MANAGE, "helpdesk.view", "documents.view", "documents.manageIdCards", "documents.generate", "documents.verifyToken"],
   parent: [
     "students.view",
     "fees.view",
@@ -832,6 +878,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "cafeteria.viewOwn",
     "cafeteria.order",
     "activities.viewOwn",
+    "documents.viewOwn",
   ],
   student: [
     "students.view",
@@ -854,24 +901,25 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "cafeteria.viewOwn",
     "cafeteria.order",
     "activities.viewOwn",
+    "documents.viewOwn",
   ],
   // Phase 7 — library, inventory and asset operations roles
-  librarian: ["students.view", "parents.view", "communication.send", ...LIBRARY_MANAGE],
+  librarian: ["students.view", "parents.view", "communication.send", ...LIBRARY_MANAGE, "documents.view", "documents.manageIdCards", "documents.generate", "documents.print"],
   "assistant-librarian": ["students.view", ...LIBRARY_CIRCULATE],
   "inventory-manager": ["communication.send", ...INVENTORY_MANAGE, "assets.view", "assets.viewReports"],
   storekeeper: ["inventory.view", "inventory.receive", "inventory.issue", "inventory.manageStocktake"],
   "department-head": ["students.view", "library.view", "inventory.view", "assets.view", "assets.assign", "assets.viewReports", "assets.approveDisposal", "hr.view", "hr.approveLeave", "hr.managePerformance", "hr.viewAnalytics"],
-  "hr-manager": ["students.view", "communication.send", "payroll.view", "payroll.viewPayslips", ...HR_ALL, "comm.view", "comm.message", "helpdesk.view", "helpdesk.manage"],
-  "hr-executive": ["students.view", "communication.send", ...HR_OPERATE, "comm.view", "comm.message"],
+  "hr-manager": ["students.view", "communication.send", "payroll.view", "payroll.viewPayslips", ...HR_ALL, "comm.view", "comm.message", "helpdesk.view", "helpdesk.manage", "documents.view", "documents.manageIdCards", "documents.manageLetters", "documents.generate", "documents.batch", "documents.print", "documents.manageTemplates", "documents.verifyToken"],
+  "hr-executive": ["students.view", "communication.send", ...HR_OPERATE, "comm.view", "comm.message", "documents.view", "documents.manageIdCards", "documents.manageLetters", "documents.generate", "documents.print"],
   recruiter: ["hr.view", "hr.manageRecruitment", "comm.view", "comm.message"],
   "communication-admin": ["students.view", "parents.view", "communication.send", ...COMM_ALL, "helpdesk.view", "helpdesk.manage", "frontdesk.view"],
   // Phase 10 — student life & campus services roles
-  "hostel-warden": ["students.view", "parents.view", "communication.send", ...HOSTEL_MANAGE, "cafeteria.view"],
+  "hostel-warden": ["students.view", "parents.view", "communication.send", ...HOSTEL_MANAGE, "cafeteria.view", "documents.view", "documents.manageIdCards", "documents.generate"],
   nurse: ["students.view", "communication.send", "health.view", "health.manage", "health.viewSensitive"],
   counsellor: ["students.view", "communication.send", "counselling.view", "counselling.manage", "counselling.private"],
   "cafeteria-manager": ["communication.send", "cafeteria.view", "cafeteria.manage"],
   // Phase 11 — events, clubs, sports, competitions & house system roles
-  "activities-coordinator": ["students.view", "communication.send", ...ACTIVITIES_ALL, "activities.manageAwards", "activities.manageCertificates"],
+  "activities-coordinator": ["students.view", "communication.send", ...ACTIVITIES_ALL, "activities.manageAwards", "activities.manageCertificates", "documents.view", "documents.manageCertificates", "documents.generate", "documents.batch", "documents.print"],
   "sports-coordinator": ["students.view", "communication.send", "activities.view", "activities.manageSports", "activities.recordResults", "activities.manageCompetitions", "activities.manageEvents", "activities.manageRegistrations", "activities.viewAnalytics"],
   "house-master": ["students.view", "communication.send", "activities.view", "activities.manageHouses", "activities.awardPoints", "activities.manageAwards", "activities.viewAnalytics"],
 };

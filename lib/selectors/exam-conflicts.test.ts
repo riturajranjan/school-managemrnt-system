@@ -268,6 +268,16 @@ function makeDb(examSubjects: ExamSubject[], overrides: Partial<Db> = {}): Db {
     awards: [],
     certificateTemplates: [],
     certificates: [],
+    documentTemplates: [],
+    generatedDocuments: [],
+    documentVersions: [],
+    idCards: [],
+    documentBatches: [],
+    documentBatchItems: [],
+    printQueue: [],
+    verificationRecords: [],
+    documentNumberingRules: [],
+    signatoryProfiles: [],
     ...overrides,
   };
 }

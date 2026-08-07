@@ -184,6 +184,18 @@ import type {
   Tournament,
 } from "@/lib/types/activities";
 import type {
+  DocumentBatch,
+  DocumentBatchItem,
+  DocumentNumberingRule,
+  DocumentTemplate,
+  DocumentVersion,
+  GeneratedDocument,
+  IdCardRecord,
+  PrintQueueItem,
+  SignatoryProfile,
+  VerificationRecord,
+} from "@/lib/types/documents";
+import type {
   Announcement,
   Broadcast,
   CommNotification,
@@ -303,6 +315,7 @@ import { buildHrData, departments, designations, shifts } from "./seed/hr";
 import { buildCommunicationData } from "./seed/communication";
 import { buildCampusData } from "./seed/campus";
 import { buildActivitiesData } from "./seed/activities";
+import { buildDocumentsData } from "./seed/documents";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -555,6 +568,17 @@ export type Db = {
   awards: Award[];
   certificateTemplates: CertificateTemplate[];
   certificates: Certificate[];
+  // Phase 12 — document studio, id cards, certificates, letters, print centre (frontend mock)
+  documentTemplates: DocumentTemplate[];
+  generatedDocuments: GeneratedDocument[];
+  documentVersions: DocumentVersion[];
+  idCards: IdCardRecord[];
+  documentBatches: DocumentBatch[];
+  documentBatchItems: DocumentBatchItem[];
+  printQueue: PrintQueueItem[];
+  verificationRecords: VerificationRecord[];
+  documentNumberingRules: DocumentNumberingRule[];
+  signatoryProfiles: SignatoryProfile[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -586,6 +610,7 @@ function buildSeedDb(): Db {
   const commData = buildCommunicationData(students, teachers);
   const campusData = buildCampusData(students);
   const activitiesData = buildActivitiesData(students, teachers);
+  const documentsData = buildDocumentsData(students, teachers, hrData.employees);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -832,6 +857,16 @@ function buildSeedDb(): Db {
     awards: activitiesData.awards,
     certificateTemplates: activitiesData.certificateTemplates,
     certificates: activitiesData.certificates,
+    documentTemplates: documentsData.templates,
+    generatedDocuments: documentsData.documents,
+    documentVersions: documentsData.versions,
+    idCards: documentsData.idCards,
+    documentBatches: documentsData.batches,
+    documentBatchItems: documentsData.batchItems,
+    printQueue: documentsData.printQueue,
+    verificationRecords: documentsData.verifications,
+    documentNumberingRules: documentsData.numberingRules,
+    signatoryProfiles: documentsData.signatories,
   };
 }
 
@@ -1201,6 +1236,30 @@ export function hydrateFromStorage() {
             sports: ac.sports, sportsTeams: ac.teams, teamMembers: ac.teamMembers, fixtures: ac.fixtures,
             tournaments: ac.tournaments, bracketMatches: ac.brackets, competitions: ac.competitions, competitionParticipants: ac.compParticipants,
             housePoints: ac.housePoints, achievements: ac.achievements, awards: ac.awards, certificateTemplates: ac.certificateTemplates, certificates: ac.certificates,
+          };
+        })(),
+        // Phase 12 document studio — legacy snapshots predate this domain;
+        // regenerate from cached students/teachers/employees so it always exists.
+        ...(() => {
+          if (parsed.documentTemplates && parsed.generatedDocuments) {
+            return {
+              documentTemplates: parsed.documentTemplates,
+              generatedDocuments: parsed.generatedDocuments,
+              documentVersions: parsed.documentVersions ?? [],
+              idCards: parsed.idCards ?? [],
+              documentBatches: parsed.documentBatches ?? [],
+              documentBatchItems: parsed.documentBatchItems ?? [],
+              printQueue: parsed.printQueue ?? [],
+              verificationRecords: parsed.verificationRecords ?? [],
+              documentNumberingRules: parsed.documentNumberingRules ?? [],
+              signatoryProfiles: parsed.signatoryProfiles ?? [],
+            };
+          }
+          const dc = buildDocumentsData(parsed.students ?? [], parsed.teachers ?? teachers, parsed.employees ?? []);
+          return {
+            documentTemplates: dc.templates, generatedDocuments: dc.documents, documentVersions: dc.versions, idCards: dc.idCards,
+            documentBatches: dc.batches, documentBatchItems: dc.batchItems, printQueue: dc.printQueue, verificationRecords: dc.verifications,
+            documentNumberingRules: dc.numberingRules, signatoryProfiles: dc.signatories,
           };
         })(),
       };
