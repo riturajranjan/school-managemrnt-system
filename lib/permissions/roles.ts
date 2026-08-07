@@ -19,7 +19,13 @@ export type UserRole =
   | "teacher"
   | "parent"
   | "student"
-  | "auditor";
+  | "auditor"
+  // Phase 7 — library, inventory and asset operations
+  | "librarian"
+  | "assistant-librarian"
+  | "inventory-manager"
+  | "storekeeper"
+  | "department-head";
 
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
@@ -43,6 +49,11 @@ export const roleLabels: Record<UserRole, string> = {
   parent: "Parent",
   student: "Student",
   auditor: "Auditor",
+  librarian: "Librarian",
+  "assistant-librarian": "Assistant Librarian",
+  "inventory-manager": "Inventory Manager",
+  storekeeper: "Storekeeper",
+  "department-head": "Department Head",
 };
 
 export type Permission =
@@ -174,7 +185,40 @@ export type Permission =
   | "transport.viewCosts"
   | "transport.driverAccess"
   | "transport.attendantAccess"
-  | "transport.viewOwn";
+  | "transport.viewOwn"
+  // Phase 7 — library
+  | "library.view"
+  | "library.manageCatalogue"
+  | "library.circulate"
+  | "library.manageMembers"
+  | "library.manageReservations"
+  | "library.manageFines"
+  | "library.waiveFines"
+  | "library.manageDigital"
+  | "library.manageStocktake"
+  | "library.manageBarcode"
+  | "library.viewReports"
+  | "library.manageSettings"
+  | "library.viewOwn"
+  // Phase 7 — inventory
+  | "inventory.view"
+  | "inventory.manageItems"
+  | "inventory.receive"
+  | "inventory.issue"
+  | "inventory.transfer"
+  | "inventory.adjust"
+  | "inventory.manageProcurement"
+  | "inventory.manageStocktake"
+  | "inventory.viewReports"
+  // Phase 7 — assets
+  | "assets.view"
+  | "assets.manageRegister"
+  | "assets.assign"
+  | "assets.manageMaintenance"
+  | "assets.runDepreciation"
+  | "assets.dispose"
+  | "assets.approveDisposal"
+  | "assets.viewReports";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),
@@ -228,6 +272,19 @@ const TRANSPORT_OPERATE: Permission[] = [
 ];
 const TRANSPORT_MANAGE: Permission[] = [...TRANSPORT_OPERATE, "transport.manageRoutes", "transport.manageStops", "transport.manageVehicles", "transport.manageDrivers", "transport.manageAttendants", "transport.assignStudents", "transport.manageDocuments", "transport.manageFees", "transport.manageNotifications", "transport.manageSettings", "transport.viewCosts"];
 const TRANSPORT_OVERSIGHT: Permission[] = ["transport.view", "transport.viewReports", "transport.viewLive", "transport.viewGpsHistory"];
+
+// Phase 7 permission groups — library, inventory, assets. Same compose-from-
+// group shape as the Phase 5/6 finance and transport matrices above.
+const LIBRARY_CIRCULATE: Permission[] = ["library.view", "library.circulate", "library.manageMembers", "library.manageReservations", "library.manageFines", "library.manageBarcode", "library.viewReports"];
+const LIBRARY_MANAGE: Permission[] = [...LIBRARY_CIRCULATE, "library.manageCatalogue", "library.waiveFines", "library.manageDigital", "library.manageStocktake", "library.manageSettings"];
+const LIBRARY_OVERSIGHT: Permission[] = ["library.view", "library.viewReports"];
+
+const INVENTORY_OPERATE: Permission[] = ["inventory.view", "inventory.receive", "inventory.issue", "inventory.transfer", "inventory.manageStocktake", "inventory.viewReports"];
+const INVENTORY_MANAGE: Permission[] = [...INVENTORY_OPERATE, "inventory.manageItems", "inventory.adjust", "inventory.manageProcurement"];
+const INVENTORY_OVERSIGHT: Permission[] = ["inventory.view", "inventory.viewReports"];
+
+const ASSETS_MANAGE: Permission[] = ["assets.view", "assets.manageRegister", "assets.assign", "assets.manageMaintenance", "assets.runDepreciation", "assets.dispose", "assets.viewReports"];
+const ASSETS_OVERSIGHT: Permission[] = ["assets.view", "assets.viewReports", "assets.approveDisposal"];
 
 // Static role → permission matrix. In production this would be fetched
 // per-tenant from the backend; kept as a typed constant here so both UI
@@ -303,6 +360,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...ACCOUNTING_MANAGE,
     ...PAYROLL_MANAGE,
     ...TRANSPORT_MANAGE,
+    ...LIBRARY_MANAGE,
+    ...INVENTORY_MANAGE,
+    ...ASSETS_MANAGE,
+    "assets.approveDisposal",
   ],
   "school-owner": [
     "admissions.view",
@@ -329,6 +390,9 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...ACCOUNTING_OVERSIGHT,
     ...PAYROLL_OVERSIGHT,
     ...TRANSPORT_OVERSIGHT,
+    ...LIBRARY_OVERSIGHT,
+    ...INVENTORY_OVERSIGHT,
+    ...ASSETS_OVERSIGHT,
   ],
   principal: [
     "admissions.view",
@@ -368,6 +432,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...ACCOUNTING_OVERSIGHT,
     ...PAYROLL_OVERSIGHT,
     ...TRANSPORT_OVERSIGHT,
+    ...LIBRARY_OVERSIGHT,
+    "library.waiveFines",
+    ...INVENTORY_OVERSIGHT,
+    ...ASSETS_OVERSIGHT,
   ],
   "examination-controller": [
     "students.view",
@@ -479,6 +547,12 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "transport.view",
     "transport.viewReports",
     "transport.viewGpsHistory",
+    "library.view",
+    "library.viewReports",
+    "inventory.view",
+    "inventory.viewReports",
+    "assets.view",
+    "assets.viewReports",
   ],
   administrator: [
     "admissions.view",
@@ -524,8 +598,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "marks.verify",
     "results.view",
     "reportCards.view",
+    "library.view",
+    "library.viewOwn",
   ],
-  accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports"],
+  accountant: ["students.view", "parents.view", "finance.viewDashboard", "payroll.view", "payroll.viewPayslips", "accounting.postJournals", ...FEES_OPERATE, ...ACCOUNTING_OPERATE, "transport.view", "transport.manageFees", "transport.viewCosts", "transport.viewReports", "library.view", "library.manageFines", "library.viewReports", "inventory.view", "inventory.manageProcurement", "inventory.viewReports", "assets.view", "assets.runDepreciation", "assets.approveDisposal", "assets.viewReports"],
   "transport-administrator": ["students.view", "parents.view", "communication.send", ...TRANSPORT_MANAGE],
   "transport-manager": ["students.view", "parents.view", "communication.send", ...TRANSPORT_OPERATE, "transport.viewCosts"],
   dispatcher: ["students.view", "transport.view", "transport.viewLive", "transport.manageTrips", "transport.markAttendance", "transport.reportIncident", "transport.viewGpsHistory"],
@@ -547,6 +623,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "results.view",
     "reportCards.view",
     "transport.viewOwn",
+    "library.viewOwn",
   ],
   student: [
     "students.view",
@@ -560,7 +637,14 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "fees.viewOwn",
     "fees.payOwn",
     "transport.viewOwn",
+    "library.viewOwn",
   ],
+  // Phase 7 — library, inventory and asset operations roles
+  librarian: ["students.view", "parents.view", "communication.send", ...LIBRARY_MANAGE],
+  "assistant-librarian": ["students.view", ...LIBRARY_CIRCULATE],
+  "inventory-manager": ["communication.send", ...INVENTORY_MANAGE, "assets.view", "assets.viewReports"],
+  storekeeper: ["inventory.view", "inventory.receive", "inventory.issue", "inventory.manageStocktake"],
+  "department-head": ["students.view", "library.view", "inventory.view", "assets.view", "assets.assign", "assets.viewReports", "assets.approveDisposal"],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -593,4 +677,9 @@ export const allRoles: UserRole[] = [
   "parent",
   "student",
   "auditor",
+  "librarian",
+  "assistant-librarian",
+  "inventory-manager",
+  "storekeeper",
+  "department-head",
 ];

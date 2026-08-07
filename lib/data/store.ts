@@ -94,6 +94,38 @@ import type {
 } from "@/lib/types/transport";
 import type { GPSDevice, GPSPosition, RouteDeviation } from "@/lib/types/gps";
 import type { TransportAuditEvent } from "@/lib/types/transport-audit";
+import type {
+  Author,
+  Book,
+  BookCategory,
+  BookCopy,
+  DigitalResource,
+  DigitalResourceAccess,
+  Library,
+  LibraryFine,
+  LibraryLoan,
+  LibraryMember,
+  LibraryReservation,
+  LibraryRule,
+  LibraryStocktake,
+  LibraryStocktakeItem,
+  Publisher,
+  Shelf,
+  ShelfLocation,
+} from "@/lib/types/library";
+import type { ResourceAuditEvent } from "@/lib/types/resource-audit";
+import type {
+  InventoryCategory,
+  InventoryIssue,
+  InventoryItem,
+  InventoryMovement,
+  InventoryPurchaseRequest,
+  InventoryReturn,
+  InventoryStocktake,
+  InventoryStocktakeLine,
+  InventoryTransfer,
+} from "@/lib/types/inventory";
+import type { Asset, AssetAssignment, AssetCategory, AssetDepreciation, AssetDisposal, AssetMaintenance } from "@/lib/types/assets";
 import { buildLedgerFromJournal } from "@/lib/selectors/ledger";
 import {
   bankAccounts,
@@ -147,6 +179,20 @@ import {
   vehicleSeats,
   vehicles,
 } from "./seed/transport";
+import {
+  authors,
+  bookCategories,
+  books,
+  buildLibraryData,
+  digitalResources,
+  libraries,
+  libraryRules,
+  publishers,
+  shelfLocations,
+  shelves,
+} from "./seed/library";
+import { inventoryCategories, inventoryIssues, inventoryItems, inventoryMovements } from "./seed/inventory";
+import { assetAssignments, assetCategories, assetMaintenance, assets } from "./seed/assets";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -265,6 +311,42 @@ export type Db = {
   transportFeeRules: TransportFeeRule[];
   transportFeeCharges: TransportFeeCharge[];
   transportAuditLog: TransportAuditEvent[];
+  // Phase 7 — library, digital resources, inventory and asset operations
+  libraries: Library[];
+  shelfLocations: ShelfLocation[];
+  shelves: Shelf[];
+  authors: Author[];
+  publishers: Publisher[];
+  bookCategories: BookCategory[];
+  books: Book[];
+  bookCopies: BookCopy[];
+  libraryMembers: LibraryMember[];
+  libraryRules: LibraryRule[];
+  libraryLoans: LibraryLoan[];
+  libraryReservations: LibraryReservation[];
+  libraryFines: LibraryFine[];
+  digitalResources: DigitalResource[];
+  digitalResourceAccess: DigitalResourceAccess[];
+  libraryStocktakes: LibraryStocktake[];
+  libraryStocktakeItems: LibraryStocktakeItem[];
+  // Inventory
+  inventoryCategories: InventoryCategory[];
+  inventoryItems: InventoryItem[];
+  inventoryMovements: InventoryMovement[];
+  inventoryIssues: InventoryIssue[];
+  inventoryReturns: InventoryReturn[];
+  inventoryTransfers: InventoryTransfer[];
+  inventoryPurchaseRequests: InventoryPurchaseRequest[];
+  inventoryStocktakes: InventoryStocktake[];
+  inventoryStocktakeLines: InventoryStocktakeLine[];
+  // Assets
+  assetCategories: AssetCategory[];
+  assets: Asset[];
+  assetAssignments: AssetAssignment[];
+  assetMaintenance: AssetMaintenance[];
+  assetDepreciation: AssetDepreciation[];
+  assetDisposals: AssetDisposal[];
+  resourceAuditLog: ResourceAuditEvent[];
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -291,6 +373,7 @@ function buildSeedDb(): Db {
   const { loans: employeeLoans, advances: employeeAdvances } = buildLoansAndAdvances(teachers);
   const allJournalEntries = [...financeData.journalEntries, ...expenseJournals(), julyPayroll.journal];
   const transportData = generateTransportData(students, teachers);
+  const libraryData = buildLibraryData(students, teachers);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -410,6 +493,39 @@ function buildSeedDb(): Db {
     transportFeeRules: transportData.feeRules,
     transportFeeCharges: transportData.feeCharges,
     transportAuditLog: [],
+    libraries: structuredClone(libraryData.libraries),
+    shelfLocations: structuredClone(shelfLocations),
+    shelves: structuredClone(shelves),
+    authors: structuredClone(authors),
+    publishers: structuredClone(publishers),
+    bookCategories: structuredClone(bookCategories),
+    books: structuredClone(books),
+    bookCopies: libraryData.copies,
+    libraryMembers: libraryData.members,
+    libraryRules: structuredClone(libraryRules),
+    libraryLoans: libraryData.loans,
+    libraryReservations: libraryData.reservations,
+    libraryFines: libraryData.fines,
+    digitalResources: structuredClone(digitalResources),
+    digitalResourceAccess: [],
+    libraryStocktakes: [],
+    libraryStocktakeItems: [],
+    inventoryCategories: structuredClone(inventoryCategories),
+    inventoryItems: structuredClone(inventoryItems),
+    inventoryMovements: structuredClone(inventoryMovements),
+    inventoryIssues: structuredClone(inventoryIssues),
+    inventoryReturns: [],
+    inventoryTransfers: [],
+    inventoryPurchaseRequests: [],
+    inventoryStocktakes: [],
+    inventoryStocktakeLines: [],
+    assetCategories: structuredClone(assetCategories),
+    assets: structuredClone(assets),
+    assetAssignments: structuredClone(assetAssignments),
+    assetMaintenance: structuredClone(assetMaintenance),
+    assetDepreciation: [],
+    assetDisposals: [],
+    resourceAuditLog: [],
   };
 }
 
@@ -550,6 +666,42 @@ export function hydrateFromStorage() {
         transportFeeRules: parsed.transportFeeRules ?? [],
         transportFeeCharges: parsed.transportFeeCharges ?? [],
         transportAuditLog: parsed.transportAuditLog ?? [],
+        // Older cached snapshots predate the whole Phase 7 library domain —
+        // config-like lists fall back to the fresh seed constant, everything
+        // transactional falls back to empty rather than reseeding.
+        libraries: parsed.libraries ?? libraries,
+        shelfLocations: parsed.shelfLocations ?? shelfLocations,
+        shelves: parsed.shelves ?? shelves,
+        authors: parsed.authors ?? authors,
+        publishers: parsed.publishers ?? publishers,
+        bookCategories: parsed.bookCategories ?? bookCategories,
+        books: parsed.books ?? books,
+        bookCopies: parsed.bookCopies ?? [],
+        libraryMembers: parsed.libraryMembers ?? [],
+        libraryRules: parsed.libraryRules ?? libraryRules,
+        libraryLoans: parsed.libraryLoans ?? [],
+        libraryReservations: parsed.libraryReservations ?? [],
+        libraryFines: parsed.libraryFines ?? [],
+        digitalResources: parsed.digitalResources ?? digitalResources,
+        digitalResourceAccess: parsed.digitalResourceAccess ?? [],
+        libraryStocktakes: parsed.libraryStocktakes ?? [],
+        libraryStocktakeItems: parsed.libraryStocktakeItems ?? [],
+        inventoryCategories: parsed.inventoryCategories ?? inventoryCategories,
+        inventoryItems: parsed.inventoryItems ?? inventoryItems,
+        inventoryMovements: parsed.inventoryMovements ?? inventoryMovements,
+        inventoryIssues: parsed.inventoryIssues ?? [],
+        inventoryReturns: parsed.inventoryReturns ?? [],
+        inventoryTransfers: parsed.inventoryTransfers ?? [],
+        inventoryPurchaseRequests: parsed.inventoryPurchaseRequests ?? [],
+        inventoryStocktakes: parsed.inventoryStocktakes ?? [],
+        inventoryStocktakeLines: parsed.inventoryStocktakeLines ?? [],
+        assetCategories: parsed.assetCategories ?? assetCategories,
+        assets: parsed.assets ?? assets,
+        assetAssignments: parsed.assetAssignments ?? [],
+        assetMaintenance: parsed.assetMaintenance ?? [],
+        assetDepreciation: parsed.assetDepreciation ?? [],
+        assetDisposals: parsed.assetDisposals ?? [],
+        resourceAuditLog: parsed.resourceAuditLog ?? [],
       };
       notify();
     }
