@@ -16,12 +16,19 @@ export type SessionUser = {
   id: string;
   email: string;
   name: string;
+  image: string | null;
+  status: string;
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return null;
-  return { id: session.user.id, email: session.user.email, name: session.user.name };
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, email: true, name: true, image: true, status: true },
+  });
+  if (!user || user.status !== "ACTIVE") return null;
+  return user;
 }
 
 export async function requireUser(): Promise<SessionUser> {

@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/server/context";
 import { resolveOnboarding, type ActiveSelection } from "./onboarding";
-import { resolvePostLoginDestination } from "./onboarding";
+import { resolveSimplePostLoginDestination } from "./credentials";
 import { uiRoleFor } from "./roles";
 
 // ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ export async function resolveGate(): Promise<GateResult> {
   // lands on /login is sent onward to their resolved destination (Step 14).
   if (matches(path, ALWAYS_ALLOW)) {
     if (user && (path === "/login" || path.startsWith("/login/"))) {
-      redirect(await resolvePostLoginDestination(user.id));
+      redirect(await resolveSimplePostLoginDestination(user.id));
     }
     return { authed: false };
   }

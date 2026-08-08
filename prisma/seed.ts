@@ -42,13 +42,17 @@ async function ensureUser(u: DemoUser): Promise<string> {
   const existing = await prisma.user.findUnique({ where: { email: u.email } });
   if (existing) {
     await prisma.user.update({ where: { id: existing.id }, data: { name: u.name, phone: u.phone ?? null, emailVerified: true } });
+    await prisma.session.deleteMany({ where: { userId: existing.id } });
     return existing.id;
   }
   // signUpEmail creates the User + a credential Account with a correct hash.
+  // It may also create a session; the seed is account foundation only, so any
+  // session side effect is revoked immediately. Batch 3 owns real session login.
   await auth.api.signUpEmail({ body: { email: u.email, password: DEMO_PASSWORD, name: u.name } });
   const created = await prisma.user.findUnique({ where: { email: u.email } });
   if (!created) throw new Error(`Failed to create user ${u.email}`);
   await prisma.user.update({ where: { id: created.id }, data: { phone: u.phone ?? null, emailVerified: true } });
+  await prisma.session.deleteMany({ where: { userId: created.id } });
   return created.id;
 }
 
@@ -176,7 +180,7 @@ async function main() {
   console.log("\nSeed complete.");
   console.log(`  Platform super admin: aditya@novyra.io`);
   console.log(`  Tenant admin:         kavya@novyra.edu.in`);
-  console.log(`  Demo password:        ${process.env.SEED_DEMO_PASSWORD ? "(from SEED_DEMO_PASSWORD)" : DEMO_PASSWORD + "  (dev fallback)"}`);
+  console.log(`  Demo password:        ${process.env.SEED_DEMO_PASSWORD ? "(from SEED_DEMO_PASSWORD)" : "(development fallback; see .env.example)"}`);
 }
 
 main()
