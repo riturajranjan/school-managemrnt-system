@@ -196,6 +196,7 @@ import type {
   VerificationRecord,
 } from "@/lib/types/documents";
 import type { AdminState } from "@/lib/types/admin";
+import type { SaasState } from "@/lib/types/saas";
 import type {
   Announcement,
   Broadcast,
@@ -318,6 +319,7 @@ import { buildCampusData } from "./seed/campus";
 import { buildActivitiesData } from "./seed/activities";
 import { buildDocumentsData } from "./seed/documents";
 import { buildAdminData } from "./seed/admin";
+import { buildSaasData } from "./seed/saas";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -583,6 +585,8 @@ export type Db = {
   signatoryProfiles: SignatoryProfile[];
   // Phase 13 — administration & system configuration (frontend mock, grouped)
   admin: AdminState;
+  // Phase 14 — multi-school SaaS control center (frontend mock, grouped)
+  saas: SaasState;
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -616,6 +620,7 @@ function buildSeedDb(): Db {
   const activitiesData = buildActivitiesData(students, teachers);
   const documentsData = buildDocumentsData(students, teachers, hrData.employees);
   const adminData = buildAdminData(students, hrData.employees);
+  const saasData = buildSaasData();
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -873,6 +878,7 @@ function buildSeedDb(): Db {
     documentNumberingRules: documentsData.numberingRules,
     signatoryProfiles: documentsData.signatories,
     admin: adminData,
+    saas: saasData,
   };
 }
 
@@ -1271,6 +1277,8 @@ export function hydrateFromStorage() {
         // Phase 13 admin/settings — regenerate from cached students/employees
         // when a legacy snapshot predates this domain.
         admin: parsed.admin ?? buildAdminData(parsed.students ?? [], parsed.employees ?? []),
+        // Phase 14 SaaS control center — platform-level mock data.
+        saas: parsed.saas ?? buildSaasData(),
       };
       notify();
     }

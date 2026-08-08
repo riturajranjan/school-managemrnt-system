@@ -12,6 +12,7 @@ import {
   Calculator,
   Calendar,
   CalendarCheck,
+  Command,
   CalendarClock,
   CalendarPlus,
   CalendarRange,
@@ -186,6 +187,7 @@ export const navGroups: NavGroup[] = [
       { key: "reports", label: "Reports", href: "/reports", icon: BarChart3 },
       { key: "integrations", label: "Integrations", href: "/settings/integrations", icon: Plug },
       { key: "settings", label: "Settings", href: "/settings", icon: Settings },
+      { key: "super-admin", label: "SaaS Control Center", href: "/super-admin", icon: Command },
     ],
   },
 ];

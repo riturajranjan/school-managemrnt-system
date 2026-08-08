@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { detectExamConflicts, summarizeExamConflicts } from "./exam-conflicts";
 import type { Db } from "@/lib/data/store";
 import { emptyAdminState } from "@/lib/data/seed/admin";
+import { emptySaasState } from "@/lib/data/seed/saas";
 import type { ExamSubject } from "@/lib/types/exams";
 
 function subject(id: string, overrides: Partial<ExamSubject> = {}): ExamSubject {
@@ -280,6 +281,7 @@ function makeDb(examSubjects: ExamSubject[], overrides: Partial<Db> = {}): Db {
     documentNumberingRules: [],
     signatoryProfiles: [],
     admin: emptyAdminState(),
+    saas: emptySaasState(),
     ...overrides,
   };
 }

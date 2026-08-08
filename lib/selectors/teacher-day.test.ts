@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildTeacherDay } from "./teacher-day";
 import type { Db } from "@/lib/data/store";
 import { emptyAdminState } from "@/lib/data/seed/admin";
+import { emptySaasState } from "@/lib/data/seed/saas";
 
 function makeDb(overrides: Partial<Db>): Db {
   return {
@@ -256,6 +257,7 @@ function makeDb(overrides: Partial<Db>): Db {
     documentNumberingRules: [],
     signatoryProfiles: [],
     admin: emptyAdminState(),
+    saas: emptySaasState(),
     ...overrides,
   };
 }
