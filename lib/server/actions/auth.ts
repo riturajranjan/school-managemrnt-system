@@ -28,9 +28,9 @@ async function clientIp(): Promise<string | null> {
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const h = await headers();
   const result = await authenticateCredentials({
-    identifier: formData.get("identifier"),
-    password: formData.get("password"),
-    next: formData.get("next") ?? undefined,
+    identifier: String(formData.get("identifier") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    next: String(formData.get("next") ?? "") || undefined,
     headers: h,
     ipAddress: await clientIp(),
   });
