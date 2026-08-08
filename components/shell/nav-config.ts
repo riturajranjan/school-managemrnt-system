@@ -184,7 +184,7 @@ export const navGroups: NavGroup[] = [
       { key: "helpdesk", label: "Helpdesk", href: "/helpdesk", icon: LifeBuoy },
       { key: "front-desk", label: "Front Desk", href: "/front-desk", icon: DoorOpen },
       { key: "reports", label: "Reports", href: "/reports", icon: BarChart3 },
-      { key: "integrations", label: "Integrations", href: "/integrations", icon: Plug },
+      { key: "integrations", label: "Integrations", href: "/settings/integrations", icon: Plug },
       { key: "settings", label: "Settings", href: "/settings", icon: Settings },
     ],
   },

@@ -195,6 +195,7 @@ import type {
   SignatoryProfile,
   VerificationRecord,
 } from "@/lib/types/documents";
+import type { AdminState } from "@/lib/types/admin";
 import type {
   Announcement,
   Broadcast,
@@ -316,6 +317,7 @@ import { buildCommunicationData } from "./seed/communication";
 import { buildCampusData } from "./seed/campus";
 import { buildActivitiesData } from "./seed/activities";
 import { buildDocumentsData } from "./seed/documents";
+import { buildAdminData } from "./seed/admin";
 
 export type Db = {
   applications: AdmissionApplication[];
@@ -579,6 +581,8 @@ export type Db = {
   verificationRecords: VerificationRecord[];
   documentNumberingRules: DocumentNumberingRule[];
   signatoryProfiles: SignatoryProfile[];
+  // Phase 13 — administration & system configuration (frontend mock, grouped)
+  admin: AdminState;
 };
 
 const STORAGE_KEY = "novyra-sis-store-v2";
@@ -611,6 +615,7 @@ function buildSeedDb(): Db {
   const campusData = buildCampusData(students);
   const activitiesData = buildActivitiesData(students, teachers);
   const documentsData = buildDocumentsData(students, teachers, hrData.employees);
+  const adminData = buildAdminData(students, hrData.employees);
   const studentsWithTransport = students.map((s) => {
     const summary = transportData.studentSummaries.get(s.id);
     return summary ? { ...s, transport: summary } : s;
@@ -867,6 +872,7 @@ function buildSeedDb(): Db {
     verificationRecords: documentsData.verifications,
     documentNumberingRules: documentsData.numberingRules,
     signatoryProfiles: documentsData.signatories,
+    admin: adminData,
   };
 }
 
@@ -1262,6 +1268,9 @@ export function hydrateFromStorage() {
             documentNumberingRules: dc.numberingRules, signatoryProfiles: dc.signatories,
           };
         })(),
+        // Phase 13 admin/settings — regenerate from cached students/employees
+        // when a legacy snapshot predates this domain.
+        admin: parsed.admin ?? buildAdminData(parsed.students ?? [], parsed.employees ?? []),
       };
       notify();
     }
