@@ -1,80 +1,122 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useActionState, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordField } from "./password-field";
 import { AuthStatus, AuthLink, DemoAccess, SecurityNotice } from "./misc";
-import { DEMO_ACCOUNTS, redirectForRole, type DemoAccount } from "@/lib/types/auth";
+import { loginAction, type LoginState } from "@/lib/server/actions/auth";
 
 type Variant = "school" | "student" | "parent" | "staff" | "super-admin";
 
-const CONFIG: Record<Variant, { idLabel: string; idAutocomplete: string; idPlaceholder: string; idType: string; filter?: (a: DemoAccount) => boolean }> = {
-  school: { idLabel: "Email or username", idAutocomplete: "username", idPlaceholder: "you@school.edu", idType: "text" },
-  staff: { idLabel: "Employee ID, email or phone", idAutocomplete: "username", idPlaceholder: "EMP-001 or you@school.edu", idType: "text", filter: (a) => !["student", "parent", "super-admin"].includes(a.role) },
-  student: { idLabel: "Student ID or email", idAutocomplete: "username", idPlaceholder: "STU-2026-001", idType: "text", filter: (a) => a.role === "student" },
-  parent: { idLabel: "Phone or email", idAutocomplete: "username", idPlaceholder: "+91 ••••• ••••• or you@email.com", idType: "text", filter: (a) => a.role === "parent" },
-  "super-admin": { idLabel: "Work email", idAutocomplete: "email", idPlaceholder: "you@novyra.io", idType: "email", filter: (a) => a.role === "super-admin" },
+const CONFIG: Record<
+  Variant,
+  {
+    idLabel: string;
+    idAutocomplete: string;
+    idPlaceholder: string;
+    idType: string;
+  }
+> = {
+  school: {
+    idLabel: "Email",
+    idAutocomplete: "username",
+    idPlaceholder: "you@school.edu",
+    idType: "text",
+  },
+  staff: {
+    idLabel: "Email",
+    idAutocomplete: "username",
+    idPlaceholder: "you@school.edu",
+    idType: "text",
+  },
+  student: {
+    idLabel: "Email",
+    idAutocomplete: "username",
+    idPlaceholder: "you@student.edu",
+    idType: "text",
+  },
+  parent: {
+    idLabel: "Email",
+    idAutocomplete: "username",
+    idPlaceholder: "you@email.com",
+    idType: "text",
+  },
+  "super-admin": {
+    idLabel: "Work email",
+    idAutocomplete: "email",
+    idPlaceholder: "you@novyra.io",
+    idType: "email",
+  },
 };
 
-/** Reusable simulated login form. On "sign in" it validates presence only, then
- * routes to the correct next step (role/child selection) or the role dashboard.
- * NO real authentication occurs. */
+/** Real credential login form. Submits to the `loginAction` Server Action which
+ * verifies the password against the database via Better Auth, creates a secure
+ * server session and redirects to the resolved next step. No client-side auth,
+ * no localStorage, no mock accounts. */
 export function LoginForm({ variant }: { variant: Variant }) {
-  const router = useRouter();
+  // useSearchParams needs a Suspense boundary so these pages can be prerendered.
+  return (
+    <Suspense fallback={<LoginFormInner variant={variant} next="" />}>
+      <LoginFormWithParams variant={variant} />
+    </Suspense>
+  );
+}
+
+function LoginFormWithParams({ variant }: { variant: Variant }) {
+  const next = useSearchParams().get("next") ?? "";
+  return <LoginFormInner variant={variant} next={next} />;
+}
+
+function LoginFormInner({ variant, next }: { variant: Variant; next: string }) {
   const cfg = CONFIG[variant];
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "signing" | "done">("idle");
-
-  const go = (account: DemoAccount) => {
-    setStatus("signing");
-    setError(null);
-    // Simulate a brief sign-in, then route based on the account shape.
-    setTimeout(() => {
-      if (account.multiRole && account.multiRole.length > 1) { router.push("/select-role"); return; }
-      if (account.role === "parent" && account.children && account.children.length > 1) { router.push("/select-child"); return; }
-      router.push(redirectForRole(account.role));
-    }, 550);
-  };
-
-  const submit = () => {
-    if (!identifier.trim()) { setError("Enter your " + cfg.idLabel.toLowerCase() + "."); return; }
-    if (!password) { setError("Enter your password."); return; }
-    // Match a demo account by email/name prefix; otherwise use the first eligible.
-    const pool = cfg.filter ? DEMO_ACCOUNTS.filter(cfg.filter) : DEMO_ACCOUNTS;
-    const match = pool.find((a) => a.email.toLowerCase() === identifier.trim().toLowerCase()) ?? pool[0];
-    if (!match) { setError("No account found for this sign-in type."); return; }
-    go(match);
-  };
+  const [state, formAction, pending] = useActionState<LoginState, FormData>(
+    loginAction,
+    undefined,
+  );
 
   return (
-    <div className="flex flex-col gap-md">
-      {error && <AuthStatus tone="error">{error}</AuthStatus>}
+    <form action={formAction} className="flex flex-col gap-md">
+      {state?.error && <AuthStatus tone="error">{state.error}</AuthStatus>}
+      <input type="hidden" name="next" value={next} />
 
       <div>
         <Label htmlFor="auth-id">{cfg.idLabel}</Label>
-        <input id="auth-id" type={cfg.idType} inputMode={variant === "parent" ? "text" : undefined} autoComplete={cfg.idAutocomplete} value={identifier} onChange={(e) => { setIdentifier(e.target.value); setError(null); }} placeholder={cfg.idPlaceholder}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
+        <input
+          id="auth-id"
+          name="identifier"
+          type={cfg.idType}
+          autoComplete={cfg.idAutocomplete}
+          placeholder={cfg.idPlaceholder}
+          required
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+        />
       </div>
 
-      <PasswordField value={password} onChange={(v) => { setPassword(v); setError(null); }} />
+      {/* PasswordField is controlled for its show/hide toggle; the `name` makes it
+          part of the submitted FormData. */}
+      <ControlledPassword />
 
       <div className="flex items-center justify-between text-xs">
-        <label className="flex items-center gap-1.5 text-muted-foreground"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me</label>
+        <label className="flex items-center gap-1.5 text-muted-foreground">
+          <input type="checkbox" name="remember" defaultChecked /> Remember me
+        </label>
         <AuthLink href="/forgot-password">Forgot password?</AuthLink>
       </div>
 
-      <Button size="md" onClick={submit} disabled={status === "signing"}>
-        <LogIn className="size-4" /> {status === "signing" ? "Signing in…" : "Sign in"}
+      <Button size="md" type="submit" disabled={pending}>
+        <LogIn className="size-4" /> {pending ? "Signing in…" : "Sign in"}
       </Button>
 
-      <DemoAccess onPick={go} filter={cfg.filter} />
+      <DemoAccess />
       <SecurityNotice />
-    </div>
+    </form>
   );
+}
+
+function ControlledPassword() {
+  const [pw, setPw] = useState("");
+  return <PasswordField value={pw} onChange={setPw} name="password" />;
 }

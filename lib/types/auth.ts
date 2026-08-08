@@ -1,53 +1,15 @@
-import type { UserRole } from "@/lib/permissions/roles";
-
 // ===========================================================================
-// Phase 14.5 — Authentication & Access experience. FRONTEND MOCK ONLY.
-// No real authentication, sessions, OTP delivery, email verification, SSO,
-// 2FA or persistence. These types describe simulated demo state used purely to
-// make the auth screens behave realistically.
+// Auth-adjacent UI helpers + mock data for DEFERRED features only.
+//
+// The authoritative authentication system is now real and server-backed (Better
+// Auth + Prisma + server session; see lib/auth/* and lib/server/auth/*). The
+// former mock login/session/role/school/branch data has been REMOVED — nothing
+// here grants access or determines identity.
+//
+// What remains is UI-only sample data for screens whose backend is NOT in scope
+// this phase (2FA, trusted devices, login history, recovery codes, account
+// invitations) plus a pure password-strength helper. These never gate access.
 // ===========================================================================
-
-export type MockRoleAccess = {
-  role: UserRole;
-  label: string;
-  schoolId: string;
-  branchId?: string;
-};
-
-export type MockSchoolAccess = {
-  id: string;
-  name: string;
-  code: string;
-  city: string;
-  board: string;
-  branchCount: number;
-  status: "active" | "inactive";
-  logoColor: string;
-  lastAccessed?: string;
-  favorite?: boolean;
-};
-
-export type MockAuthUser = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  avatarColor: string;
-  roles: MockRoleAccess[];
-  children?: MockChild[];
-};
-
-export type MockChild = {
-  id: string;
-  name: string;
-  className: string;
-  section: string;
-  schoolName: string;
-  avatarColor: string;
-  attendanceToday: "present" | "absent" | "not-marked";
-};
-
-export type MockAuthSession = { userId: string; role: UserRole; schoolId: string; startedAt: string };
 
 export type MockLoginAttempt = { at: string; device: string; location: string; result: "success" | "failed" };
 
@@ -73,87 +35,6 @@ export type MockTrustedDevice = {
 
 export type MockSecurityPreference = { key: string; label: string; description: string; enabled: boolean; backendRequired: boolean };
 
-export type MockAcademicSessionOption = { id: string; name: string; state: "current" | "previous" | "upcoming" };
-
-// ---------------------------------------------------------------------------
-// Where each role lands after a simulated login.
-// ---------------------------------------------------------------------------
-
-export const roleRedirect: Partial<Record<UserRole, string>> = {
-  "super-admin": "/super-admin",
-  "school-owner": "/",
-  principal: "/",
-  administrator: "/",
-  "examination-controller": "/exams",
-  "academic-coordinator": "/academics",
-  teacher: "/teacher/my-day",
-  student: "/student/activities",
-  parent: "/parent/activities",
-  librarian: "/library",
-  "transport-administrator": "/transport",
-  "transport-manager": "/transport",
-  "hr-manager": "/hr",
-  "hr-executive": "/hr",
-  accountant: "/fees",
-  cashier: "/fees",
-  "cafeteria-manager": "/cafeteria",
-  "hostel-warden": "/hostel",
-  nurse: "/health",
-  counsellor: "/counselling",
-  receptionist: "/front-desk",
-  "communication-admin": "/communication",
-  "activities-coordinator": "/activities",
-  auditor: "/",
-};
-
-export function redirectForRole(role: UserRole): string { return roleRedirect[role] ?? "/"; }
-
-// ---------------------------------------------------------------------------
-// Demo data (development/demo mode only).
-// ---------------------------------------------------------------------------
-
-export const MOCK_SCHOOLS: MockSchoolAccess[] = [
-  { id: "sch-nvx", name: "Novyra Public School", code: "NVX-001", city: "Gurugram", board: "CBSE", branchCount: 3, status: "active", logoColor: "#18b0c8", lastAccessed: "2 hours ago", favorite: true },
-  { id: "sch-green", name: "Greenwood International", code: "GWI-204", city: "Bengaluru", board: "CBSE", branchCount: 2, status: "active", logoColor: "#16a34a", lastAccessed: "Yesterday" },
-  { id: "sch-heritage", name: "Heritage Valley School", code: "HVS-118", city: "Pune", board: "ICSE", branchCount: 1, status: "inactive", logoColor: "#7c3aed" },
-];
-
-export const MOCK_BRANCHES = [
-  { id: "br-main", name: "Main Campus", city: "Gurugram · Sector 21", role: "Administrator" },
-  { id: "br-north", name: "North Wing (Primary)", city: "Gurugram · Green Ave", role: "Coordinator" },
-  { id: "br-east", name: "East Campus", city: "Faridabad", role: "Observer" },
-];
-
-export const MOCK_SESSIONS: MockAcademicSessionOption[] = [
-  { id: "ses-2627", name: "2026 – 2027", state: "current" },
-  { id: "ses-2526", name: "2025 – 2026", state: "previous" },
-  { id: "ses-2425", name: "2024 – 2025", state: "previous" },
-  { id: "ses-2728", name: "2027 – 2028", state: "upcoming" },
-];
-
-export type DemoAccount = { key: string; name: string; role: UserRole; label: string; email: string; avatarColor: string; multiRole?: MockRoleAccess[]; children?: MockChild[] };
-
-export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { key: "super", name: "Aditya Rao", role: "super-admin", label: "Platform Super Admin", email: "aditya@novyra.io", avatarColor: "#022c43" },
-  { key: "admin", name: "Kavya Iyer", role: "administrator", label: "School Administrator", email: "kavya@novyra.edu.in", avatarColor: "#0891b2" },
-  { key: "principal", name: "Dr. Meera Krishnan", role: "principal", label: "Principal", email: "meera@novyra.edu.in", avatarColor: "#7c3aed" },
-  {
-    key: "teacher", name: "Ananya Sharma", role: "teacher", label: "Teacher", email: "ananya@novyra.edu.in", avatarColor: "#16a34a",
-    multiRole: [{ role: "teacher", label: "Teacher", schoolId: "sch-nvx" }, { role: "academic-coordinator", label: "Academic Coordinator", schoolId: "sch-nvx" }],
-  },
-  { key: "student", name: "Aarav Gupta", role: "student", label: "Student", email: "aarav@student.novyra.edu.in", avatarColor: "#f59e0b" },
-  {
-    key: "parent", name: "Suresh Gupta", role: "parent", label: "Parent", email: "suresh.gupta@gmail.com", avatarColor: "#c2410c",
-    children: [
-      { id: "ch-1", name: "Aarav Gupta", className: "Class 5", section: "A", schoolName: "Novyra Public School", avatarColor: "#f59e0b", attendanceToday: "present" },
-      { id: "ch-2", name: "Diya Gupta", className: "Class 2", section: "B", schoolName: "Novyra Public School", avatarColor: "#ec4899", attendanceToday: "not-marked" },
-    ],
-  },
-  { key: "librarian", name: "Priya Nair", role: "librarian", label: "Librarian", email: "priya@novyra.edu.in", avatarColor: "#0ea5e9" },
-  { key: "transport", name: "Arjun Pillai", role: "transport-manager", label: "Transport Manager", email: "arjun@novyra.edu.in", avatarColor: "#475569" },
-  { key: "hr", name: "Sanjay Rao", role: "hr-manager", label: "HR Manager", email: "sanjay@novyra.edu.in", avatarColor: "#9333ea" },
-];
-
 export const MOCK_TRUSTED_DEVICES: MockTrustedDevice[] = [
   { id: "d1", device: "MacBook Pro", browser: "Chrome 128", location: "Patna, India", lastActive: "Active now", current: true, trusted: true },
   { id: "d2", device: "iPhone 15", browser: "Safari", location: "Patna, India", lastActive: "3 hours ago", current: false, trusted: true },
@@ -174,7 +55,7 @@ export const MOCK_SECURITY_PREFS: MockSecurityPreference[] = [
   { key: "trusted-only", label: "Trusted devices only", description: "Block sign-in from unrecognised devices.", enabled: false, backendRequired: true },
 ];
 
-// Password strength (frontend only).
+// Password strength (pure UI helper — no bearing on authentication).
 export type PasswordStrength = "weak" | "fair" | "good" | "strong";
 
 export function scorePassword(pw: string): { strength: PasswordStrength; checks: { label: string; ok: boolean }[]; score: number } {

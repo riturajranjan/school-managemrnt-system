@@ -112,6 +112,14 @@ model User {
   phone         String?
   status        UserStatus @default(ACTIVE)
   lastLoginAt   DateTime?
+  // First-login / onboarding state (server-authoritative — never localStorage).
+  // passwordSetupRequired is set for invited users who must choose a password
+  // before any dashboard access. onboardingCompletedAt is stamped once the
+  // pre-dashboard setup flow (profile + context selection) is finished; a null
+  // value means the resolver must route the user through the remaining steps.
+  passwordSetupRequired Boolean   @default(false)
+  profileCompletedAt    DateTime?
+  onboardingCompletedAt DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -119,7 +127,25 @@ model User {
   accounts      Account[]
   memberships   TenantMembership[]
   platformAdmin PlatformAdmin?
+  activeContext UserActiveContext?
   auditEvents   AuditEvent[]       @relation("AuditActor")
+}
+
+// Last validated tenant/school/branch/session/role selection for a user. This
+// is a server-persisted convenience so a returning user skips the selectors and
+// lands on their dashboard — it is NOT an authorization source. Every value is
+// re-validated against real membership by resolveContext() on each request; a
+// stale or tampered row simply fails validation and re-triggers selection.
+model UserActiveContext {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId          String?
+  schoolId          String?
+  branchId          String?
+  academicSessionId String?
+  activeRoleId      String?
+  updatedAt         DateTime @updatedAt
 }
 
 model Session {

@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 /** Accessible password input with a visibility toggle. Passes through
  * autocomplete so browser password managers work. */
-export function PasswordField({ label = "Password", value, onChange, autoComplete = "current-password", error, describedBy, placeholder }: {
-  label?: string; value: string; onChange: (v: string) => void; autoComplete?: string; error?: string; describedBy?: string; placeholder?: string;
+export function PasswordField({ label = "Password", value, onChange, name, autoComplete = "current-password", error, describedBy, placeholder }: {
+  label?: string; value: string; onChange: (v: string) => void; name?: string; autoComplete?: string; error?: string; describedBy?: string; placeholder?: string;
 }) {
   const [show, setShow] = useState(false);
   const id = useId();
@@ -18,7 +18,7 @@ export function PasswordField({ label = "Password", value, onChange, autoComplet
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
         <input
-          id={id} type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} placeholder={placeholder}
+          id={id} name={name} type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} placeholder={placeholder}
           aria-invalid={Boolean(error)} aria-describedby={cn(error && errId, describedBy) || undefined}
           className={cn("w-full rounded-md border bg-surface py-2 pl-3 pr-10 text-sm text-foreground outline-none focus:border-primary", error ? "border-error" : "border-border")}
         />

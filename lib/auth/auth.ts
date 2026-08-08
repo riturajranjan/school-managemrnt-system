@@ -4,6 +4,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/db/prisma";
 import { getEnv } from "@/lib/env";
+import { deliverAuthEmail } from "./email";
 
 // ---------------------------------------------------------------------------
 // Better Auth server instance. Owns the User/Session/Account/Verification
@@ -25,6 +26,12 @@ export const auth = betterAuth({
     // on verification. Tighten once transactional email lands.
     requireEmailVerification: false,
     minPasswordLength: 8,
+    // Password reset: Better Auth mints a one-time, expiring, single-use token
+    // and calls this with the reset URL. Delivery goes through the email adapter
+    // (dev: logged to console; prod: real provider once configured).
+    sendResetPassword: async ({ user, url }) => {
+      await deliverAuthEmail({ to: user.email, subject: "Reset your Novyra password", kind: "reset", url });
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days

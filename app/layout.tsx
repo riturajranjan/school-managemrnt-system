@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/shell/app-shell";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { resolveGate } from "@/lib/server/auth/gate";
+import type { UserRole } from "@/lib/permissions/roles";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,11 +29,18 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Server-side access gate: resolves the real session, enforces onboarding
+  // routing (redirecting before any protected content renders — no flash), and
+  // returns the real role to seed the UI. Throws NEXT_REDIRECT when the user
+  // must be sent elsewhere.
+  const gate = await resolveGate();
+  const initialRole = (gate.authed ? gate.uiRole : undefined) as UserRole | undefined;
+
   return (
     <html
       lang="en"
@@ -42,7 +51,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <PermissionsProvider>
+          <PermissionsProvider initialRole={initialRole}>
             <AppShell>{children}</AppShell>
           </PermissionsProvider>
         </ThemeProvider>

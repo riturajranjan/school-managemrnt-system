@@ -12,12 +12,13 @@ type PermissionsContextValue = {
 
 const PermissionsContext = createContext<PermissionsContextValue | null>(null);
 
-// Demo-mode role switch: real auth will resolve `role` from the session once
-// a backend exists. Defaulting to the most permissive role keeps every
-// Phase 2 screen usable out of the box while still letting the "Viewing as"
-// switcher (see RoleSwitcher) demonstrate the gating for reviewers.
-export function PermissionsProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<UserRole>("super-admin");
+// `initialRole` is resolved SERVER-SIDE from the real session (see the root
+// layout gate) and seeds the initial UI view. The "Viewing as" switcher may
+// still change it locally for reviewers, but this only affects UI affordances —
+// server guards remain the authorization boundary. Falls back to the most
+// permissive role when unauthenticated (e.g. pre-database UI review).
+export function PermissionsProvider({ children, initialRole }: { children: ReactNode; initialRole?: UserRole }) {
+  const [role, setRole] = useState<UserRole>(initialRole ?? "super-admin");
 
   const value = useMemo<PermissionsContextValue>(
     () => ({

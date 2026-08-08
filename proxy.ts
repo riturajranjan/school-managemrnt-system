@@ -14,6 +14,9 @@ import { getSessionCookie } from "better-auth/cookies";
 // hosted environment.
 // ---------------------------------------------------------------------------
 
+// Truly public — viewable with NO session. Setup/selector routes are NOT here:
+// they require a session and are enforced (plus onboarding routing) by the
+// server-side gate in the root layout (see lib/server/auth/gate.ts).
 const PUBLIC_PREFIXES = [
   "/login",
   "/forgot-password",
@@ -23,8 +26,6 @@ const PUBLIC_PREFIXES = [
   "/verify-email",
   "/activate-account",
   "/accept-invite",
-  "/setup-password",
-  "/first-login",
   "/account-locked",
   "/session-expired",
   "/access-denied",
@@ -36,11 +37,19 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+// Forwards the request path to server components (root-layout gate) via a
+// header, since layouts don't otherwise receive the pathname.
+function withPathname(request: NextRequest): NextResponse {
+  const headers = new Headers(request.headers);
+  headers.set("x-pathname", request.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
+}
+
 export function proxy(request: NextRequest) {
-  if (process.env.AUTH_ENFORCED === "false") return NextResponse.next();
+  if (process.env.AUTH_ENFORCED === "false") return withPathname(request);
 
   const { pathname } = request.nextUrl;
-  if (isPublic(pathname)) return NextResponse.next();
+  if (isPublic(pathname)) return withPathname(request);
 
   const sessionCookie = getSessionCookie(request);
   if (!sessionCookie) {
@@ -49,7 +58,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return withPathname(request);
 }
 
 export const config = {

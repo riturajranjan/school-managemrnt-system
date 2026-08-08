@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useActionState } from "react";
 import { AlertTriangle, CheckCircle2, Info, ShieldCheck } from "lucide-react";
-import { DEMO_ACCOUNTS, type DemoAccount } from "@/lib/types/auth";
+import { SEEDED_DEMO_ACCOUNTS } from "@/lib/auth/demo-accounts";
+import { devDemoLoginAction, type LoginState } from "@/lib/server/actions/auth";
 
-/** Small notice explaining that authentication is simulated. */
+/** Small security reassurance notice shown under the sign-in form. */
 export function SecurityNotice({ children }: { children?: React.ReactNode }) {
   return (
     <p className="mt-md flex items-start gap-1.5 rounded-md border border-border bg-surface-secondary/40 p-2 text-[11px] text-muted-foreground">
-      <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-primary" /> {children ?? "Demo authentication — no credentials are checked and no real session is created."}
+      <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-primary" /> {children ?? "Your connection is encrypted. We never store your password in plain text."}
     </p>
   );
 }
@@ -19,21 +21,27 @@ export function AuthStatus({ tone, children }: { tone: "error" | "success" | "in
   return <p role={tone === "error" ? "alert" : "status"} className={`flex items-start gap-1.5 rounded-md border p-2 text-xs ${map.cls}`}><Icon className="mt-0.5 size-3.5 shrink-0" /> <span>{children}</span></p>;
 }
 
-/** Subtle "Demo Access" panel — only surfaced in demo/development mode. Lets a
- * reviewer jump into any role without typing credentials. */
-export function DemoAccess({ onPick, filter }: { onPick: (a: DemoAccount) => void; filter?: (a: DemoAccount) => boolean }) {
-  const accounts = filter ? DEMO_ACCOUNTS.filter(filter) : DEMO_ACCOUNTS;
+/** Dev-only "Demo Access" panel. Each button performs a REAL Better Auth sign-in
+ * for a seeded account via the devDemoLoginAction Server Action (using the
+ * server-side dev password) — it never fabricates a session or touches
+ * localStorage. Hidden entirely in production builds. */
+export function DemoAccess() {
+  const [state, formAction, pending] = useActionState<LoginState, FormData>(devDemoLoginAction, undefined);
+  if (process.env.NODE_ENV === "production") return null;
+
   return (
     <details className="mt-md rounded-md border border-dashed border-border bg-surface-secondary/30 p-2">
-      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Demo access (development mode)</summary>
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        {accounts.map((a) => (
-          <button key={a.key} type="button" onClick={() => onPick(a)} className="flex items-center gap-1.5 rounded-md border border-border bg-surface p-1.5 text-left transition hover:border-primary/40">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{ background: a.avatarColor }}>{a.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</span>
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Demo access (development only)</summary>
+      {state?.error && <p className="mt-2 text-[11px] text-error">{state.error}</p>}
+      <form action={formAction} className="mt-2 grid grid-cols-2 gap-1.5">
+        {SEEDED_DEMO_ACCOUNTS.map((a) => (
+          <button key={a.email} type="submit" name="email" value={a.email} disabled={pending}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-surface p-1.5 text-left transition hover:border-primary/40 disabled:opacity-50">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{ background: a.color }}>{a.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</span>
             <span className="min-w-0"><span className="block truncate text-[11px] font-medium text-foreground">{a.label}</span><span className="block truncate text-[9px] text-muted-foreground">{a.name}</span></span>
           </button>
         ))}
-      </div>
+      </form>
     </details>
   );
 }

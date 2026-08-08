@@ -19,7 +19,6 @@ export default function AuthGroupLayout({ children }: { children: ReactNode }) {
         <Link href="/helpdesk" className="hover:text-foreground">Help</Link>
         <span aria-hidden>·</span>
         <span>© 2026 Novyra Campus OS</span>
-        <span className="hidden sm:inline">· Demo authentication — no real sign-in</span>
       </footer>
     </div>
   );

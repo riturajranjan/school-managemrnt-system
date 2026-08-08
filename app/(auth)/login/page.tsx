@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { GraduationCap, School, ShieldCheck, UserCog, Users } from "lucide-react";
+import { GraduationCap, ShieldCheck, UserCog, Users } from "lucide-react";
 import { AuthCard, AuthHeader, AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
 import { AuthLink, AuthLinkRow } from "@/components/auth/misc";
@@ -34,7 +34,6 @@ export default function LoginPage() {
         <LoginForm variant="school" />
 
         <AuthLinkRow>
-          <span className="flex items-center gap-1"><School className="size-3.5" /> <AuthLink href="/select-school">Choose a school</AuthLink></span>
           <span className="flex items-center gap-1"><ShieldCheck className="size-3.5" /> <AuthLink href="/login/super-admin">Platform admin</AuthLink></span>
         </AuthLinkRow>
       </AuthCard>

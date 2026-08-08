@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { allRoles, roleLabels } from "@/lib/permissions/roles";
+import { useSession } from "@/lib/auth/client";
+import { logoutAction } from "@/lib/server/actions/auth";
 
-// No auth wired up yet — static placeholder identity. Role comes from the live
-// RBAC context so the "Viewing as" switcher below and this label never disagree.
-const CURRENT_USER = { name: "Alex Rivera", initials: "AR" };
+function initialsOf(name: string): string {
+  return name.split(" ").filter(Boolean).map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "?";
+}
 
 export function UserMenu({
   variant = "header",
@@ -25,6 +27,17 @@ export function UserMenu({
   collapsed?: boolean;
 }) {
   const { role, setRole } = usePermissions();
+  // Real identity from the Better Auth session (safe view: name/email/image).
+  const { data: session } = useSession();
+  const currentUser = {
+    name: session?.user?.name ?? "…",
+    initials: session?.user?.name ? initialsOf(session.user.name) : "•",
+  };
+  const CURRENT_USER = currentUser;
+
+  const signOut = () => {
+    void logoutAction();
+  };
 
   const avatar = (
     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
@@ -81,7 +94,7 @@ export function UserMenu({
           </DropdownMenuItem>
           {roleSwitchSection}
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-error">
+          <DropdownMenuItem className="text-error" onSelect={signOut}>
             <LogOut className="size-4 shrink-0" aria-hidden="true" />
             <span>Sign out</span>
           </DropdownMenuItem>
@@ -118,7 +131,7 @@ export function UserMenu({
         </DropdownMenuItem>
         {roleSwitchSection}
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-error">
+        <DropdownMenuItem className="text-error" onSelect={signOut}>
           <LogOut className="size-4 shrink-0" aria-hidden="true" />
           <span>Sign out</span>
         </DropdownMenuItem>
