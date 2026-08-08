@@ -80,8 +80,8 @@ export const navGroups: NavGroup[] = [
     items: [
       { key: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
       { key: "my-day", label: "My Day", href: "/teacher/my-day", icon: CalendarCheck },
-      { key: "action-inbox", label: "Action Inbox", href: "/inbox", icon: Inbox, badge: 5 },
-      { key: "calendar", label: "Calendar", href: "/calendar", icon: Calendar },
+      { key: "action-inbox", label: "Action Inbox", href: "/communication/inbox", icon: Inbox, badge: 5 },
+      { key: "calendar", label: "Calendar", href: "/academics/calendar", icon: Calendar },
       { key: "notifications", label: "Notifications", href: "/notifications", icon: Bell, badge: 3 },
     ],
   },
@@ -92,9 +92,9 @@ export const navGroups: NavGroup[] = [
       { key: "students", label: "Students", href: "/students", icon: GraduationCap },
       { key: "parents", label: "Parents", href: "/parents", icon: Users },
       { key: "teachers", label: "Teachers", href: "/teachers", icon: Presentation },
-      { key: "staff", label: "Staff", href: "/people/staff", icon: Briefcase },
+      { key: "staff", label: "Staff", href: "/hr/staff", icon: Briefcase },
       { key: "admissions", label: "Admissions", href: "/admissions", icon: UserPlus },
-      { key: "visitors", label: "Visitors", href: "/people/visitors", icon: DoorOpen },
+      { key: "visitors", label: "Visitors", href: "/front-desk/visitors", icon: DoorOpen },
     ],
   },
   {
