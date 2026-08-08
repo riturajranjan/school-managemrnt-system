@@ -6,16 +6,32 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { moneyFromMajor, zeroMoney } from "@/lib/finance/money";
 import { createExpense } from "@/lib/services/income-expense-service";
-import { expenseCategoryLabels, type ExpenseCategory } from "@/lib/types/accounting";
+import {
+  expenseCategoryLabels,
+  type ExpenseCategory,
+} from "@/lib/types/accounting";
 import { paymentMethodLabels, type PaymentMethod } from "@/lib/types/payments";
 
 const ACTOR = { name: "Accountant", role: "Accountant" };
 const categoryOptions = Object.keys(expenseCategoryLabels) as ExpenseCategory[];
-const methodOptions: PaymentMethod[] = ["cash", "bank-transfer", "cheque", "upi", "card", "demand-draft"];
+const methodOptions: PaymentMethod[] = [
+  "cash",
+  "bank-transfer",
+  "cheque",
+  "upi",
+  "card",
+  "demand-draft",
+];
 
 export default function NewExpensePage() {
   const router = useRouter();
@@ -34,22 +50,34 @@ export default function NewExpensePage() {
   const canSubmit = description.trim().length > 0 && amount > 0;
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-md pb-20 sm:pb-0">
+    <div className="mx-auto flex  flex-col gap-md pb-20 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">New expense</h1>
-        <p className="text-xs text-muted-foreground">Submitted for approval before it can be marked paid</p>
+        <p className="text-xs text-muted-foreground">
+          Submitted for approval before it can be marked paid
+        </p>
       </div>
 
       <div className="surface-3d flex flex-col gap-sm rounded-lg border border-border bg-surface p-md">
         <div>
           <Label htmlFor="exp-desc">Description</Label>
-          <Textarea id="exp-desc" value={description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)} placeholder="What was this expense for?" rows={2} />
+          <Textarea
+            id="exp-desc"
+            value={description}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setDescription(e.target.value)
+            }
+            placeholder="What was this expense for?"
+            rows={2}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-sm">
           <div>
             <Label>Category</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as ExpenseCategory)}>
+            <Select
+              value={category}
+              onValueChange={(v) => setCategory(v as ExpenseCategory)}>
               <SelectTrigger aria-label="Category">
                 <SelectValue />
               </SelectTrigger>
@@ -82,22 +110,41 @@ export default function NewExpensePage() {
         <div className="grid grid-cols-2 gap-sm">
           <div>
             <Label htmlFor="exp-amount">Amount (₹)</Label>
-            <Input id="exp-amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <Input
+              id="exp-amount"
+              type="number"
+              min={0}
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+            />
           </div>
           <div>
             <Label htmlFor="exp-tax">Tax (₹)</Label>
-            <Input id="exp-tax" type="number" min={0} value={tax} onChange={(e) => setTax(Number(e.target.value))} />
+            <Input
+              id="exp-tax"
+              type="number"
+              min={0}
+              value={tax}
+              onChange={(e) => setTax(Number(e.target.value))}
+            />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-sm">
           <div>
             <Label htmlFor="exp-date">Date</Label>
-            <Input id="exp-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input
+              id="exp-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
           <div>
             <Label>Payment method</Label>
-            <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
+            <Select
+              value={method}
+              onValueChange={(v) => setMethod(v as PaymentMethod)}>
               <SelectTrigger aria-label="Payment method">
                 <SelectValue />
               </SelectTrigger>
@@ -114,11 +161,19 @@ export default function NewExpensePage() {
 
         <div>
           <Label htmlFor="exp-dept">Department</Label>
-          <Input id="exp-dept" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Optional" />
+          <Input
+            id="exp-dept"
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            placeholder="Optional"
+          />
         </div>
 
         <label className="flex items-center gap-2 text-sm text-foreground">
-          <Checkbox checked={recurring} onCheckedChange={(v) => setRecurring(v === true)} />
+          <Checkbox
+            checked={recurring}
+            onCheckedChange={(v) => setRecurring(v === true)}
+          />
           Recurring expense
         </label>
 
@@ -142,11 +197,12 @@ export default function NewExpensePage() {
                 ACTOR,
               );
               router.push(`/accounting/expenses?highlight=${expense.id}`);
-            }}
-          >
+            }}>
             Submit expense
           </Button>
-          <Button variant="ghost" onClick={() => router.push("/accounting/expenses")}>
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/accounting/expenses")}>
             Cancel
           </Button>
         </div>

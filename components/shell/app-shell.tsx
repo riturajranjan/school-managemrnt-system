@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AiCommandDialog } from "./ai-command";
 import { CommandPaletteDialog } from "./command-palette";
@@ -15,7 +18,22 @@ import { ShellProvider } from "./shell-context";
 import { Sidebar } from "./sidebar";
 import { TabletDrawer } from "./tablet-drawer";
 
+// Auth / full-screen routes render outside the authenticated dashboard chrome
+// (no sidebar, header or mobile nav). The (auth) route group provides its own
+// layout for these paths.
+const FULLSCREEN_PREFIXES = [
+  "/login", "/forgot-password", "/reset-password", "/verify", "/verify-email", "/verify-otp",
+  "/activate-account", "/accept-invite", "/setup-password", "/first-login",
+  "/access-denied", "/account-locked", "/session-expired", "/maintenance", "/offline",
+  "/select-school", "/select-role", "/select-branch", "/select-session", "/select-child",
+];
+
 export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const isFullscreen = FULLSCREEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  if (isFullscreen) return <>{children}</>;
+
   return (
     <ShellProvider>
       <TooltipProvider delayDuration={200} skipDelayDuration={100}>

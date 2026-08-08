@@ -98,7 +98,7 @@ export default function VisitorCheckInPage() {
           <Check className="size-4" /> {name} checked in. Host{" "}
           <span className="font-medium">{host}</span> notified (in-app).
         </div>
-        <div className="mx-auto w-full max-w-xs rounded-xl border border-border bg-surface p-md shadow-floating">
+        <div className="mx-auto w-full  rounded-xl border border-border bg-surface p-md shadow-floating">
           <div className="mb-2 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-primary">VISITOR</p>

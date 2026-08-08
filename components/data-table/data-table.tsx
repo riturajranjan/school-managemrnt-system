@@ -141,7 +141,7 @@ export function DataTable<T>({
         <p className="text-sm font-medium text-foreground">
           {isFiltered ? "No results match your filters" : emptyTitle}
         </p>
-        {/*  (384px), not the old max-w-xs (320px) — narrow enough to stay
+        {/*  (384px), not the old  (320px) — narrow enough to stay
             readable as a centered paragraph, wide enough that a normal one-sentence
             description doesn't wrap into a cramped 3-4 line column. */}
         <p className=" text-xs text-muted-foreground">

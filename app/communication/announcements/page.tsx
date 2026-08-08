@@ -242,7 +242,7 @@ export default function AnnouncementsPage() {
             </div>
             <div className="rounded-lg border border-border bg-surface-secondary/40 p-md">
               {preview === "push" ? (
-                <div className="mx-auto max-w-xs rounded-xl border border-border bg-surface p-sm shadow-floating">
+                <div className="mx-auto  rounded-xl border border-border bg-surface p-sm shadow-floating">
                   <div className="flex items-center gap-2">
                     <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
                       <Megaphone className="size-3.5" />
@@ -278,7 +278,7 @@ export default function AnnouncementsPage() {
                   </p>
                 </div>
               ) : (
-                <div className="mx-auto max-w-xs rounded-2xl border border-border bg-surface p-md shadow-floating">
+                <div className="mx-auto  rounded-2xl border border-border bg-surface p-md shadow-floating">
                   <div className="mb-2 flex items-center gap-2">
                     <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
                       <Megaphone className="size-4" />

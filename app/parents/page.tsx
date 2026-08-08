@@ -9,9 +9,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StatTile } from "@/components/ui/stat-tile";
-import { portalStatusLabels, portalStatusTone } from "@/components/parents/parent-meta";
+import {
+  portalStatusLabels,
+  portalStatusTone,
+} from "@/components/parents/parent-meta";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useParentDirectory, type ParentDirectoryRow } from "@/lib/hooks/use-parents";
+import {
+  useParentDirectory,
+  type ParentDirectoryRow,
+} from "@/lib/hooks/use-parents";
 import { sendPortalInvite } from "@/lib/services/parents-service";
 import { initialsOf } from "@/lib/utils";
 
@@ -24,11 +30,19 @@ export default function ParentsPage() {
   const filtered = useMemo(() => {
     if (!search) return directory;
     const q = search.toLowerCase();
-    return directory.filter((row) => `${row.guardian.firstName} ${row.guardian.lastName} ${row.guardian.contact.phone}`.toLowerCase().includes(q));
+    return directory.filter((row) =>
+      `${row.guardian.firstName} ${row.guardian.lastName} ${row.guardian.contact.phone}`
+        .toLowerCase()
+        .includes(q),
+    );
   }, [directory, search]);
 
-  const activePortals = directory.filter((r) => r.account.portalStatus === "active").length;
-  const notInvited = directory.filter((r) => r.account.portalStatus === "not-invited").length;
+  const activePortals = directory.filter(
+    (r) => r.account.portalStatus === "active",
+  ).length;
+  const notInvited = directory.filter(
+    (r) => r.account.portalStatus === "not-invited",
+  ).length;
 
   const columns: ColumnDef<ParentDirectoryRow>[] = [
     {
@@ -39,13 +53,17 @@ export default function ParentsPage() {
       cell: (row) => (
         <div className="flex items-center gap-sm">
           <Avatar className="size-8">
-            <AvatarFallback>{initialsOf(row.guardian.firstName, row.guardian.lastName)}</AvatarFallback>
+            <AvatarFallback>
+              {initialsOf(row.guardian.firstName, row.guardian.lastName)}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">
               {row.guardian.firstName} {row.guardian.lastName}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{row.guardian.occupation ?? "—"}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {row.guardian.occupation ?? "—"}
+            </p>
           </div>
         </div>
       ),
@@ -69,41 +87,70 @@ export default function ParentsPage() {
     {
       id: "children",
       header: "Children",
-      cell: (row) => <span className="text-sm text-foreground">{row.children.length}</span>,
+      cell: (row) => (
+        <span className="text-sm text-foreground">{row.children.length}</span>
+      ),
     },
     {
       id: "primaryChild",
       header: "Primary child",
       cell: (row) => {
-        const primary = row.children.find((c) => c.link.isPrimary) ?? row.children[0];
-        return <span className="text-sm text-foreground">{primary ? `${primary.student.profile.firstName} ${primary.student.profile.lastName}` : "—"}</span>;
+        const primary =
+          row.children.find((c) => c.link.isPrimary) ?? row.children[0];
+        return (
+          <span className="text-sm text-foreground">
+            {primary
+              ? `${primary.student.profile.firstName} ${primary.student.profile.lastName}`
+              : "—"}
+          </span>
+        );
       },
     },
     {
       id: "portal",
       header: "Portal status",
-      cell: (row) => <Badge tone={portalStatusTone[row.account.portalStatus]}>{portalStatusLabels[row.account.portalStatus]}</Badge>,
+      cell: (row) => (
+        <Badge tone={portalStatusTone[row.account.portalStatus]}>
+          {portalStatusLabels[row.account.portalStatus]}
+        </Badge>
+      ),
     },
     {
       id: "feeResponsibility",
       header: "Fee responsibility",
-      cell: (row) => <span className="text-sm text-foreground">{row.children.some((c) => c.link.isFeeResponsible) ? "Yes" : "No"}</span>,
+      cell: (row) => (
+        <span className="text-sm text-foreground">
+          {row.children.some((c) => c.link.isFeeResponsible) ? "Yes" : "No"}
+        </span>
+      ),
       defaultVisible: false,
     },
     {
       id: "commPref",
       header: "Communication preference",
-      cell: (row) => <span className="text-sm capitalize text-foreground">{row.guardian.communicationPreference}</span>,
+      cell: (row) => (
+        <span className="text-sm capitalize text-foreground">
+          {row.guardian.communicationPreference}
+        </span>
+      ),
       defaultVisible: false,
     },
     {
       id: "lastInteraction",
       header: "Last interaction",
-      cell: (row) => <span className="text-xs text-muted-foreground">{row.account.lastLoginAt ? new Date(row.account.lastLoginAt).toLocaleDateString("en-IN") : "—"}</span>,
+      cell: (row) => (
+        <span className="text-xs text-muted-foreground">
+          {row.account.lastLoginAt
+            ? new Date(row.account.lastLoginAt).toLocaleDateString("en-IN")
+            : "—"}
+        </span>
+      ),
     },
   ];
 
-  const rowActions: RowAction<ParentDirectoryRow>[] = can("parents.managePortal")
+  const rowActions: RowAction<ParentDirectoryRow>[] = can(
+    "parents.managePortal",
+  )
     ? [
         {
           key: "invite",
@@ -119,17 +166,46 @@ export default function ParentsPage() {
     <div className="flex flex-col gap-md">
       <div>
         <h1 className="text-lg font-semibold text-foreground">Parents</h1>
-        <p className="text-xs text-muted-foreground">Guardian directory and portal access</p>
+        <p className="text-xs text-muted-foreground">
+          Guardian directory and portal access
+        </p>
       </div>
 
       <section className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Total guardians" value={String(directory.length)} icon={Users} tone="neutral" />
-        <StatTile label="Active portal" value={String(activePortals)} icon={Users} tone="success" />
-        <StatTile label="Not invited" value={String(notInvited)} icon={Users} tone="warning" />
-        <StatTile label="Total children linked" value={String(directory.reduce((sum, r) => sum + r.children.length, 0))} icon={Users} tone="info" />
+        <StatTile
+          label="Total guardians"
+          value={String(directory.length)}
+          icon={Users}
+          tone="neutral"
+        />
+        <StatTile
+          label="Active portal"
+          value={String(activePortals)}
+          icon={Users}
+          tone="success"
+        />
+        <StatTile
+          label="Not invited"
+          value={String(notInvited)}
+          icon={Users}
+          tone="warning"
+        />
+        <StatTile
+          label="Total children linked"
+          value={String(
+            directory.reduce((sum, r) => sum + r.children.length, 0),
+          )}
+          icon={Users}
+          tone="info"
+        />
       </section>
 
-      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search parents…" className="max-w-xs" />
+      <Input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search parents…"
+        className=""
+      />
 
       <DataTable
         columns={columns}
@@ -144,20 +220,25 @@ export default function ParentsPage() {
           <button
             type="button"
             onClick={() => router.push(`/parents/${row.account.id}`)}
-            className="surface-3d flex w-full items-center gap-sm rounded-lg border border-border bg-surface p-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
-          >
+            className="surface-3d flex w-full items-center gap-sm rounded-lg border border-border bg-surface p-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]">
             <Avatar className="size-10">
-              <AvatarFallback>{initialsOf(row.guardian.firstName, row.guardian.lastName)}</AvatarFallback>
+              <AvatarFallback>
+                {initialsOf(row.guardian.firstName, row.guardian.lastName)}
+              </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-xs">
                 <p className="truncate text-sm font-semibold text-foreground">
                   {row.guardian.firstName} {row.guardian.lastName}
                 </p>
-                <Badge tone={portalStatusTone[row.account.portalStatus]}>{portalStatusLabels[row.account.portalStatus]}</Badge>
+                <Badge tone={portalStatusTone[row.account.portalStatus]}>
+                  {portalStatusLabels[row.account.portalStatus]}
+                </Badge>
               </div>
               <p className="truncate text-xs text-muted-foreground">
-                {row.children.length} child{row.children.length === 1 ? "" : "ren"} · {row.guardian.contact.phone}
+                {row.children.length} child
+                {row.children.length === 1 ? "" : "ren"} ·{" "}
+                {row.guardian.contact.phone}
               </p>
             </div>
           </button>
