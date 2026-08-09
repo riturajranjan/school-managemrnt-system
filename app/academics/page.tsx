@@ -23,7 +23,6 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useShell } from "@/components/shell/shell-context";
-import { MOCK_BRANCHES } from "@/components/shell/context-data";
 import { findClass, findSection } from "@/lib/data/seed/reference";
 import {
   curriculumCompletionPercent,
@@ -46,10 +45,10 @@ export default function AcademicsPage() {
   const classes = useManagedClasses();
   const events = useAcademicEvents();
   const conflicts = useTimetableConflicts();
-  const { activeSession, activeBranchId } = useShell();
+  const { activeSession, activeBranchName } = useShell();
   const [pulseOpen, setPulseOpen] = useState(false);
 
-  const branchName = MOCK_BRANCHES.find((b) => b.id === activeBranchId)?.name ?? "Main Campus";
+  const branchName = activeBranchName || "All branches";
   const activeClasses = classes.filter((c) => c.status === "active");
   const today = new Date().toISOString().slice(0, 10);
   const todaySessions = db.attendanceSessions.filter((s) => s.date.slice(0, 10) === today);

@@ -9,16 +9,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MOCK_BRANCHES, MOCK_SCHOOLS } from "./context-data";
 import { useShell } from "./shell-context";
 
 // Combines the school and branch pickers into one header control so the
 // header doesn't need two near-identical dropdown buttons side by side.
 // The sidebar keeps the standalone SchoolSwitcher (it has room for it).
 export function SchoolBranchSwitcher() {
-  const { activeSchoolId, setActiveSchoolId, activeBranchId, setActiveBranchId } = useShell();
-  const activeSchool = MOCK_SCHOOLS.find((school) => school.id === activeSchoolId) ?? MOCK_SCHOOLS[0];
-  const activeBranch = MOCK_BRANCHES.find((branch) => branch.id === activeBranchId) ?? MOCK_BRANCHES[0];
+  const {
+    schools,
+    branches,
+    activeSchoolId,
+    activeSchoolName,
+    activeBranchId,
+    activeBranchName,
+    setActiveSchoolId,
+    setActiveBranchId,
+    contextLoading,
+  } = useShell();
+  const activeSchool = { name: activeSchoolName || (contextLoading ? "…" : "Select school") };
+  const activeBranch = { name: activeBranchName || "All branches" };
 
   return (
     <DropdownMenu>
@@ -35,7 +44,8 @@ export function SchoolBranchSwitcher() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuLabel>School</DropdownMenuLabel>
-        {MOCK_SCHOOLS.map((school) => (
+        {schools.length === 0 && <DropdownMenuItem disabled>No schools</DropdownMenuItem>}
+        {schools.map((school) => (
           <DropdownMenuItem key={school.id} onSelect={() => setActiveSchoolId(school.id)}>
             <span className="flex-1 truncate">{school.name}</span>
             {school.id === activeSchoolId && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
@@ -43,7 +53,8 @@ export function SchoolBranchSwitcher() {
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Branch</DropdownMenuLabel>
-        {MOCK_BRANCHES.map((branch) => (
+        {branches.length === 0 && <DropdownMenuItem disabled>No branches</DropdownMenuItem>}
+        {branches.map((branch) => (
           <DropdownMenuItem key={branch.id} onSelect={() => setActiveBranchId(branch.id)}>
             <Building2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="flex-1 truncate">{branch.name}</span>

@@ -3,8 +3,8 @@
 // existing login UI unchanged, forwarding a validated `returnTo` from the URL.
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/server/auth/current-user";
-import { landingForLogin } from "@/lib/server/auth/service";
 import { sanitizeReturnTo } from "@/lib/server/auth/routes";
+import { resolvePostLogin } from "@/lib/server/context/resolver";
 import { LoginView } from "./login-view";
 
 export default async function LoginPage({
@@ -13,7 +13,7 @@ export default async function LoginPage({
   searchParams: Promise<{ returnTo?: string | string[] }>;
 }) {
   const user = await getCurrentUser();
-  if (user) redirect(landingForLogin(user.isPlatformAdmin));
+  if (user) redirect(await resolvePostLogin(user.id));
 
   const { returnTo } = await searchParams;
   const safeReturnTo = sanitizeReturnTo(typeof returnTo === "string" ? returnTo : null);

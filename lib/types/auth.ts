@@ -112,23 +112,14 @@ export function redirectForRole(role: UserRole): string { return roleRedirect[ro
 // Demo data (development/demo mode only).
 // ---------------------------------------------------------------------------
 
+// NOTE: The authenticated workspace-context selectors (school/role/branch/
+// session) are now backed by real APIs (Backend Phase 2 Batch 4); their mock
+// arrays (formerly MOCK_BRANCHES / MOCK_SESSIONS) were removed. MOCK_SCHOOLS
+// remains only for the pre-login /login/school browse screen (still a mock UX).
 export const MOCK_SCHOOLS: MockSchoolAccess[] = [
   { id: "sch-nvx", name: "Novyra Public School", code: "NVX-001", city: "Gurugram", board: "CBSE", branchCount: 3, status: "active", logoColor: "#18b0c8", lastAccessed: "2 hours ago", favorite: true },
   { id: "sch-green", name: "Greenwood International", code: "GWI-204", city: "Bengaluru", board: "CBSE", branchCount: 2, status: "active", logoColor: "#16a34a", lastAccessed: "Yesterday" },
   { id: "sch-heritage", name: "Heritage Valley School", code: "HVS-118", city: "Pune", board: "ICSE", branchCount: 1, status: "inactive", logoColor: "#7c3aed" },
-];
-
-export const MOCK_BRANCHES = [
-  { id: "br-main", name: "Main Campus", city: "Gurugram · Sector 21", role: "Administrator" },
-  { id: "br-north", name: "North Wing (Primary)", city: "Gurugram · Green Ave", role: "Coordinator" },
-  { id: "br-east", name: "East Campus", city: "Faridabad", role: "Observer" },
-];
-
-export const MOCK_SESSIONS: MockAcademicSessionOption[] = [
-  { id: "ses-2627", name: "2026 – 2027", state: "current" },
-  { id: "ses-2526", name: "2025 – 2026", state: "previous" },
-  { id: "ses-2425", name: "2024 – 2025", state: "previous" },
-  { id: "ses-2728", name: "2027 – 2028", state: "upcoming" },
 ];
 
 export type DemoAccount = { key: string; name: string; role: UserRole; label: string; email: string; avatarColor: string; multiRole?: MockRoleAccess[]; children?: MockChild[] };

@@ -1,8 +1,21 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { MOCK_BRANCHES, MOCK_SCHOOLS, MOCK_SESSIONS } from "./context-data";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { apiGet, apiPost } from "@/lib/api/client";
 import { initialNotifications, type NotificationItem } from "./notification-data";
+
+// Real workspace-context shapes (from /api/auth/context*). Kept light on the client.
+type IdName = { id: string; name: string };
+type SchoolOption = { id: string; name: string; code: string };
+type BranchOption = { id: string; name: string; code: string; isPrimary: boolean };
+type SessionOption = { id: string; name: string; code: string; isCurrent: boolean };
+type CurrentContext = {
+  tenant: IdName | null;
+  school: IdName | null;
+  role: IdName | null;
+  branch: IdName | null;
+  academicSession: IdName | null;
+};
 
 type ShellContextValue = {
   sidebarCollapsed: boolean;
@@ -25,12 +38,21 @@ type ShellContextValue = {
   unreadCount: number;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+
+  // Real workspace context (server-authoritative; selections persist in the DB).
+  contextLoading: boolean;
+  schools: SchoolOption[];
+  branches: BranchOption[];
+  sessions: SessionOption[];
   activeSchoolId: string;
-  setActiveSchoolId: (id: string) => void;
+  activeSchoolName: string;
   activeBranchId: string;
+  activeBranchName: string;
+  activeSessionId: string;
+  activeSession: string; // session display name (kept for existing consumers)
+  setActiveSchoolId: (id: string) => void;
   setActiveBranchId: (id: string) => void;
-  activeSession: string;
-  setActiveSession: (session: string) => void;
+  setActiveSessionId: (id: string) => void;
 };
 
 const ShellContext = createContext<ShellContextValue | null>(null);
@@ -45,9 +67,71 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileContextSheetOpen, setMobileContextSheetOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
-  const [activeSchoolId, setActiveSchoolId] = useState(MOCK_SCHOOLS[0].id);
-  const [activeBranchId, setActiveBranchId] = useState(MOCK_BRANCHES[0].id);
-  const [activeSession, setActiveSession] = useState(MOCK_SESSIONS[1]);
+
+  // Real context state.
+  const [contextLoading, setContextLoading] = useState(true);
+  const [context, setContext] = useState<CurrentContext | null>(null);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [sessions, setSessions] = useState<SessionOption[]>([]);
+
+  // Fetch-only (no setState) so both the mount effect and refresh can apply
+  // results in their own scope — keeps setState out of the synchronous effect path.
+  const loadAll = useCallback(async () => {
+    const [ctx, sch] = await Promise.all([
+      apiGet<CurrentContext>("/api/auth/context"),
+      apiGet<SchoolOption[]>("/api/auth/context/schools"),
+    ]);
+    const [br, ses] = await Promise.all([
+      apiGet<BranchOption[]>("/api/auth/context/branches"),
+      apiGet<SessionOption[]>("/api/auth/context/academic-sessions"),
+    ]);
+    return { ctx, sch, br, ses };
+  }, []);
+
+  const applyResults = useCallback((r: Awaited<ReturnType<typeof loadAll>>) => {
+    if (r.ctx.success) setContext(r.ctx.data);
+    if (r.sch.success) setSchools(r.sch.data);
+    if (r.br.success) setBranches(r.br.data);
+    if (r.ses.success) setSessions(r.ses.data);
+    setContextLoading(false);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    applyResults(await loadAll());
+  }, [loadAll, applyResults]);
+
+  useEffect(() => {
+    let active = true;
+    loadAll().then((r) => {
+      if (active) applyResults(r);
+    });
+    return () => {
+      active = false;
+    };
+  }, [loadAll, applyResults]);
+
+  const setActiveSchoolId = useCallback(
+    async (id: string) => {
+      const res = await apiPost("/api/auth/context/school", { schoolId: id });
+      if (res.success) await refresh();
+    },
+    [refresh],
+  );
+  const setActiveBranchId = useCallback(
+    async (id: string) => {
+      const res = await apiPost("/api/auth/context/branch", { branchId: id });
+      if (res.success) await refresh();
+    },
+    [refresh],
+  );
+  const setActiveSessionId = useCallback(
+    async (id: string) => {
+      const res = await apiPost("/api/auth/context/academic-session", { academicSessionId: id });
+      if (res.success) await refresh();
+    },
+    [refresh],
+  );
 
   // Global ⌘K / Ctrl+K shortcut for global search.
   useEffect(() => {
@@ -86,12 +170,19 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       markNotificationRead: (id: string) =>
         setNotifications((items) => items.map((item) => (item.id === id ? { ...item, read: true } : item))),
       markAllNotificationsRead: () => setNotifications((items) => items.map((item) => ({ ...item, read: true }))),
-      activeSchoolId,
-      setActiveSchoolId,
-      activeBranchId,
-      setActiveBranchId,
-      activeSession,
-      setActiveSession,
+      contextLoading,
+      schools,
+      branches,
+      sessions,
+      activeSchoolId: context?.school?.id ?? "",
+      activeSchoolName: context?.school?.name ?? "",
+      activeBranchId: context?.branch?.id ?? "",
+      activeBranchName: context?.branch?.name ?? "",
+      activeSessionId: context?.academicSession?.id ?? "",
+      activeSession: context?.academicSession?.name ?? "",
+      setActiveSchoolId: (id) => void setActiveSchoolId(id),
+      setActiveBranchId: (id) => void setActiveBranchId(id),
+      setActiveSessionId: (id) => void setActiveSessionId(id),
     }),
     [
       sidebarCollapsed,
@@ -104,9 +195,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       mobileContextSheetOpen,
       notifications,
       unreadCount,
-      activeSchoolId,
-      activeBranchId,
-      activeSession,
+      contextLoading,
+      schools,
+      branches,
+      sessions,
+      context,
+      setActiveSchoolId,
+      setActiveBranchId,
+      setActiveSessionId,
     ],
   );
 

@@ -25,6 +25,10 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-pathname", pathname);
   const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
 
+  // API routes enforce their own auth and return JSON (401) — never redirect a
+  // fetch to the HTML login page.
+  if (pathname.startsWith("/api")) return pass();
+
   if (isPublicPath(pathname)) return pass();
 
   // Protected route with no session cookie → send to login (no DB read here).

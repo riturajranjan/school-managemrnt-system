@@ -8,12 +8,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MOCK_SCHOOLS } from "./context-data";
 import { useShell } from "./shell-context";
 
 export function SchoolSwitcher({ variant = "header" }: { variant?: "header" | "sidebar" }) {
-  const { activeSchoolId, setActiveSchoolId } = useShell();
-  const activeSchool = MOCK_SCHOOLS.find((school) => school.id === activeSchoolId) ?? MOCK_SCHOOLS[0];
+  const { schools, activeSchoolId, activeSchoolName, setActiveSchoolId, contextLoading } = useShell();
+  const activeSchool = { name: activeSchoolName || (contextLoading ? "…" : "Select school") };
 
   return (
     <DropdownMenu>
@@ -36,7 +35,8 @@ export function SchoolSwitcher({ variant = "header" }: { variant?: "header" | "s
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuLabel>Switch school</DropdownMenuLabel>
-        {MOCK_SCHOOLS.map((school) => (
+        {schools.length === 0 && <DropdownMenuItem disabled>No schools</DropdownMenuItem>}
+        {schools.map((school) => (
           <DropdownMenuItem key={school.id} onSelect={() => setActiveSchoolId(school.id)}>
             <span className="flex-1 truncate">{school.name}</span>
             {school.id === activeSchoolId && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}

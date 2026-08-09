@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { authenticateWithPassword, destroySession } from "@/lib/server/auth/service";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/server/auth/config";
 import { sanitizeReturnTo } from "@/lib/server/auth/routes";
+import { resolvePostLogin } from "@/lib/server/context/resolver";
 
 export type LoginActionResult =
   | { success: true; redirectTo: string }
@@ -27,9 +28,12 @@ export async function loginAction(input: {
   // httpOnly cookie — the token is never readable from client JS.
   store.set(SESSION_COOKIE_NAME, result.token, sessionCookieOptions(maxAge));
 
-  // Prefer a validated internal returnTo, else the role landing. `sanitizeReturnTo`
-  // rejects external/protocol-relative URLs (no open-redirect surface).
-  const redirectTo = sanitizeReturnTo(input.returnTo) ?? result.redirectTo;
+  // Run the centralized resolver (auto-selects context, else routes to a
+  // selector). Honor a validated internal returnTo only when the workspace is
+  // fully resolved (not mid-selection / access-denied).
+  const resolved = await resolvePostLogin(result.user.id);
+  const ready = !resolved.startsWith("/select-") && resolved !== "/access-denied" && resolved !== "/login";
+  const redirectTo = (ready && sanitizeReturnTo(input.returnTo)) || resolved;
   return { success: true, redirectTo };
 }
 

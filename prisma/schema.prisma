@@ -251,9 +251,34 @@ model User {
   memberships   TenantMembership[]
   sessions      Session[]
   platformAdmin PlatformAdmin?
+  activeContext UserActiveContext?
 
   @@index([status])
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// UserActiveContext — the user's currently-selected workspace context (Batch 4).
+// One row per user. The selected IDs are stored as plain columns and are ALWAYS
+// re-validated against the user's real access in the context service before use,
+// so a stale/deleted id simply resolves to "unselected" (fail closed) without
+// needing FKs on every column.
+// ---------------------------------------------------------------------------
+
+model UserActiveContext {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  schoolId          String?
+  roleId            String?
+  branchId          String?
+  academicSessionId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_active_contexts")
 }
 
 // ---------------------------------------------------------------------------

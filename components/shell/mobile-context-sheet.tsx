@@ -4,7 +4,6 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Building2, Calendar, Check, School, X, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { MOCK_BRANCHES, MOCK_SCHOOLS, MOCK_SESSIONS } from "./context-data";
 import { useShell } from "./shell-context";
 
 function Section({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
@@ -25,12 +24,15 @@ export function MobileContextSheet() {
   const {
     mobileContextSheetOpen,
     setMobileContextSheetOpen,
+    schools,
+    branches,
+    sessions,
     activeSchoolId,
     setActiveSchoolId,
     activeBranchId,
     setActiveBranchId,
-    activeSession,
-    setActiveSession,
+    activeSessionId,
+    setActiveSessionId,
   } = useShell();
   const reduceMotion = useReducedMotion();
 
@@ -72,7 +74,7 @@ export function MobileContextSheet() {
 
                 <div className="flex-1 overflow-y-auto px-sm pb-sm">
                   <Section icon={School} label="School">
-                    {MOCK_SCHOOLS.map((school) => (
+                    {schools.map((school) => (
                       <button
                         key={school.id}
                         type="button"
@@ -88,7 +90,7 @@ export function MobileContextSheet() {
                   </Section>
 
                   <Section icon={Building2} label="Branch">
-                    {MOCK_BRANCHES.map((branch) => (
+                    {branches.map((branch) => (
                       <button
                         key={branch.id}
                         type="button"
@@ -104,15 +106,15 @@ export function MobileContextSheet() {
                   </Section>
 
                   <Section icon={Calendar} label="Academic session">
-                    {MOCK_SESSIONS.map((session) => (
+                    {sessions.map((session) => (
                       <button
-                        key={session}
+                        key={session.id}
                         type="button"
-                        onClick={() => setActiveSession(session)}
+                        onClick={() => setActiveSessionId(session.id)}
                         className="flex min-h-11 items-center gap-sm rounded-md px-sm text-left text-sm text-foreground outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        <span className="flex-1 truncate">{session}</span>
-                        {session === activeSession && (
+                        <span className="flex-1 truncate">{session.name}</span>
+                        {session.id === activeSessionId && (
                           <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
                         )}
                       </button>

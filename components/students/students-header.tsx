@@ -3,14 +3,13 @@
 import { Calendar1, Download, MapPin, Upload, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { MOCK_BRANCHES } from "@/components/shell/context-data";
 import { useShell } from "@/components/shell/shell-context";
 import { usePermissions } from "@/components/providers/permissions-provider";
 
 export function StudentsHeader({ onExport }: { onExport: () => void }) {
-  const { activeSession, activeBranchId } = useShell();
+  const { activeSession, activeBranchName } = useShell();
   const { can } = usePermissions();
-  const branchName = MOCK_BRANCHES.find((b) => b.id === activeBranchId)?.name ?? "Main Campus";
+  const branchName = activeBranchName || "All branches";
 
   return (
     <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
