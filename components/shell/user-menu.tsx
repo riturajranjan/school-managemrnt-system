@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { allRoles, roleLabels } from "@/lib/permissions/roles";
+import { roleLabels } from "@/lib/permissions/roles";
 import { logout } from "@/app/(auth)/actions";
 
 // Identity display is still a static placeholder (real user-display binding is a
@@ -31,7 +31,7 @@ export function UserMenu({
   /** Sidebar-only: rail mode shows the avatar alone, no name/role/chevron. */
   collapsed?: boolean;
 }) {
-  const { role, setRole } = usePermissions();
+  const { role, setRole, assignedRoles } = usePermissions();
 
   const avatar = (
     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
@@ -39,23 +39,25 @@ export function UserMenu({
     </span>
   );
 
-  // Phase 2 has no auth backend yet — this lets reviewers see the same screen
-  // gate/ungate actions per role instead of only trusting the permission
-  // matrix in code. Folded into the profile menu (rather than a standalone
-  // header control) to keep the header from getting crowded.
-  const roleSwitchSection = (
-    <>
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel>Viewing as</DropdownMenuLabel>
-      {allRoles.map((r) => (
-        <DropdownMenuItem key={r} onSelect={() => setRole(r)}>
-          <ShieldUser className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="flex-1">{roleLabels[r]}</span>
-          {r === role && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
-        </DropdownMenuItem>
-      ))}
-    </>
-  );
+  // Switch among the roles the user is ACTUALLY assigned (from real capabilities).
+  // Selecting one persists via the context API and re-resolves permissions
+  // server-side. Hidden when the user has a single role. This can no longer be
+  // used to assume an unassigned role.
+  const switchableRoles = assignedRoles.filter((r) => r.uiRole);
+  const roleSwitchSection =
+    switchableRoles.length > 1 ? (
+      <>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Switch role</DropdownMenuLabel>
+        {switchableRoles.map((r) => (
+          <DropdownMenuItem key={r.id} onSelect={() => r.uiRole && setRole(r.uiRole)}>
+            <ShieldUser className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="flex-1">{r.uiRole ? roleLabels[r.uiRole] : r.name}</span>
+            {r.uiRole === role && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
+          </DropdownMenuItem>
+        ))}
+      </>
+    ) : null;
 
   if (variant === "sidebar") {
     return (

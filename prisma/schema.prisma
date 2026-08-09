@@ -328,12 +328,50 @@ model Role {
 
   tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignments RoleAssignment[]
+  permissions RolePermission[]
 
   // Custom role keys are unique within a tenant.
   @@unique([tenantId, key])
   @@index([tenantId])
   @@index([isSystem])
   @@map("roles")
+}
+
+// ---------------------------------------------------------------------------
+// Backend Phase 3 — RBAC. Permission catalog + Role↔Permission mapping.
+// Authorization is resolved server-side from these tables (never from the
+// browser). Permissions are the primary authority; role identity is secondary.
+// ---------------------------------------------------------------------------
+
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique // e.g. "students.view" (module.action)
+  module      String
+  action      String
+  description String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { AppShell } from "@/components/shell/app-shell";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
-import { requireUser } from "@/lib/server/auth/dal";
+import { requirePlatformAdmin, requireUser } from "@/lib/server/auth/dal";
 import { isPublicPath } from "@/lib/server/auth/routes";
 import "./globals.css";
 
@@ -41,7 +41,12 @@ export default async function RootLayout({
   // requests without a resolved path fall through.
   const pathname = (await headers()).get("x-pathname") ?? "";
   if (pathname && !isPublicPath(pathname)) {
-    await requireUser();
+    // /super-admin/* additionally requires a real platform admin (server-side).
+    if (pathname === "/super-admin" || pathname.startsWith("/super-admin/")) {
+      await requirePlatformAdmin();
+    } else {
+      await requireUser();
+    }
   }
 
   return (

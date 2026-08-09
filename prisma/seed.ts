@@ -12,6 +12,7 @@ import { config as loadEnv } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { hashPassword } from "../lib/server/password";
+import { PERMISSIONS, ROLE_PERMISSIONS } from "../lib/server/authz/catalog";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
@@ -147,6 +148,31 @@ async function main() {
     roles[key] = await upsertSystemRole(key, name);
   }
 
+  // --- Permission catalog + role → permission mappings (RBAC) -------------
+  for (const p of PERMISSIONS) {
+    await prisma.permission.upsert({
+      where: { key: p.key },
+      update: { module: p.module, action: p.action, description: p.description },
+      create: p,
+    });
+  }
+  const permIdByKey = new Map(
+    (await prisma.permission.findMany({ select: { id: true, key: true } })).map((p) => [p.key, p.id]),
+  );
+  for (const [roleKey, permKeys] of Object.entries(ROLE_PERMISSIONS)) {
+    const role = roles[roleKey];
+    if (!role) continue;
+    for (const permKey of permKeys) {
+      const permissionId = permIdByKey.get(permKey);
+      if (!permissionId) continue;
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId } },
+        update: {},
+        create: { roleId: role.id, permissionId },
+      });
+    }
+  }
+
   const passwordHash = await hashPassword(DEV_PASSWORD);
 
   /** Create an ACTIVE, email-verified dev user (idempotent by email). */
@@ -200,7 +226,7 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
-  const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments] =
+  const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =
     await Promise.all([
       prisma.tenant.count(),
       prisma.school.count(),
@@ -210,11 +236,14 @@ async function main() {
       prisma.tenantMembership.count(),
       prisma.role.count(),
       prisma.roleAssignment.count(),
+      prisma.permission.count(),
+      prisma.rolePermission.count(),
     ]);
 
   console.log("Seed complete:");
   console.log(`  Org:      Tenant=${tenants} School=${schools} Branch=${branches} Session=${sessions}`);
   console.log(`  Identity: User=${users} Membership=${memberships} Role=${roleCount} RoleAssignment=${assignments}`);
+  console.log(`  RBAC:     Permission=${permissions} RolePermission=${rolePerms}`);
   console.log(`  Platform: 1 PlatformAdmin (SUPER_ADMIN, no tenant membership)`);
   console.log(`  Dev password: ${process.env.SEED_DEMO_PASSWORD ? "(from SEED_DEMO_PASSWORD)" : `"${DEV_PASSWORD}"`} — development only`);
 }

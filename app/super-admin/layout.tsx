@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 export default function SuperAdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { role } = usePermissions();
+  const { role, isPlatformAdmin, capabilitiesLoading } = usePermissions();
   const saas = useSaas();
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -31,8 +31,10 @@ export default function SuperAdminLayout({ children }: { children: ReactNode }) 
     return r.slice(0, 8);
   }, [query, saas]);
 
-  // Super Admin workspace is gated to the platform-level role.
-  if (role !== "super-admin") return <div className="p-md"><PermissionDenied action="access the SaaS control center" role={roleLabels[role]} backHref="/" /></div>;
+  // Super Admin workspace is gated to real platform admins (server also enforces
+  // this in the root layout). Wait for capabilities so we don't flash "denied".
+  if (capabilitiesLoading) return null;
+  if (!isPlatformAdmin) return <div className="p-md"><PermissionDenied action="access the SaaS control center" role={roleLabels[role]} backHref="/" /></div>;
 
   const isActive = (href: string) => pathname === href || (href !== "/super-admin" && pathname.startsWith(`${href}/`));
 

@@ -21,3 +21,14 @@ export async function requireUser(): Promise<SafeUser> {
   if (!user) redirect("/login");
   return user;
 }
+
+/**
+ * Require a real platform admin (a PlatformAdmin row — never derived from a
+ * tenant role). Redirects unauthenticated → /login, non-platform → /access-denied.
+ * This is the server-side gate for /super-admin/* (UI hiding is not security).
+ */
+export async function requirePlatformAdmin(): Promise<SafeUser> {
+  const user = await requireUser();
+  if (!user.isPlatformAdmin) redirect("/access-denied");
+  return user;
+}
