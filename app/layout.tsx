@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { AppShell } from "@/components/shell/app-shell";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { requireUser } from "@/lib/server/auth/dal";
+import { isPublicPath } from "@/lib/server/auth/routes";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,11 +30,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Authoritative auth boundary. `x-pathname` is set by proxy.ts. For any
+  // protected route, require a valid, ACTIVE session server-side BEFORE rendering
+  // protected content (no client-side auth flash). Public auth/error routes and
+  // requests without a resolved path fall through.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  if (pathname && !isPublicPath(pathname)) {
+    await requireUser();
+  }
+
   return (
     <html
       lang="en"

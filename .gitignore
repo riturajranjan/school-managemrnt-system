@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma — generated client is a build artifact, regenerated via `prisma generate`
+/lib/generated/prisma

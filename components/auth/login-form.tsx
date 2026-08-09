@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordField } from "./password-field";
 import { AuthStatus, AuthLink, DemoAccess, SecurityNotice } from "./misc";
-import { DEMO_ACCOUNTS, redirectForRole, type DemoAccount } from "@/lib/types/auth";
+import type { DemoAccount } from "@/lib/types/auth";
+import type { UserRole } from "@/lib/permissions/roles";
+import { loginAction, type LoginActionResult } from "@/app/(auth)/actions";
 
 type Variant = "school" | "student" | "parent" | "staff" | "super-admin";
 
@@ -19,10 +21,31 @@ const CONFIG: Record<Variant, { idLabel: string; idAutocomplete: string; idPlace
   "super-admin": { idLabel: "Work email", idAutocomplete: "email", idPlaceholder: "you@novyra.io", idType: "email", filter: (a) => a.role === "super-admin" },
 };
 
-/** Reusable simulated login form. On "sign in" it validates presence only, then
- * routes to the correct next step (role/child selection) or the role dashboard.
- * NO real authentication occurs. */
-export function LoginForm({ variant }: { variant: Variant }) {
+// Demo Access no longer bypasses auth — it prefills a real seeded development
+// email so the user signs in through the real login path (they still enter the
+// dev password). Maps demo roles to the users created by prisma/seed.ts.
+const SEEDED_EMAIL_BY_ROLE: Partial<Record<UserRole, string>> = {
+  "super-admin": "platform.admin@novyra.example",
+  administrator: "admin@novyra-demo.example",
+  principal: "principal@novyra-demo.example",
+  teacher: "teacher@novyra-demo.example",
+  librarian: "librarian@novyra-demo.example",
+  "transport-manager": "transport@novyra-demo.example",
+  "transport-administrator": "transport@novyra-demo.example",
+  "hr-manager": "hr@novyra-demo.example",
+  "hr-executive": "hr@novyra-demo.example",
+};
+
+const ERROR_MESSAGE: Record<Exclude<LoginActionResult, { success: true }>["errorCode"], string> = {
+  VALIDATION_ERROR: "Enter a valid email and password.",
+  INVALID_CREDENTIALS: "Invalid email or password.",
+  ACCOUNT_INACTIVE: "This account isn't active. Contact your administrator.",
+  SERVER_ERROR: "Something went wrong. Please try again.",
+};
+
+/** Login form wired to the real email+password Server Action. UI/UX unchanged;
+ * only the submit behaviour is real now (no mock accounts, no localStorage). */
+export function LoginForm({ variant, returnTo }: { variant: Variant; returnTo?: string | null }) {
   const router = useRouter();
   const cfg = CONFIG[variant];
   const [identifier, setIdentifier] = useState("");
@@ -31,25 +54,32 @@ export function LoginForm({ variant }: { variant: Variant }) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "signing" | "done">("idle");
 
-  const go = (account: DemoAccount) => {
-    setStatus("signing");
-    setError(null);
-    // Simulate a brief sign-in, then route based on the account shape.
-    setTimeout(() => {
-      if (account.multiRole && account.multiRole.length > 1) { router.push("/select-role"); return; }
-      if (account.role === "parent" && account.children && account.children.length > 1) { router.push("/select-child"); return; }
-      router.push(redirectForRole(account.role));
-    }, 550);
-  };
-
-  const submit = () => {
+  const submit = async () => {
     if (!identifier.trim()) { setError("Enter your " + cfg.idLabel.toLowerCase() + "."); return; }
     if (!password) { setError("Enter your password."); return; }
-    // Match a demo account by email/name prefix; otherwise use the first eligible.
-    const pool = cfg.filter ? DEMO_ACCOUNTS.filter(cfg.filter) : DEMO_ACCOUNTS;
-    const match = pool.find((a) => a.email.toLowerCase() === identifier.trim().toLowerCase()) ?? pool[0];
-    if (!match) { setError("No account found for this sign-in type."); return; }
-    go(match);
+    setStatus("signing");
+    setError(null);
+    try {
+      const result = await loginAction({ email: identifier.trim(), password, returnTo });
+      if (result.success) {
+        setStatus("done");
+        router.push(result.redirectTo);
+        router.refresh();
+        return;
+      }
+      setError(ERROR_MESSAGE[result.errorCode]);
+      setStatus("idle");
+    } catch {
+      setError(ERROR_MESSAGE.SERVER_ERROR);
+      setStatus("idle");
+    }
+  };
+
+  const prefillDemo = (account: DemoAccount) => {
+    setIdentifier(SEEDED_EMAIL_BY_ROLE[account.role] ?? account.email);
+    setPassword("");
+    setError(null);
+    setStatus("idle");
   };
 
   return (
@@ -73,7 +103,7 @@ export function LoginForm({ variant }: { variant: Variant }) {
         <LogIn className="size-4" /> {status === "signing" ? "Signing in…" : "Sign in"}
       </Button>
 
-      <DemoAccess onPick={go} filter={cfg.filter} />
+      <DemoAccess onPick={prefillDemo} filter={cfg.filter} />
       <SecurityNotice />
     </div>
   );

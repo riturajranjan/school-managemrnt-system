@@ -19,6 +19,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Prisma-generated client (build artifact; already carries eslint-disable).
+    "lib/generated/prisma/**",
   ]),
 ]);
 

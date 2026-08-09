@@ -1,25 +1,13 @@
-"use client";
+// Server wrapper for the platform sign-in page. Redirects already-authenticated
+// users to their simple landing route (Batch 2, item 14); otherwise renders the
+// existing platform login UI unchanged.
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/server/auth/current-user";
+import { landingForLogin } from "@/lib/server/auth/service";
+import { SuperAdminLoginView } from "./super-admin-view";
 
-import { Command } from "lucide-react";
-import { AuthCard, AuthCenter, AuthHeader } from "@/components/auth/auth-shell";
-import { LoginForm } from "@/components/auth/login-form";
-import { AuthLink, AuthLinkRow } from "@/components/auth/misc";
-
-export default function SuperAdminLoginPage() {
-  return (
-    <AuthCenter>
-      <div className="mb-md flex flex-col items-center gap-2 text-center">
-        <span className="flex size-12 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#022c43,#0a3a52)] text-white"><Command className="size-6" /></span>
-        <div><p className="text-sm font-bold text-foreground">Novyra Campus OS</p><p className="text-xs text-muted-foreground">Platform administration</p></div>
-      </div>
-      <AuthCard>
-        <AuthHeader title="Platform sign-in" subtitle="Restricted to Novyra platform team members." />
-        <LoginForm variant="super-admin" />
-        <AuthLinkRow>
-          <AuthLink href="/login">School sign-in</AuthLink>
-          <span className="text-muted-foreground">Platform Admin · Support · Billing · Auditor</span>
-        </AuthLinkRow>
-      </AuthCard>
-    </AuthCenter>
-  );
+export default async function SuperAdminLoginPage() {
+  const user = await getCurrentUser();
+  if (user) redirect(landingForLogin(user.isPlatformAdmin));
+  return <SuperAdminLoginView />;
 }

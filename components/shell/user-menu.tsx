@@ -11,10 +11,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { allRoles, roleLabels } from "@/lib/permissions/roles";
+import { logout } from "@/app/(auth)/actions";
 
-// No auth wired up yet — static placeholder identity. Role comes from the live
-// RBAC context so the "Viewing as" switcher below and this label never disagree.
+// Identity display is still a static placeholder (real user-display binding is a
+// later batch). Role comes from the live RBAC context so the "Viewing as"
+// switcher below and this label never disagree.
 const CURRENT_USER = { name: "Alex Rivera", initials: "AR" };
+
+// One real logout implementation shared by every "Sign out" control here.
+function signOut() {
+  void logout();
+}
 
 export function UserMenu({
   variant = "header",
@@ -81,7 +88,7 @@ export function UserMenu({
           </DropdownMenuItem>
           {roleSwitchSection}
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-error">
+          <DropdownMenuItem className="text-error" onSelect={signOut}>
             <LogOut className="size-4 shrink-0" aria-hidden="true" />
             <span>Sign out</span>
           </DropdownMenuItem>

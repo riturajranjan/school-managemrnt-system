@@ -9,6 +9,7 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { MOCK_LOGIN_HISTORY, MOCK_SECURITY_PREFS } from "@/lib/types/auth";
 import { roleLabels } from "@/lib/permissions/roles";
+import { logout } from "@/app/(auth)/actions";
 
 export default function SecurityPreferencesPage() {
   const { role } = usePermissions();
@@ -54,7 +55,7 @@ export default function SecurityPreferencesPage() {
 
       <DetailDrawer open={logoutOpen} onOpenChange={setLogoutOpen} title="Sign out of Novyra Campus OS?" description="You can sign back in anytime.">
         <div className="flex flex-col gap-sm">
-          <Button asChild size="md"><Link href="/login">Sign out this device</Link></Button>
+          <Button size="md" onClick={() => { void logout(); }}>Sign out this device</Button>
           <Button asChild size="md" variant="outline"><Link href="/login">Sign out all devices (simulation)</Link></Button>
           <Button size="md" variant="ghost" onClick={() => setLogoutOpen(false)}>Cancel</Button>
         </div>

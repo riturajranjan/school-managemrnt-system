@@ -1,0 +1,378 @@
+// Novyra Campus OS — Prisma schema
+// Backend Phase 1: core organizational foundation only.
+// Hierarchy: Tenant → School → Branch, with School-scoped AcademicSession.
+// No business models (students, fees, attendance, …), no auth here.
+//
+// Prisma 7 notes:
+// - The `prisma-client` generator requires an explicit `output`.
+// - The datasource holds only `provider`; connection URLs live in
+//   `prisma.config.ts` (see project root).
+// - Runtime connections use a driver adapter (`@prisma/adapter-pg`); see
+//   `lib/db/prisma.ts`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Connection URLs are configured in prisma.config.ts (Prisma 7 convention).
+}
+
+// ---------------------------------------------------------------------------
+// Status enums — only what the core organizational models need.
+// Values mirror the existing UI status vocabularies where they overlap.
+// ---------------------------------------------------------------------------
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum SchoolStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+/// Mirrors the UI `BranchStatus` (active | setup-pending | inactive | archived).
+enum BranchStatus {
+  ACTIVE
+  SETUP_PENDING
+  INACTIVE
+  ARCHIVED
+}
+
+/// Mirrors the UI `SessionStatus` (draft | upcoming | active | closed | archived).
+enum AcademicSessionStatus {
+  DRAFT
+  UPCOMING
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+// ---------------------------------------------------------------------------
+// Tenant — the top-level customer/organization boundary (one paying customer).
+// ---------------------------------------------------------------------------
+
+model Tenant {
+  id       String       @id @default(cuid())
+  name     String
+  slug     String       @unique
+  status   TenantStatus @default(ACTIVE)
+  // IANA timezone (e.g. "Asia/Kolkata"), BCP-47 locale, ISO-4217 currency.
+  timezone String       @default("Asia/Kolkata")
+  locale   String       @default("en-IN")
+  currency String       @default("INR")
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  schools     School[]
+  memberships TenantMembership[]
+  roles       Role[] // tenant-scoped custom roles (system roles have null tenantId)
+
+  @@index([status])
+  @@map("tenants")
+}
+
+// ---------------------------------------------------------------------------
+// School — an institution belonging to a Tenant. Holds core identity/profile
+// fields only; extended settings/branding stay out of this table.
+// ---------------------------------------------------------------------------
+
+model School {
+  id                String  @id @default(cuid())
+  tenantId          String
+  name              String
+  shortName         String?
+  code              String
+  schoolType        String?
+  board             String?
+  establishmentYear Int?
+  registrationNumber String?
+  affiliationNumber String?
+  email             String?
+  phone             String?
+  website           String?
+  // IANA timezone / BCP-47 locale / ISO-4217 currency. Default to the tenant's
+  // values at creation time in the service layer; stored here so a school can
+  // diverge from its tenant.
+  timezone String       @default("Asia/Kolkata")
+  locale   String       @default("en-IN")
+  currency String       @default("INR")
+  status   SchoolStatus @default(ACTIVE)
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branches         Branch[]
+  academicSessions AcademicSession[]
+
+  // School code is unique within its tenant.
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([status])
+  @@map("schools")
+}
+
+// ---------------------------------------------------------------------------
+// Branch — a physical campus/location of a School.
+// ---------------------------------------------------------------------------
+
+model Branch {
+  id           String  @id @default(cuid())
+  schoolId     String
+  name         String
+  code         String
+  email        String?
+  phone        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  country      String?
+  postalCode   String?
+  // Optional IANA timezone override; falls back to the school timezone when null.
+  timezone  String?
+  isPrimary Boolean      @default(false)
+  status    BranchStatus @default(SETUP_PENDING)
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Branch code is unique within its school.
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@map("branches")
+}
+
+// ---------------------------------------------------------------------------
+// AcademicSession — an academic year/term. SCHOOL-SCOPED (see decision note in
+// the phase report): sessions are defined once per school and shared by all of
+// that school's branches, matching the UI where sessions live in the school's
+// admin settings and each branch references the current one.
+//
+// Invariant (enforced in the service layer, per phase spec): at most one
+// session per school may have `isCurrent = true` and it must have status
+// ACTIVE. `startDate` must precede `endDate`.
+// ---------------------------------------------------------------------------
+
+model AcademicSession {
+  id        String                @id @default(cuid())
+  schoolId  String
+  name      String
+  code      String
+  startDate DateTime              @db.Date
+  endDate   DateTime              @db.Date
+  status    AcademicSessionStatus @default(DRAFT)
+  isCurrent Boolean               @default(false)
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Session code is unique within its school.
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([schoolId, isCurrent])
+  @@map("academic_sessions")
+}
+
+// ===========================================================================
+// Backend Phase 2 — Authentication & Identity Foundation (Batch 1).
+//
+// Schema only: identity, tenant membership, roles, platform-admin boundary, and
+// a minimal Session model for the chosen CUSTOM database-session auth. No login,
+// session-creation, RBAC evaluation, or protected-route logic here.
+// ===========================================================================
+
+/// Account lifecycle states needed for the auth foundation only.
+enum UserStatus {
+  INVITED
+  ACTIVE
+  LOCKED
+  SUSPENDED
+  INACTIVE
+}
+
+/// Lifecycle of a user's membership in a tenant.
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+/// Explicit platform-operator roles — deliberately separate from tenant roles.
+/// A tenant/school role NEVER grants platform access; only a PlatformAdmin row does.
+enum PlatformRole {
+  SUPER_ADMIN
+  SUPPORT
+  BILLING
+  AUDITOR
+}
+
+// ---------------------------------------------------------------------------
+// User — ONE central identity. Domain profiles (Teacher/Student/Parent/…) will
+// link TO this User in later phases; there are no separate auth tables per role.
+// ---------------------------------------------------------------------------
+
+model User {
+  id    String  @id @default(cuid())
+  name  String?
+  email String  @unique // stored lowercased by the service layer (single global identity)
+  // Argon2id hash only — never plaintext. Nullable: invited users set it later.
+  passwordHash    String?
+  status          UserStatus @default(INVITED)
+  emailVerifiedAt DateTime?  @db.Timestamptz(6)
+  image           String?
+
+  // First-login foundation (persisted state only; no setup flow implemented yet).
+  passwordSetupRequired Boolean   @default(false)
+  onboardingCompletedAt DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  memberships   TenantMembership[]
+  sessions      Session[]
+  platformAdmin PlatformAdmin?
+
+  @@index([status])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// TenantMembership — User ↔ Tenant join. A user may belong to many tenants, so
+// tenant is modeled here (NOT as a single tenantId column on User).
+// ---------------------------------------------------------------------------
+
+model TenantMembership {
+  id       String           @id @default(cuid())
+  userId   String
+  tenantId String
+  status   MembershipStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roleAssignments RoleAssignment[]
+
+  // A user has at most one membership per tenant.
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("tenant_memberships")
+}
+
+// ---------------------------------------------------------------------------
+// Role — foundation for future RBAC. Two kinds:
+//   • system roles  → isSystem = true,  tenantId = null (seeded once)
+//   • tenant custom → isSystem = false, tenantId set    (unique per tenant)
+// Permission catalog is intentionally NOT built in this batch.
+// System-role `key` uniqueness is enforced in the seed/service layer (a Postgres
+// unique over a nullable tenantId cannot express it without a partial index).
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String  @id @default(cuid())
+  key         String // e.g. SCHOOL_ADMIN, PRINCIPAL, TEACHER
+  name        String
+  description String?
+  isSystem    Boolean @default(false)
+  tenantId    String? // null for system roles
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments RoleAssignment[]
+
+  // Custom role keys are unique within a tenant.
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@index([isSystem])
+  @@map("roles")
+}
+
+// ---------------------------------------------------------------------------
+// RoleAssignment — links a TenantMembership to a Role (roles are always granted
+// within a tenant context). School/branch-scoped grants are deferred to the RBAC
+// phase; School/Branch already carry stable ids so that can be added without
+// reshaping this table.
+// ---------------------------------------------------------------------------
+
+model RoleAssignment {
+  id           String @id @default(cuid())
+  membershipId String
+  roleId       String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  membership TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role       Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // A role is assigned at most once per membership.
+  @@unique([membershipId, roleId])
+  @@index([roleId])
+  @@map("role_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// PlatformAdmin — explicit platform-operator boundary. A User is a platform
+// admin ONLY if a row exists here; this is never derived from tenant roles.
+// Full Super Admin logic is not implemented in this batch.
+// ---------------------------------------------------------------------------
+
+model PlatformAdmin {
+  id     String       @id @default(cuid())
+  userId String       @unique
+  role   PlatformRole @default(SUPPORT)
+  status UserStatus   @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("platform_admins")
+}
+
+// ---------------------------------------------------------------------------
+// Session — minimal model for the chosen CUSTOM database-session auth. Only a
+// HASH of the session token is stored, never the raw token. No runtime session
+// creation/validation is implemented in this batch.
+// ---------------------------------------------------------------------------
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
