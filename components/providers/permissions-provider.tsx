@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api/client";
-import { hasAnyPermission, hasPermission, type Permission, type UserRole } from "@/lib/permissions/roles";
+import { hasPermission, type Permission, type UserRole } from "@/lib/permissions/roles";
 
 type AssignedRole = { id: string; key: string; name: string; uiRole: UserRole | null };
 
@@ -22,6 +22,7 @@ type PermissionsContextValue = {
 
 type Capabilities = {
   permissions: string[];
+  managedPermissionKeys: string[];
   uiRole: UserRole | null;
   isPlatformAdmin: boolean;
   assignedRoles: AssignedRole[];
@@ -41,6 +42,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   // (never grants access — the server is authoritative).
   const [role, setRoleState] = useState<UserRole>("teacher");
   const [serverPermissions, setServerPermissions] = useState<Set<string>>(new Set());
+  const [managedKeys, setManagedKeys] = useState<Set<string>>(new Set());
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [assignedRoles, setAssignedRoles] = useState<AssignedRole[]>([]);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
@@ -54,6 +56,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     if (data) {
       if (data.uiRole) setRoleState(data.uiRole);
       setServerPermissions(new Set(data.permissions));
+      setManagedKeys(new Set(data.managedPermissionKeys));
       setIsPlatformAdmin(data.isPlatformAdmin);
       setAssignedRoles(data.assignedRoles);
     }
@@ -84,19 +87,29 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     [assignedRoles, load, apply, router],
   );
 
+  // For a permission key the DB catalog manages, the REAL server permission set
+  // is authoritative for UI rendering; for fine-grained UI-only keys the catalog
+  // doesn't model yet, fall back to the role-keyed matrix (display convenience).
+  // Either way the server independently enforces access — UI hiding is not security.
+  const can = useCallback(
+    (permission: Permission) =>
+      managedKeys.has(permission) ? serverPermissions.has(permission) : hasPermission(role, permission),
+    [managedKeys, serverPermissions, role],
+  );
+
   const value = useMemo<PermissionsContextValue>(
     () => ({
       role,
       setRole: (r) => void setRole(r),
-      can: (permission) => hasPermission(role, permission),
-      canAny: (permissions) => hasAnyPermission(role, permissions),
+      can,
+      canAny: (permissions) => permissions.some((p) => can(p)),
       serverPermissions,
       hasServerPermission: (key) => serverPermissions.has(key),
       isPlatformAdmin,
       assignedRoles,
       capabilitiesLoading,
     }),
-    [role, setRole, serverPermissions, isPlatformAdmin, assignedRoles, capabilitiesLoading],
+    [role, setRole, can, serverPermissions, isPlatformAdmin, assignedRoles, capabilitiesLoading],
   );
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>;

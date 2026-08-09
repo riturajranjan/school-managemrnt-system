@@ -1,6 +1,6 @@
 import { getAuthzContext } from "@/lib/server/authz/permissions";
 import { getAssignedRoles } from "@/lib/server/context/service";
-import { DB_ROLE_TO_UI, PLATFORM_UI_ROLE } from "@/lib/server/authz/catalog";
+import { DB_ROLE_TO_UI, PERMISSION_KEYS, PLATFORM_UI_ROLE } from "@/lib/server/authz/catalog";
 import { fail, ok } from "@/lib/server/api/response";
 
 // GET /api/auth/capabilities — the current user's real permission keys, active
@@ -22,6 +22,10 @@ export async function GET() {
 
   return ok({
     permissions: [...ctx.permissions].sort(),
+    // The full catalog of DB-managed permission keys, so the client knows which
+    // permission checks are backed by real server permissions (authoritative)
+    // vs. fine-grained UI-only keys not yet modelled in the catalog.
+    managedPermissionKeys: PERMISSION_KEYS,
     activeRole: ctx.activeRoleKey,
     uiRole,
     isPlatformAdmin: ctx.isPlatformAdmin,

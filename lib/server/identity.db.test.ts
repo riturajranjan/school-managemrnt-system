@@ -18,6 +18,23 @@ loadEnv({ path: ".env.local", override: true });
 const DEV_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Novyra@Dev123";
 const connectionString = process.env.DATABASE_URL;
 
+// Scope "all users" assertions to the known seeded identity users. Other DB test
+// files run in parallel (Vitest) and transiently create fixture users with
+// placeholder hashes; those are not the subject of these seed assertions. We
+// match by an explicit email list — a prefix filter can't be used because the
+// fixture prefix `__` contains SQL LIKE wildcards. This does NOT weaken password
+// validation: it still verifies every real seeded user has a proper Argon2id hash.
+const SEEDED_EMAILS = [
+  "admin@novyra-demo.example",
+  "principal@novyra-demo.example",
+  "teacher@novyra-demo.example",
+  "librarian@novyra-demo.example",
+  "transport@novyra-demo.example",
+  "hr@novyra-demo.example",
+  "platform.admin@novyra.example",
+];
+const SEEDED_ONLY = { email: { in: SEEDED_EMAILS } } as const;
+
 let prisma: PrismaClient | undefined;
 let dbReady = false;
 
@@ -95,7 +112,7 @@ describe.skipIf(!dbReady)("identity foundation (DB)", () => {
   });
 
   it("seeds an Argon2id password hash for every user", async () => {
-    const users = await db().user.findMany();
+    const users = await db().user.findMany({ where: SEEDED_ONLY });
     expect(users.length).toBeGreaterThan(0);
     for (const u of users) {
       expect(u.passwordHash, `${u.email} has a hash`).toBeTruthy();
@@ -104,7 +121,7 @@ describe.skipIf(!dbReady)("identity foundation (DB)", () => {
   });
 
   it("never persists the plaintext password", async () => {
-    const users = await db().user.findMany();
+    const users = await db().user.findMany({ where: SEEDED_ONLY });
     for (const u of users) {
       expect(u.passwordHash).not.toBe(DEV_PASSWORD);
       expect(u.passwordHash).not.toContain(DEV_PASSWORD);
