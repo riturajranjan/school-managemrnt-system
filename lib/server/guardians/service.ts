@@ -109,6 +109,7 @@ export async function listGuardians(
             isPrimary: true,
             isEmergencyContact: true,
             authorizedPickup: true,
+            isFeeResponsible: true,
             student: { select: { id: true, firstName: true, lastName: true, admissionNumber: true, classLabel: true, sectionLabel: true, status: true } },
           },
         },
@@ -122,6 +123,7 @@ export async function listGuardians(
       isPrimary: l.isPrimary,
       isEmergencyContact: l.isEmergencyContact,
       authorizedPickup: l.authorizedPickup,
+      isFeeResponsible: l.isFeeResponsible,
       student: {
         id: l.student.id,
         name: `${l.student.firstName} ${l.student.lastName}`.trim(),
