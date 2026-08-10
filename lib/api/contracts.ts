@@ -271,3 +271,22 @@ export type PlatformProvisionResultDto = {
   adminUserId: string;
   adminInvitePending: boolean;
 };
+
+// --- Platform (Super Admin) onboarding (SA-3) --------------------------------
+
+export type OnboardingStepDto = { key: string; label: string; description: string; done: boolean };
+
+export type OnboardingDto = {
+  schoolId: string;
+  tenantId: string;
+  status: string; // not-started | in-progress | completed
+  currentStep: string;
+  completedSteps: string[];
+  steps: OnboardingStepDto[];
+  totalSteps: number;
+  completedCount: number;
+  progress: number; // 0..100, computed from steps
+  startedAt: string;
+  completedAt: string | null;
+  school: { id: string; name: string; code: string; status: string };
+};

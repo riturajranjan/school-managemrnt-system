@@ -84,6 +84,20 @@ describe("RBAC catalog", () => {
     expect(platformPermissionsForRole("BILLING")).toContain("platform.schools.view");
   });
 
+  it("scopes onboarding management to SUPER_ADMIN and SUPPORT (SA-3)", () => {
+    for (const role of ["SUPER_ADMIN", "SUPPORT"]) {
+      expect(platformPermissionsForRole(role)).toContain("platform.onboarding.manage");
+    }
+    // AUDITOR is read-only; BILLING is revenue-only — neither manages onboarding.
+    expect(platformPermissionsForRole("AUDITOR")).not.toContain("platform.onboarding.manage");
+    expect(platformPermissionsForRole("BILLING")).not.toContain("platform.onboarding.manage");
+    // A tenant/school role never gets platform onboarding authority.
+    for (const keys of Object.values(ROLE_PERMISSIONS)) {
+      expect(keys).not.toContain("platform.onboarding.manage");
+      expect(keys).not.toContain("platform.onboarding.view");
+    }
+  });
+
   it("platformPermissionsForRole always includes the gate; unknown role → gate only", () => {
     expect(platformPermissionsForRole("SUPER_ADMIN")).toContain("super_admin.access");
     expect(platformPermissionsForRole("SUPER_ADMIN")).toContain("platform.schools.create");

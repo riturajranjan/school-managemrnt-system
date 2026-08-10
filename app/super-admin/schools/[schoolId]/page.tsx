@@ -78,9 +78,18 @@ export default function SchoolDetailPage({ params }: { params: Promise<{ schoolI
             {school.code} · Tenant {tenant.name} ({tenant.slug})
           </p>
         </div>
-        {can("platform.schools.suspend") && (
-          <div className="flex gap-xs">
-            {school.status === "suspended" ? (
+        <div className="flex gap-xs">
+          {school.setupPending ? (
+            <Button asChild size="sm">
+              <Link href={`/super-admin/onboarding/${school.id}`}>Continue setup</Link>
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/super-admin/onboarding/${school.id}`}>Setup complete</Link>
+            </Button>
+          )}
+          {can("platform.schools.suspend") &&
+            (school.status === "suspended" ? (
               <Button size="sm" variant="outline" disabled={busy} onClick={() => void setStatus("active")}>
                 Reactivate
               </Button>
@@ -88,9 +97,8 @@ export default function SchoolDetailPage({ params }: { params: Promise<{ schoolI
               <Button size="sm" variant="outline" className="text-error" disabled={busy} onClick={() => void setStatus("suspended")}>
                 Suspend
               </Button>
-            )}
+            ))}
           </div>
-        )}
       </div>
 
       {actionError && <p className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error">{actionError}</p>}

@@ -1,26 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
-  changePlan, createTenant, extendTrial, setEntitlementOverride, setInvoiceStatus, setTenantStatus,
+  changePlan, extendTrial, setEntitlementOverride, setInvoiceStatus, setTenantStatus,
 } from "./saas-service";
 import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 
+// NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 (school creation
+// is now real via POST /api/super-admin/schools). Its tests were removed with it.
 describe("tenant lifecycle", () => {
   beforeEach(() => resetDemoData());
-
-  it("creates a tenant in setup-pending and logs an audit entry", () => {
-    const beforeAudit = getSnapshot().saas.auditLog.length;
-    const r = createTenant({ name: "Test Academy", code: "TA1", domain: "", planId: "plan-growth", ownerName: "Owner", ownerEmail: "o@x.edu", region: "India · North" });
-    expect(r.ok).toBe(true);
-    const db = getSnapshot();
-    const t = db.saas.tenants.find((x) => x.id === r.tenantId)!;
-    expect(t.status).toBe("setup-pending");
-    expect(db.saas.auditLog.length).toBe(beforeAudit + 1);
-  });
-
-  it("rejects a tenant with an invalid plan", () => {
-    expect(createTenant({ name: "X", code: "X", domain: "", planId: "plan-nope", ownerName: "", ownerEmail: "", region: "" }).ok).toBe(false);
-  });
 
   it("suspend then reactivate updates status", () => {
     const t = getSnapshot().saas.tenants.find((x) => x.status === "active")!;

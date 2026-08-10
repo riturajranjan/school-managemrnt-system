@@ -1,6 +1,6 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type {
-  EntitlementLevel, InvoiceStatus, PlatformAnnouncement, SaasState, SaasTenant, SaasTenantStatus,
+  EntitlementLevel, InvoiceStatus, PlatformAnnouncement, SaasState, SaasTenantStatus,
   SubscriptionStatus, SupportTicketStatus,
 } from "@/lib/types/saas";
 import { generateId } from "@/lib/utils";
@@ -27,21 +27,10 @@ export function setTenantStatus(tenantId: string, status: SaasTenantStatus, admi
   return { ok: true };
 }
 
-export function createTenant(input: { name: string; code: string; domain: string; planId: string; ownerName: string; ownerEmail: string; region: string }): Result & { tenantId?: string } {
-  if (!input.name.trim()) return { ok: false, error: "School name is required." };
-  const db = getSnapshot();
-  if (!db.saas.plans.some((p) => p.id === input.planId)) return { ok: false, error: "Select a valid plan." };
-  const id = generateId("ten");
-  const tenant: SaasTenant = {
-    id, name: input.name.trim(), code: input.code.trim() || input.name.slice(0, 4).toUpperCase(), domain: input.domain.trim() || `${input.name.toLowerCase().replace(/[^a-z]+/g, "-")}.novyra.app`,
-    logoColor: "#18b0c8", planId: input.planId, status: "setup-pending", stage: "setup", ownerName: input.ownerName || "—", ownerEmail: input.ownerEmail || "—", region: input.region || "India · North",
-    students: 0, staff: 0, branches: 0, setupPercent: 20, usagePercent: 0, supportOpen: 0, createdAt: new Date().toISOString().slice(0, 10), lastActive: new Date().toISOString(),
-    whiteLabel: { enabled: false, hidePlatformLogo: false, loginBranding: false, accentColor: "#18b0c8", emailBranding: false, documentBranding: false }, notes: [],
-  };
-  patchSaas((s) => ({ ...s, tenants: [tenant, ...s.tenants], plans: s.plans.map((p) => (p.id === input.planId ? { ...p, tenantCount: p.tenantCount + 1 } : p)) }));
-  logAudit("Super Admin", "School created", tenant.name, "Schools");
-  return { ok: true, tenantId: id };
-}
+// NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 — school
+// creation is now real (POST /api/super-admin/schools) and onboarding is real
+// (SchoolOnboarding). The rest of this mock service still backs the not-yet-
+// migrated Revenue/Platform/System pages.
 
 export function addTenantNote(tenantId: string, text: string, by = "Super Admin"): Result {
   if (!text.trim()) return { ok: false, error: "Note cannot be empty." };

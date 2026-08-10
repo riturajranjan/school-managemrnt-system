@@ -13,6 +13,7 @@ import { recordAudit, type AuditAction } from "@/lib/server/api/audit";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { ListMeta } from "@/lib/server/api/response";
 import { schoolStatusFromUi, schoolStatusToUi } from "@/lib/server/api/enums";
+import { REQUIRED_STEP_KEYS } from "@/lib/api/onboarding-steps";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type PlatformActor = { id: string; name: string | null };
@@ -337,6 +338,17 @@ export async function provisionSchool(actor: PlatformActor, raw: unknown): Promi
       select: { id: true },
     });
     await tx.roleAssignment.create({ data: { membershipId: membership.id, roleId: schoolAdminRole.id } });
+
+    // Onboarding record so every SETUP_PENDING school is resumable (SA-3).
+    await tx.schoolOnboarding.create({
+      data: {
+        tenantId: tenant.id,
+        schoolId: school.id,
+        status: "IN_PROGRESS",
+        currentStep: REQUIRED_STEP_KEYS[0],
+        completedSteps: [],
+      },
+    });
 
     await recordAudit(tx, auditScope(actor, tenant.id, school.id), "SCHOOL_CREATED", "School", school.id, {
       code: input.school.code,

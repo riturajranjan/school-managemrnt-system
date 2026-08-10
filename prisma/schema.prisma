@@ -118,6 +118,7 @@ model School {
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branches         Branch[]
   academicSessions AcademicSession[]
+  onboarding       SchoolOnboarding? // Super Admin Phase SA-3
 
   // School code is unique within its tenant.
   @@unique([tenantId, code])
@@ -881,4 +882,38 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([entityType, entityId])
   @@map("audit_events")
+}
+
+// ---------------------------------------------------------------------------
+// SchoolOnboarding — platform-side onboarding state for a provisioned school
+// (Super Admin Phase SA-3). One row per school (1:1). Progress is the ratio of
+// completedSteps to the code-defined required steps — never a stored percentage.
+// Completing onboarding flips School.status SETUP_PENDING → ACTIVE.
+// ---------------------------------------------------------------------------
+
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model SchoolOnboarding {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String @unique
+
+  status         OnboardingStatus @default(IN_PROGRESS)
+  currentStep    String
+  completedSteps String[] // ordered list of completed step keys
+
+  startedAt   DateTime  @default(now()) @db.Timestamptz(6)
+  completedAt DateTime? @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("school_onboarding")
 }
