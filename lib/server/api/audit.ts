@@ -19,7 +19,13 @@ export type AuditAction =
   | "ADMISSION_STAGE_CHANGED"
   | "ADMISSION_APPROVED"
   | "ADMISSION_REJECTED"
-  | "ADMISSION_CONVERTED";
+  | "ADMISSION_CONVERTED"
+  // Platform (Super Admin) actions — actor is a platform admin; tenantId/schoolId
+  // point at the TARGET tenant/school, never the actor.
+  | "SCHOOL_CREATED"
+  | "SCHOOL_UPDATED"
+  | "SCHOOL_SUSPENDED"
+  | "SCHOOL_REACTIVATED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

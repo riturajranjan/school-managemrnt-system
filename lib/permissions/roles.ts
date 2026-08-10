@@ -327,7 +327,13 @@ export type Permission =
   | "documents.revoke"
   | "documents.manageSettings"
   | "documents.viewAnalytics"
-  | "documents.viewOwn";
+  | "documents.viewOwn"
+  // Platform (Super Admin) — these are DB-managed keys (see server authz catalog);
+  // the client `can()` treats them as authoritative via managedPermissionKeys.
+  | "platform.schools.view"
+  | "platform.schools.create"
+  | "platform.schools.update"
+  | "platform.schools.suspend";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),

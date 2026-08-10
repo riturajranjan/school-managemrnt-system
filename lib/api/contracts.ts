@@ -224,3 +224,50 @@ export type AdmissionStatsDto = {
   enrolled: number;
   waitlisted: number;
 };
+
+// --- Platform (Super Admin) schools -----------------------------------------
+
+export type PlatformSchoolListItemDto = {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  branchCount: number;
+  currentSessionName: string | null;
+  createdAt: string;
+};
+
+export type PlatformSchoolDetailDto = {
+  school: {
+    id: string;
+    name: string;
+    shortName: string | null;
+    code: string;
+    schoolType: string | null;
+    board: string | null;
+    email: string | null;
+    phone: string | null;
+    website: string | null;
+    timezone: string;
+    locale: string;
+    currency: string;
+    status: string;
+    setupPending: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  tenant: { id: string; name: string; slug: string; status: string };
+  branches: { id: string; name: string; code: string; isPrimary: boolean; status: string; city: string | null }[];
+  currentSession: { id: string; name: string; code: string; startDate: string; endDate: string } | null;
+  admins: { userId: string; name: string | null; email: string; status: string; invitePending: boolean }[];
+};
+
+export type PlatformProvisionResultDto = {
+  schoolId: string;
+  tenantId: string;
+  adminUserId: string;
+  adminInvitePending: boolean;
+};

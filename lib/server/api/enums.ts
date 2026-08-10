@@ -8,6 +8,7 @@ import type {
   DocVerificationStatus as DbDocVerification,
   Gender as DbGender,
   GuardianRelation as DbGuardianRelation,
+  SchoolStatus as DbSchoolStatus,
   StudentStatus as DbStudentStatus,
 } from "@/lib/generated/prisma/enums";
 
@@ -79,3 +80,13 @@ export const docVerificationToUi: Record<DbDocVerification, string> = {
   REJECTED: "rejected",
 };
 export const docVerificationFromUi = invert(docVerificationToUi);
+
+/** Platform school lifecycle (Super Admin SA-2). */
+export const schoolStatusToUi: Record<DbSchoolStatus, string> = {
+  SETUP_PENDING: "setup-pending",
+  ACTIVE: "active",
+  SUSPENDED: "suspended",
+  INACTIVE: "inactive",
+  ARCHIVED: "archived",
+};
+export const schoolStatusFromUi = invert(schoolStatusToUi);

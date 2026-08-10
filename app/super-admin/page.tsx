@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { PlatformPulse } from "@/components/super-admin/platform-pulse";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 import { tenantStatusLabels, tenantStatusTone } from "@/lib/types/saas";
@@ -15,6 +16,7 @@ import { formatDate } from "@/lib/utils";
 
 export default function SaasDashboard() {
   const db = useSisStore();
+  const { can } = usePermissions();
   const summary = useMemo(() => saasSummary(db), [db]);
   const pulse = useMemo(() => platformPulse(db), [db]);
   const attention = useMemo(() => db.saas.tenants.map((t) => ({ t, h: tenantHealth(db.saas, t) })).filter((x) => x.h.state === "at-risk" || x.h.state === "needs-attention").slice(0, 6), [db.saas]);
@@ -25,7 +27,7 @@ export default function SaasDashboard() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div><h1 className="text-lg font-semibold text-foreground">Platform overview</h1><p className="text-xs text-muted-foreground">{summary.totalSchools} schools · all figures are frontend mock data</p></div>
         <div className="flex flex-wrap gap-xs">
-          <Button asChild size="sm"><Link href="/super-admin/onboarding"><Plus className="size-3.5" /> Create school</Link></Button>
+          {can("platform.schools.create") && <Button asChild size="sm"><Link href="/super-admin/schools/new"><Plus className="size-3.5" /> Create school</Link></Button>}
           <Button asChild size="sm" variant="outline"><Link href="/super-admin/plans"><Package className="size-3.5" /> Plans</Link></Button>
           <Button asChild size="sm" variant="outline"><Link href="/super-admin/billing"><Wallet className="size-3.5" /> Billing</Link></Button>
         </div>

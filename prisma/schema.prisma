@@ -32,7 +32,11 @@ enum TenantStatus {
 }
 
 enum SchoolStatus {
+  // SETUP_PENDING: freshly provisioned by a platform admin, onboarding not done.
+  // SUSPENDED: platform-suspended (data preserved). See Super Admin Phase SA-2.
+  SETUP_PENDING
   ACTIVE
+  SUSPENDED
   INACTIVE
   ARCHIVED
 }

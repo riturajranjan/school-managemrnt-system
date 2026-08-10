@@ -72,6 +72,18 @@ describe("RBAC catalog", () => {
     }
   });
 
+  it("only SUPER_ADMIN can create/suspend schools (SA-2)", () => {
+    expect(platformPermissionsForRole("SUPER_ADMIN")).toContain("platform.schools.create");
+    expect(platformPermissionsForRole("SUPER_ADMIN")).toContain("platform.schools.suspend");
+    for (const role of ["SUPPORT", "BILLING", "AUDITOR"]) {
+      expect(platformPermissionsForRole(role)).not.toContain("platform.schools.create");
+      expect(platformPermissionsForRole(role)).not.toContain("platform.schools.suspend");
+    }
+    // Support/billing can still view the directory.
+    expect(platformPermissionsForRole("SUPPORT")).toContain("platform.schools.view");
+    expect(platformPermissionsForRole("BILLING")).toContain("platform.schools.view");
+  });
+
   it("platformPermissionsForRole always includes the gate; unknown role → gate only", () => {
     expect(platformPermissionsForRole("SUPER_ADMIN")).toContain("super_admin.access");
     expect(platformPermissionsForRole("SUPER_ADMIN")).toContain("platform.schools.create");

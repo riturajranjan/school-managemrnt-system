@@ -1,166 +1,188 @@
 "use client";
 
+// Platform school inspector (Super Admin SA-2) — real, platform-safe metadata
+// from GET /api/super-admin/schools/[id]. Shows identity / tenant / branches /
+// current session / admin only. Revenue, usage, subscription and billing are NOT
+// fabricated here — they arrive with the Revenue phase. Opening this page is
+// platform inspection; it does NOT grant the platform admin tenant permissions.
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
-import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
+import { use, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { StatTile } from "@/components/ui/stat-tile";
-import { TenantJourney } from "@/components/super-admin/tenant-journey";
-import { UsageMeter } from "@/components/super-admin/usage-meter";
-import { useImpersonation } from "@/components/super-admin/impersonation";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { addTenantNote, setTenantStatus } from "@/lib/services/saas-service";
-import { tenantHealth, healthLabels, healthTone } from "@/lib/selectors/saas-brief";
-import { entitlementLabels, entitlementTone, invoiceStatusLabels, invoiceStatusTone, subscriptionStatusLabels, subscriptionStatusTone, tenantStatusLabels, tenantStatusTone, supportStatusTone } from "@/lib/types/saas";
-import { formatMinor } from "@/lib/finance/format-minor";
-import { formatDate, formatDateTime } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { setSchoolStatusRequest, useSchoolDetail } from "@/lib/hooks/api/use-platform-schools";
+import type { StatusTone } from "@/lib/types/common";
 
-const TABS = ["Overview", "Subscription", "Usage", "Features", "Domains", "Support", "Billing", "Notes"] as const;
+const statusLabels: Record<string, string> = {
+  "setup-pending": "Setup pending",
+  active: "Active",
+  suspended: "Suspended",
+  inactive: "Inactive",
+  archived: "Archived",
+};
+const statusTone: Record<string, StatusTone> = {
+  "setup-pending": "warning",
+  active: "success",
+  suspended: "error",
+  inactive: "neutral",
+  archived: "neutral",
+};
 
-export default function Tenant360Page({ params }: { params: Promise<{ schoolId: string }> }) {
+export default function SchoolDetailPage({ params }: { params: Promise<{ schoolId: string }> }) {
   const { schoolId } = use(params);
-  const db = useSisStore();
-  const impersonation = useImpersonation();
-  const [, force] = useState(0);
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
-  const [note, setNote] = useState("");
+  const { can } = usePermissions();
+  const { data, loading, error, reload } = useSchoolDetail(schoolId);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const t = db.saas.tenants.find((x) => x.id === schoolId);
-  const plan = t ? db.saas.plans.find((p) => p.id === t.planId) : undefined;
-  const sub = t ? db.saas.subscriptions.find((s) => s.tenantId === t.id) : undefined;
-  const usage = useMemo(() => (t ? db.saas.usage.filter((u) => u.tenantId === t.id) : []), [db.saas.usage, t]);
-  const overrides = useMemo(() => (t ? db.saas.overrides.filter((o) => o.tenantId === t.id) : []), [db.saas.overrides, t]);
-  const domains = useMemo(() => (t ? db.saas.domains.filter((d) => d.tenantId === t.id) : []), [db.saas.domains, t]);
-  const tickets = useMemo(() => (t ? db.saas.support.filter((s) => s.tenantId === t.id) : []), [db.saas.support, t]);
-  const invoices = useMemo(() => (t ? db.saas.invoices.filter((i) => i.tenantId === t.id) : []), [db.saas.invoices, t]);
-  const health = t ? tenantHealth(db.saas, t) : null;
+  if (loading) return <div className="py-2xl text-center text-sm text-muted-foreground">Loading school…</div>;
+  if (error || !data) {
+    return (
+      <div className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">
+        {error ? `Could not load school: ${error}` : "School not found."}{" "}
+        <Link href="/super-admin/schools" className="text-primary">
+          Back
+        </Link>
+      </div>
+    );
+  }
 
-  if (!t) return <div className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">School not found. <Link href="/super-admin/schools" className="text-primary">Back</Link></div>;
+  const { school, tenant, branches, currentSession, admins } = data;
 
-  const bump = () => force((n) => n + 1);
-  const overrideFor = (key: string) => overrides.find((o) => o.featureKey === key);
+  async function setStatus(status: "active" | "suspended") {
+    setBusy(true);
+    setActionError(null);
+    const res = await setSchoolStatusRequest(schoolId, status);
+    setBusy(false);
+    if (!res.success) setActionError(res.error.message);
+    else reload();
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex items-center gap-2">
-        <Button asChild size="sm" variant="ghost"><Link href="/super-admin/schools"><ArrowLeft className="size-4" /></Link></Button>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: t.logoColor }}>{t.code.slice(0, 2)}</span>
-          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-lg font-semibold text-foreground">{t.name}</h1><Badge tone={tenantStatusTone[t.status]}>{tenantStatusLabels[t.status]}</Badge>{health && <Badge tone={healthTone[health.state]}>{healthLabels[health.state]}</Badge>}</div><p className="truncate text-xs text-muted-foreground">{t.code} · {t.domain} · {plan?.name} · Owner {t.ownerName}</p></div>
-        </div>
-      </div>
-
-      {/* Quick actions */}
-      <div className="flex flex-wrap gap-xs">
-        <Button size="sm" variant="outline" onClick={() => impersonation.request(t.name)}><Eye className="size-3.5" /> View as School Admin</Button>
-        <Button asChild size="sm" variant="outline"><Link href={`/super-admin/subscriptions/${sub?.id ?? ""}`}>Change plan</Link></Button>
-        {t.status === "suspended" ? <Button size="sm" variant="outline" onClick={() => { setTenantStatus(t.id, "active"); bump(); }}>Reactivate</Button> : <Button size="sm" variant="ghost" onClick={() => { setTenantStatus(t.id, "suspended"); bump(); }}>Suspend</Button>}
-        <Button asChild size="sm" variant="ghost"><Link href="/super-admin/usage">Usage</Link></Button>
-      </div>
-
-      <div className="flex gap-1 overflow-x-auto border-b border-border">
-        {TABS.map((x) => <button key={x} type="button" onClick={() => setTab(x)} className={cn("whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition", tab === x ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>{x}</button>)}
-      </div>
-
-      {tab === "Overview" && (
-        <div className="flex flex-col gap-md">
-          <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-            <StatTile label="Setup" value={`${t.setupPercent}%`} tone={t.setupPercent >= 80 ? "success" : "warning"} />
-            <StatTile label="Students" value={t.students.toLocaleString("en-IN")} tone="info" />
-            <StatTile label="Staff" value={String(t.staff)} tone="neutral" />
-            <StatTile label="Branches" value={String(t.branches)} tone="neutral" />
-            <StatTile label="Plan" value={plan?.name ?? "—"} tone="info" />
-            <StatTile label="Renewal" value={sub ? formatDate(sub.renewalDate) : "—"} tone="neutral" />
-            <StatTile label="Open support" value={String(t.supportOpen)} tone={t.supportOpen > 0 ? "warning" : "success"} />
-            <StatTile label="Region" value={t.region} tone="neutral" />
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/super-admin/schools">
+            <ArrowLeft className="size-4" />
+          </Link>
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-lg font-semibold text-foreground">{school.name}</h1>
+            <Badge tone={statusTone[school.status] ?? "neutral"}>{statusLabels[school.status] ?? school.status}</Badge>
+            {school.setupPending && <Badge tone="warning">Onboarding pending</Badge>}
           </div>
-          <section className="rounded-lg border border-border bg-surface p-md">
-            <h2 className="mb-sm text-sm font-semibold text-foreground">Tenant journey</h2>
-            <TenantJourney current={t.stage} />
-          </section>
-          {health && (
-            <section className={cn("rounded-lg border p-md", health.state === "at-risk" ? "border-error/30 bg-error/5" : health.state === "needs-attention" ? "border-warning/30 bg-warning/5" : "border-border bg-surface")}>
-              <h2 className="mb-sm flex items-center gap-2 text-sm font-semibold text-foreground">Health: <Badge tone={healthTone[health.state]}>{healthLabels[health.state]}</Badge></h2>
-              <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
-                <div><p className="mb-1 text-xs font-semibold text-foreground">Reasons</p><ul className="space-y-0.5">{health.reasons.map((r) => <li key={r} className="text-xs text-muted-foreground">• {r}</li>)}</ul></div>
-                {health.recommendations.length > 0 && <div><p className="mb-1 text-xs font-semibold text-foreground">Recommended</p><ul className="space-y-0.5">{health.recommendations.map((r) => <li key={r} className="text-xs text-muted-foreground">→ {r}</li>)}</ul></div>}
-              </div>
-            </section>
-          )}
+          <p className="truncate text-xs text-muted-foreground">
+            {school.code} · Tenant {tenant.name} ({tenant.slug})
+          </p>
         </div>
-      )}
+        {can("platform.schools.suspend") && (
+          <div className="flex gap-xs">
+            {school.status === "suspended" ? (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void setStatus("active")}>
+                Reactivate
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="text-error" disabled={busy} onClick={() => void setStatus("suspended")}>
+                Suspend
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
 
-      {tab === "Subscription" && sub && plan && (
-        <div className="rounded-lg border border-border bg-surface p-md text-sm">
-          <div className="mb-sm flex items-center justify-between"><h2 className="text-sm font-semibold text-foreground">{plan.name} · {sub.billingCycle}</h2><Badge tone={subscriptionStatusTone[sub.status]}>{subscriptionStatusLabels[sub.status]}</Badge></div>
-          <dl className="grid grid-cols-2 gap-y-1.5 sm:grid-cols-3">
-            <div><dt className="text-xs text-muted-foreground">Price</dt><dd className="text-foreground">{formatMinor(sub.priceMinor)}/{sub.billingCycle === "annual" ? "yr" : "mo"}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Discount</dt><dd className="text-foreground">{sub.discountPercent}%</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Started</dt><dd className="text-foreground">{formatDate(sub.startDate)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Renewal</dt><dd className="text-foreground">{formatDate(sub.renewalDate)}</dd></div>
-            {sub.trialEndDate && <div><dt className="text-xs text-muted-foreground">Trial ends</dt><dd className="text-foreground">{formatDate(sub.trialEndDate)}</dd></div>}
+      {actionError && <p className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error">{actionError}</p>}
+
+      <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
+        <StatTile label="Branches" value={String(branches.length)} tone="neutral" />
+        <StatTile label="Current session" value={currentSession?.name ?? "—"} tone={currentSession ? "info" : "neutral"} />
+        <StatTile label="Admins" value={String(admins.length)} tone="neutral" />
+        <StatTile label="Status" value={statusLabels[school.status] ?? school.status} tone={statusTone[school.status] === "success" ? "success" : "warning"} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-md lg:grid-cols-2">
+        <section className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Identity</h2>
+          <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
+            <dt className="text-muted-foreground">Code</dt>
+            <dd className="text-foreground">{school.code}</dd>
+            <dt className="text-muted-foreground">Type</dt>
+            <dd className="text-foreground">{school.schoolType ?? "—"}</dd>
+            <dt className="text-muted-foreground">Board</dt>
+            <dd className="text-foreground">{school.board ?? "—"}</dd>
+            <dt className="text-muted-foreground">Email</dt>
+            <dd className="text-foreground">{school.email ?? "—"}</dd>
+            <dt className="text-muted-foreground">Phone</dt>
+            <dd className="text-foreground">{school.phone ?? "—"}</dd>
+            <dt className="text-muted-foreground">Timezone</dt>
+            <dd className="text-foreground">{school.timezone}</dd>
+            <dt className="text-muted-foreground">Created</dt>
+            <dd className="text-foreground">{new Date(school.createdAt).toLocaleDateString("en-IN")}</dd>
           </dl>
-          <div className="mt-sm"><Button asChild size="sm" variant="outline"><Link href={`/super-admin/subscriptions/${sub.id}`}>Manage subscription</Link></Button></div>
-        </div>
-      )}
+        </section>
 
-      {tab === "Usage" && (
-        <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
-          {usage.map((u) => <div key={u.key} className="rounded-lg border border-border bg-surface p-md"><UsageMeter metric={u} /></div>)}
-        </div>
-      )}
+        <section className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Current academic session</h2>
+          {currentSession ? (
+            <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
+              <dt className="text-muted-foreground">Name</dt>
+              <dd className="text-foreground">{currentSession.name}</dd>
+              <dt className="text-muted-foreground">Code</dt>
+              <dd className="text-foreground">{currentSession.code}</dd>
+              <dt className="text-muted-foreground">Starts</dt>
+              <dd className="text-foreground">{currentSession.startDate}</dd>
+              <dt className="text-muted-foreground">Ends</dt>
+              <dd className="text-foreground">{currentSession.endDate}</dd>
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground">No current session.</p>
+          )}
+        </section>
 
-      {tab === "Features" && plan && (
-        <div className="rounded-lg border border-border bg-surface p-md">
-          <p className="mb-sm text-xs text-muted-foreground">Entitlements from <span className="font-medium text-foreground">{plan.name}</span>. Overrides are highlighted.</p>
-          <div className="grid grid-cols-1 gap-xs sm:grid-cols-2">
-            {plan.features.map((f) => {
-              const ov = overrideFor(f.key);
-              const level = ov?.level ?? f.level;
-              return (
-                <div key={f.key} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
-                  <span className="text-foreground">{f.label}{ov && <span className="ml-1 text-[10px] text-warning">· override</span>}</span>
-                  <Badge tone={entitlementTone[level]}>{entitlementLabels[level]}</Badge>
+        <section className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Branches</h2>
+          <ul className="flex flex-col gap-sm">
+            {branches.map((b) => (
+              <li key={b.id} className="flex items-center justify-between gap-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">
+                    {b.name}
+                    {b.isPrimary && <Badge tone="info" className="ml-xs">Primary</Badge>}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {b.code}
+                    {b.city ? ` · ${b.city}` : ""}
+                  </p>
                 </div>
-              );
-            })}
-          </div>
-          {overrides.length > 0 && <p className="mt-sm rounded-md border border-warning/30 bg-warning/8 p-sm text-xs text-warning">Custom entitlement override active — differs from the plan defaults. Manage in <Link href="/super-admin/features" className="underline">Features</Link>.</p>}
-        </div>
-      )}
+                <Badge tone={b.status === "active" ? "success" : "neutral"}>{b.status}</Badge>
+              </li>
+            ))}
+            {branches.length === 0 && <p className="text-sm text-muted-foreground">No branches.</p>}
+          </ul>
+        </section>
 
-      {tab === "Domains" && (
-        <div className="flex flex-col gap-xs">
-          {domains.map((d) => <div key={d.id} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm text-sm"><div className="min-w-0"><p className="flex items-center gap-1 truncate font-medium text-foreground">{d.domain} <ExternalLink className="size-3 text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{d.type} · SSL {d.sslStatus}</p></div><Badge tone={d.status === "active" ? "success" : d.status === "error" ? "error" : "warning"}>{d.status}</Badge></div>)}
-        </div>
-      )}
+        <section className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">School admins</h2>
+          <ul className="flex flex-col gap-sm">
+            {admins.map((a) => (
+              <li key={a.userId} className="flex items-center justify-between gap-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">{a.name ?? a.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{a.email}</p>
+                </div>
+                {a.invitePending ? <Badge tone="warning">Invitation pending</Badge> : <Badge tone="success">{a.status}</Badge>}
+              </li>
+            ))}
+            {admins.length === 0 && <p className="text-sm text-muted-foreground">No admins linked.</p>}
+          </ul>
+        </section>
+      </div>
 
-      {tab === "Support" && (
-        <div className="flex flex-col gap-xs">
-          {tickets.map((tk) => <Link key={tk.id} href={`/super-admin/support/${tk.id}`} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm text-sm transition hover:border-primary/40"><div className="min-w-0"><p className="truncate font-medium text-foreground">{tk.subject}</p><p className="truncate text-xs text-muted-foreground">{tk.reference} · {tk.category}</p></div><Badge tone={supportStatusTone[tk.status]}>{tk.status}</Badge></Link>)}
-          {tickets.length === 0 && <p className="py-md text-center text-sm text-muted-foreground">No support tickets.</p>}
-        </div>
-      )}
-
-      {tab === "Billing" && (
-        <div className="flex flex-col gap-xs">
-          {invoices.map((i) => <Link key={i.id} href="/super-admin/invoices" className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm text-sm transition hover:border-primary/40"><div className="min-w-0"><p className="truncate font-medium text-foreground">{i.number}</p><p className="truncate text-xs text-muted-foreground">{formatDate(i.periodStart)} – {formatDate(i.periodEnd)}</p></div><span className="flex items-center gap-2"><span className="text-foreground">{formatMinor(i.totalMinor)}</span><Badge tone={invoiceStatusTone[i.status]}>{invoiceStatusLabels[i.status]}</Badge></span></Link>)}
-          {invoices.length === 0 && <p className="py-md text-center text-sm text-muted-foreground">No invoices.</p>}
-        </div>
-      )}
-
-      {tab === "Notes" && (
-        <div className="flex flex-col gap-sm">
-          <div className="flex gap-xs"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add an internal note…" /><Button size="sm" onClick={() => { if (addTenantNote(t.id, note).ok) { setNote(""); bump(); } }} disabled={!note.trim()}>Add</Button></div>
-          <div className="flex flex-col gap-xs">
-            {t.notes.map((n) => <div key={n.id} className="rounded-md border border-border bg-surface p-sm text-sm"><p className="text-foreground">{n.text}</p><p className="text-xs text-muted-foreground">{n.by} · {formatDateTime(n.at)}</p></div>)}
-            {t.notes.length === 0 && <p className="py-md text-center text-sm text-muted-foreground">No notes yet.</p>}
-          </div>
-        </div>
-      )}
+      <section className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">
+        Subscription, usage, billing and health for this school arrive with the Revenue phase — not shown here to avoid fabricating data.
+      </section>
     </div>
   );
 }
