@@ -1,5 +1,4 @@
 import type { Guardian, ParentAccount, Student, StudentGuardianLink } from "@/lib/types/students";
-import type { ImportJob } from "@/lib/types/import";
 import type { SavedView } from "@/lib/types/views";
 import type {
   AcademicEvent,
@@ -326,7 +325,7 @@ export type Db = {
   guardians: Guardian[];
   studentGuardianLinks: StudentGuardianLink[];
   parentAccounts: ParentAccount[];
-  importJobs: ImportJob[];
+  // Student bulk import migrated to PostgreSQL (Phase 4.1) — no mock import-jobs slice.
   savedViews: SavedView[];
   classes: ManagedClass[];
   teachers: Teacher[];
@@ -629,7 +628,6 @@ function buildSeedDb(): Db {
     guardians,
     studentGuardianLinks,
     parentAccounts,
-    importJobs: [],
     savedViews: [],
     classes: structuredClone(managedClasses),
     teachers,

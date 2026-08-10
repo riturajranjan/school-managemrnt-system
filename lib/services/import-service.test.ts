@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { resetDemoData, getSnapshot } from "@/lib/data/store";
+import { describe, expect, it } from "vitest";
 import { applyColumnMapping, parseCsvText, validateMappedRows } from "./import-service";
 
 const HEADER = "firstName,lastName,dob,gender,className,sectionName,guardianFirstName,guardianPhone,admissionNumber";
@@ -20,9 +19,10 @@ function rowsFromCsv(csv: string) {
   return applyColumnMapping(parsed.rows, mapping);
 }
 
+// These cover the CLIENT-side preliminary validation only (format + in-file
+// duplicates). Duplicate-against-database detection is authoritative on the
+// server — see lib/server/students/import-service.db.test.ts.
 describe("import validation", () => {
-  beforeEach(() => resetDemoData());
-
   it("accepts a fully valid row", () => {
     const csv = `${HEADER}\nAarav,Sharma,2016-04-12,male,Class 5,A,Rohit,+91 98765 43210,IMP-0001`;
     const { valid, errors } = validateMappedRows(rowsFromCsv(csv));
@@ -53,13 +53,6 @@ describe("import validation", () => {
     const csv = `${HEADER}\nAarav,Sharma,2016-04-12,male,Class 5,Z,Rohit,+91 98765 43210,IMP-0005`;
     const { errors } = validateMappedRows(rowsFromCsv(csv));
     expect(errors.some((e) => e.field === "sectionName")).toBe(true);
-  });
-
-  it("flags an admission number that already exists in the system", () => {
-    const existing = getSnapshot().students[0].admissionNumber;
-    const csv = `${HEADER}\nAarav,Sharma,2016-04-12,male,Class 5,A,Rohit,+91 98765 43210,${existing}`;
-    const { errors } = validateMappedRows(rowsFromCsv(csv));
-    expect(errors.some((e) => e.field === "admissionNumber")).toBe(true);
   });
 
   it("flags duplicate admission numbers within the same file", () => {

@@ -10,7 +10,6 @@ function makeDb(overrides: Partial<Db>): Db {
     guardians: [],
     studentGuardianLinks: [],
     parentAccounts: [],
-    importJobs: [],
     savedViews: [],
     classes: [],
     teachers: [],

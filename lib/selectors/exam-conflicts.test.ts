@@ -34,7 +34,6 @@ function makeDb(examSubjects: ExamSubject[], overrides: Partial<Db> = {}): Db {
     guardians: [],
     studentGuardianLinks: [],
     parentAccounts: [],
-    importJobs: [],
     savedViews: [],
     classes: [{ id: "class-1", name: "Class 1", order: 1, status: "active", sections: [{ id: "section-1", classId: "class-1", name: "A", capacity: 30, enrolledCount: 30, shift: "morning" }] }],
     teachers: [],

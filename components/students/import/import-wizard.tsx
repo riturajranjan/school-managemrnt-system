@@ -1,14 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSisStore } from "@/lib/hooks/use-store";
 import {
   applyColumnMapping,
-  commitImport,
   generateTemplateCsv,
   parseCsvText,
   rejectedRowsToCsv,
@@ -16,23 +14,62 @@ import {
   type MappedRow,
   type ParsedCsv,
 } from "@/lib/services/import-service";
-import { studentImportOptionalFields, studentImportRequiredFields, type ImportJob } from "@/lib/types/import";
-import { downloadTextFile, formatDateTime, generateId } from "@/lib/utils";
+import { importStudentsRequest, type ImportDetail } from "@/lib/hooks/api/use-students";
+import type { ImportRowError } from "@/lib/types/import";
+import { studentImportOptionalFields, studentImportRequiredFields } from "@/lib/types/import";
+import { downloadTextFile } from "@/lib/utils";
 
 type Step = "upload" | "mapping" | "review" | "complete";
 
 const allFields = [...studentImportRequiredFields, ...studentImportOptionalFields];
+const relationValues = new Set(["father", "mother", "guardian"]);
+
+// Build the canonical, server-validated DTO from a client-validated mapped row.
+// The server assigns tenant/school/branch/session — none of that comes from CSV.
+function toDto(r: MappedRow) {
+  const rel = relationValues.has((r.guardianRelationship || "").toLowerCase()) ? r.guardianRelationship.toLowerCase() : "guardian";
+  return {
+    admissionNumber: r.admissionNumber || undefined,
+    firstName: r.firstName,
+    middleName: r.middleName || undefined,
+    lastName: r.lastName,
+    dateOfBirth: r.dob,
+    gender: (r.gender || "prefer-not-to-say").toLowerCase(),
+    classLabel: r.className || undefined,
+    sectionLabel: r.sectionName || undefined,
+    rollNumber: r.rollNumber || undefined,
+    bloodGroup: r.bloodGroup || undefined,
+    nationality: r.nationality || undefined,
+    religion: r.religion || undefined,
+    category: r.category || undefined,
+    admissionType: "new",
+    guardian: r.guardianFirstName
+      ? { firstName: r.guardianFirstName, lastName: r.lastName, phone: r.guardianPhone || undefined, email: r.guardianEmail || undefined, relation: rel }
+      : undefined,
+  };
+}
 
 export function ImportWizard() {
-  const db = useSisStore();
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState("");
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [validation, setValidation] = useState<{ valid: MappedRow[]; errors: ReturnType<typeof validateMappedRows>["errors"] } | null>(null);
-  const [completedJob, setCompletedJob] = useState<ImportJob | null>(null);
+  const [validation, setValidation] = useState<{ valid: MappedRow[]; errors: ImportRowError[] } | null>(null);
+  const [serverErrors, setServerErrors] = useState<ImportRowError[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
 
   function handleFile(file: File) {
+    setImportError(null);
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setImportError("Unsupported file type — upload a .csv file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImportError("File is too large (max 5 MB).");
+      return;
+    }
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
@@ -53,29 +90,40 @@ export function ImportWizard() {
   function runValidation() {
     if (!parsed) return;
     const mapped = applyColumnMapping(parsed.rows, mapping);
-    const result = validateMappedRows(mapped);
-    setValidation(result);
+    setValidation(validateMappedRows(mapped));
+    setServerErrors([]);
+    setImportError(null);
     setStep("review");
   }
 
-  function runImport() {
+  // Real import: POST the canonical DTO. All-or-nothing — enabled only when the
+  // client preview has zero errors; the server re-validates authoritatively.
+  async function runImport() {
     if (!validation) return;
-    const job: ImportJob = {
-      id: generateId("import"),
-      fileName,
-      uploadedAt: new Date().toISOString(),
-      status: "importing",
-      totalRows: validation.valid.length + validation.errors.length,
-      validRows: validation.valid.length,
-      invalidRows: validation.errors.length,
-      importedRows: 0,
-      columnMapping: mapping,
-      errors: validation.errors,
-      performedBy: "Administrator",
-    };
-    commitImport(job, validation.valid);
-    setCompletedJob({ ...job, status: "completed", importedRows: validation.valid.length, completedAt: new Date().toISOString() });
-    setStep("complete");
+    setImporting(true);
+    setImportError(null);
+    setServerErrors([]);
+    const students = validation.valid.map(toDto);
+    const res = await importStudentsRequest(students);
+    setImporting(false);
+
+    if (res.success) {
+      setImportedCount(res.data.imported);
+      setStep("complete");
+      return;
+    }
+    if (res.error.code === "IMPORT_VALIDATION_ERROR" && res.error.details) {
+      // Map server row numbers (position in submitted list) back to CSV lines.
+      const mapped: ImportRowError[] = res.error.details.map((d: ImportDetail) => ({
+        row: validation.valid[d.row - 1]?.__row ?? d.row,
+        field: d.field,
+        message: d.message,
+      }));
+      setServerErrors(mapped);
+      setImportError("The server rejected some rows. Nothing was imported — fix the rows below and try again.");
+      return;
+    }
+    setImportError(res.error.message);
   }
 
   function reset() {
@@ -84,8 +132,12 @@ export function ImportWizard() {
     setParsed(null);
     setMapping({});
     setValidation(null);
-    setCompletedJob(null);
+    setServerErrors([]);
+    setImportError(null);
+    setImportedCount(0);
   }
+
+  const combinedErrors = validation ? [...validation.errors, ...serverErrors] : [];
 
   return (
     <div className="flex flex-col gap-md">
@@ -104,6 +156,12 @@ export function ImportWizard() {
           </li>
         ))}
       </ol>
+
+      {importError && (
+        <div className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error" role="alert">
+          {importError}
+        </div>
+      )}
 
       {step === "upload" && (
         <div className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
@@ -199,7 +257,7 @@ export function ImportWizard() {
               <p className="text-xs text-success">Valid rows</p>
             </div>
             <div className="rounded-md border border-error/30 bg-error/10 p-sm text-center">
-              <p className="text-xl font-bold text-error">{validation.errors.length}</p>
+              <p className="text-xl font-bold text-error">{combinedErrors.length}</p>
               <p className="text-xs text-error">Rows with errors</p>
             </div>
             <div className="rounded-md border border-border p-sm text-center">
@@ -208,23 +266,25 @@ export function ImportWizard() {
             </div>
           </div>
 
-          {validation.errors.length > 0 && (
+          {combinedErrors.length > 0 && (
             <div className="flex flex-col gap-sm">
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-1 text-sm font-semibold text-foreground">
-                  <AlertTriangle className="size-4 text-warning" /> Errors
+                  <AlertTriangle className="size-4 text-warning" /> Errors — fix all before importing (imports are all-or-nothing)
                 </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!parsed) return;
-                    const mapped = applyColumnMapping(parsed.rows, mapping);
-                    downloadTextFile("rejected-rows.csv", rejectedRowsToCsv(mapped, validation.errors));
-                  }}
-                >
-                  <Download className="size-3.5" /> Download rejected rows
-                </Button>
+                {validation.errors.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!parsed) return;
+                      const mapped = applyColumnMapping(parsed.rows, mapping);
+                      downloadTextFile("rejected-rows.csv", rejectedRowsToCsv(mapped, validation.errors));
+                    }}
+                  >
+                    <Download className="size-3.5" /> Download rejected rows
+                  </Button>
+                )}
               </div>
               <div className="max-h-48 overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-xs">
@@ -236,7 +296,7 @@ export function ImportWizard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {validation.errors.map((e, i) => (
+                    {combinedErrors.map((e, i) => (
                       <tr key={i} className="border-b border-border last:border-0">
                         <td className="px-sm py-1 text-foreground">{e.row}</td>
                         <td className="px-sm py-1 text-foreground">{e.field ?? "—"}</td>
@@ -250,43 +310,29 @@ export function ImportWizard() {
           )}
 
           <div className="flex justify-end gap-sm">
-            <Button variant="outline" onClick={reset}>
+            <Button variant="outline" onClick={reset} disabled={importing}>
               Start over
             </Button>
-            <Button onClick={runImport} disabled={validation.valid.length === 0}>
-              Import {validation.valid.length} valid record{validation.valid.length === 1 ? "" : "s"}
+            <Button onClick={runImport} disabled={importing || validation.valid.length === 0 || combinedErrors.length > 0}>
+              {importing ? "Importing…" : `Import ${validation.valid.length} record${validation.valid.length === 1 ? "" : "s"}`}
             </Button>
           </div>
         </div>
       )}
 
-      {step === "complete" && completedJob && (
+      {step === "complete" && (
         <div className="flex flex-col items-center gap-sm rounded-lg border border-border bg-surface p-lg text-center">
           <CheckCircle2 className="size-10 text-success" aria-hidden="true" />
-          <p className="text-sm font-semibold text-foreground">{completedJob.importedRows} students imported</p>
-          {completedJob.invalidRows > 0 && <p className="text-xs text-warning">{completedJob.invalidRows} rows were skipped due to validation errors.</p>}
+          <p className="text-sm font-semibold text-foreground">{importedCount} students imported successfully</p>
+          <p className="text-xs text-muted-foreground">These records are now stored in the database.</p>
           <div className="mt-sm flex gap-sm">
+            <Button asChild>
+              <Link href="/students">View students</Link>
+            </Button>
             <Button variant="outline" onClick={reset}>
               <Upload className="size-3.5" /> Import another file
             </Button>
           </div>
-        </div>
-      )}
-
-      {db.importJobs.length > 0 && (
-        <div className="rounded-lg border border-border p-sm">
-          <h3 className="mb-sm text-sm font-semibold text-foreground">Import history</h3>
-          <ul className="flex flex-col gap-1 text-sm">
-            {db.importJobs.map((job) => (
-              <li key={job.id} className="flex items-center justify-between">
-                <span className="text-foreground">{job.fileName}</span>
-                <span className="flex items-center gap-sm text-xs text-muted-foreground">
-                  <Badge tone={job.status === "completed" ? "success" : "error"}>{job.status}</Badge>
-                  {job.importedRows} imported · {formatDateTime(job.uploadedAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

@@ -62,3 +62,24 @@ export const linkGuardianRequest = (studentId: string, body: unknown): Promise<A
 
 export const unlinkGuardianRequest = (studentId: string, guardianId: string): Promise<ApiResult<{ success: boolean }>> =>
   apiDelete(`/api/students/${studentId}/guardians/${guardianId}`);
+
+// --- Bulk import (carries a row-level `details` array on validation failure) ---
+
+export type ImportDetail = { row: number; field?: string; message: string };
+export type ImportResponse =
+  | { success: true; data: { imported: number; failed: number; studentIds: string[] } }
+  | { success: false; error: { code: string; message: string; details?: ImportDetail[] } };
+
+export async function importStudentsRequest(students: unknown[]): Promise<ImportResponse> {
+  try {
+    const res = await fetch("/api/students/import", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ students }),
+    });
+    return (await res.json()) as ImportResponse;
+  } catch {
+    return { success: false, error: { code: "NETWORK_ERROR", message: "Network request failed" } };
+  }
+}

@@ -11,6 +11,11 @@ describe("Phase 4 mock removal", () => {
     expect("applications" in db).toBe(false);
   });
 
+  it("no longer exposes a student-import-jobs slice on the store (Phase 4.1)", () => {
+    const db = getSnapshot() as Record<string, unknown>;
+    expect("importJobs" in db).toBe(false);
+  });
+
   it("keeps the student slice (still used by unmigrated modules)", () => {
     const db = getSnapshot();
     expect(Array.isArray(db.students)).toBe(true);

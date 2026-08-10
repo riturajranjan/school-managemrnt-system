@@ -1,10 +1,7 @@
 import Papa from "papaparse";
-import { getSnapshot, setState } from "@/lib/data/store";
 import { schoolClasses } from "@/lib/data/seed/reference";
-import type { Guardian, Student, StudentGuardianLink } from "@/lib/types/students";
-import type { ImportJob, ImportRowError, StudentImportField } from "@/lib/types/import";
+import type { ImportRowError, StudentImportField } from "@/lib/types/import";
 import { studentImportOptionalFields, studentImportRequiredFields } from "@/lib/types/import";
-import { generateId } from "@/lib/utils";
 
 const allFields: readonly string[] = [...studentImportRequiredFields, ...studentImportOptionalFields];
 
@@ -54,8 +51,10 @@ export function applyColumnMapping(rows: Record<string, string>[], mapping: Reco
 
 const genderValues = new Set(["male", "female", "other", "prefer-not-to-say"]);
 
+// Client-side preliminary validation (UX only — the server re-validates and is
+// authoritative, including duplicate-against-database checks). Pure: reads no
+// store state.
 export function validateMappedRows(rows: MappedRow[]): { valid: MappedRow[]; errors: ImportRowError[] } {
-  const db = getSnapshot();
   const errors: ImportRowError[] = [];
   const valid: MappedRow[] = [];
   const seenAdmissionNumbers = new Set<string>();
@@ -86,9 +85,7 @@ export function validateMappedRows(rows: MappedRow[]): { valid: MappedRow[]; err
 
     if (row.admissionNumber) {
       const key = row.admissionNumber.toLowerCase();
-      if (db.students.some((s) => s.admissionNumber.toLowerCase() === key)) {
-        rowErrors.push({ row: row.__row, field: "admissionNumber", message: `Admission number "${row.admissionNumber}" already exists` });
-      } else if (seenAdmissionNumbers.has(key)) {
+      if (seenAdmissionNumbers.has(key)) {
         rowErrors.push({ row: row.__row, field: "admissionNumber", message: `Duplicate admission number "${row.admissionNumber}" within file` });
       }
       seenAdmissionNumbers.add(key);
@@ -110,98 +107,6 @@ export function validateMappedRows(rows: MappedRow[]): { valid: MappedRow[]; err
   }
 
   return { valid, errors };
-}
-
-export function commitImport(job: ImportJob, validRows: MappedRow[]): void {
-  const now = new Date().toISOString();
-  const newStudents: Student[] = [];
-  const newGuardians: Guardian[] = [];
-  const newLinks: StudentGuardianLink[] = [];
-
-  for (const row of validRows) {
-    const schoolClass = schoolClasses.find((c) => c.name.toLowerCase() === row.className.toLowerCase())!;
-    const section = schoolClass.sections.find((s) => s.name.toLowerCase() === row.sectionName.toLowerCase())!;
-    const studentId = generateId("student");
-    const guardianId = generateId("guardian");
-
-    newGuardians.push({
-      id: guardianId,
-      firstName: row.guardianFirstName,
-      lastName: row.lastName,
-      contact: { phone: row.guardianPhone, email: row.guardianEmail || undefined },
-      communicationPreference: "sms",
-    });
-
-    newLinks.push({
-      studentId,
-      guardianId,
-      relationship: (row.guardianRelationship as StudentGuardianLink["relationship"]) || "guardian",
-      isPrimary: true,
-      isEmergencyContact: true,
-      isAuthorizedPickup: true,
-      isFeeResponsible: true,
-    });
-
-    newStudents.push({
-      id: studentId,
-      admissionNumber: row.admissionNumber || `IMP-${studentId.slice(-6).toUpperCase()}`,
-      rollNumber: row.rollNumber || undefined,
-      profile: {
-        firstName: row.firstName,
-        middleName: row.middleName || undefined,
-        lastName: row.lastName,
-        dob: row.dob,
-        gender: (row.gender.toLowerCase() as Student["profile"]["gender"]) || "prefer-not-to-say",
-        bloodGroup: row.bloodGroup || undefined,
-        nationality: row.nationality || "Indian",
-        religion: row.religion || undefined,
-        category: row.category || undefined,
-      },
-      classId: schoolClass.id,
-      sectionId: section.id,
-      session: "2026-2027",
-      branchId: "main",
-      status: "active",
-      admissionDate: now,
-      admissionType: "new",
-      address: { line1: "", city: "", state: "", postalCode: "", country: "India" },
-      guardianIds: [guardianId],
-      primaryGuardianId: guardianId,
-      academics: { overallPercent: 0, trend: "flat", upcomingExams: [], recentHomework: [], subjectsAtRisk: [] },
-      attendance: { presentPercent: 100, presentDays: 0, absentDays: 0, lateDays: 0, totalDays: 0, todayStatus: "not-marked", trend7Day: [100, 100, 100, 100, 100, 100, 100] },
-      fees: { status: "pending", totalDue: 0, totalPaid: 0, overdueAmount: 0 },
-      health: { emergencyContactName: row.guardianFirstName, emergencyContactPhone: row.guardianPhone, allergies: [], conditions: [], medications: [] },
-      behaviourNotes: [],
-      pulse: {
-        overallScore: 75,
-        status: "good",
-        positiveTrend: "New enrollment — baseline pulse not yet established",
-        mainRisk: "Insufficient data",
-        suggestedAction: "Pulse will populate as attendance and academic data accrues.",
-        explanation: "Pulse blends attendance, gradebook, homework, and behaviour records into six weighted dimensions.",
-        dimensions: (["academics", "attendance", "engagement", "behaviour", "homework", "wellbeing"] as const).map((key) => ({
-          key,
-          label: key.charAt(0).toUpperCase() + key.slice(1),
-          score: 75,
-          tone: "info" as const,
-          trend: "flat" as const,
-          summary: "New enrollment — establishing baseline",
-        })),
-      },
-      documents: [],
-      timeline: [{ id: generateId("evt"), subjectId: studentId, category: "admission", title: "Imported via CSV import", actorName: job.performedBy, createdAt: now }],
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  setState((db) => ({
-    ...db,
-    students: [...newStudents, ...db.students],
-    guardians: [...db.guardians, ...newGuardians],
-    studentGuardianLinks: [...db.studentGuardianLinks, ...newLinks],
-    importJobs: [{ ...job, importedRows: newStudents.length, status: "completed", completedAt: now }, ...db.importJobs.filter((j) => j.id !== job.id)],
-  }));
 }
 
 export function rejectedRowsToCsv(rows: MappedRow[], errors: ImportRowError[]): string {
