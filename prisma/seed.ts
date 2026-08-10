@@ -14,6 +14,7 @@ import { PrismaClient } from "../lib/generated/prisma/client";
 import { hashPassword } from "../lib/server/password";
 import { PERMISSIONS, ROLE_PERMISSIONS } from "../lib/server/authz/catalog";
 import { seedPhase4 } from "./seed-phase4";
+import { seedPlans } from "./seed-plans";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
@@ -235,6 +236,11 @@ async function main() {
     branchId: mainBranch.id,
     academicSessionId: academicSession.id,
   });
+
+  // =========================================================================
+  // Super Admin Phase SA-4A — plan catalog (platform-global)
+  // =========================================================================
+  await seedPlans(prisma);
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

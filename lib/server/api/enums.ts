@@ -5,9 +5,11 @@ import type {
   AdmissionSource as DbAdmissionSource,
   AdmissionStage as DbAdmissionStage,
   AdmissionType as DbAdmissionType,
+  BillingInterval as DbBillingInterval,
   DocVerificationStatus as DbDocVerification,
   Gender as DbGender,
   GuardianRelation as DbGuardianRelation,
+  PlanStatus as DbPlanStatus,
   SchoolStatus as DbSchoolStatus,
   StudentStatus as DbStudentStatus,
 } from "@/lib/generated/prisma/enums";
@@ -90,3 +92,17 @@ export const schoolStatusToUi: Record<DbSchoolStatus, string> = {
   ARCHIVED: "archived",
 };
 export const schoolStatusFromUi = invert(schoolStatusToUi);
+
+/** Plan lifecycle + billing interval (Super Admin SA-4A). */
+export const planStatusToUi: Record<DbPlanStatus, string> = {
+  DRAFT: "draft",
+  ACTIVE: "active",
+  ARCHIVED: "archived",
+};
+export const planStatusFromUi = invert(planStatusToUi);
+
+export const billingIntervalToUi: Record<DbBillingInterval, string> = {
+  MONTHLY: "monthly",
+  YEARLY: "yearly",
+};
+export const billingIntervalFromUi = invert(billingIntervalToUi);

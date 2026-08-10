@@ -290,3 +290,26 @@ export type OnboardingDto = {
   completedAt: string | null;
   school: { id: string; name: string; code: string; status: string };
 };
+
+// --- Platform (Super Admin) plans (SA-4A) ------------------------------------
+
+export type PlanDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  status: string; // draft | active | archived
+  billingInterval: string; // monthly | yearly
+  currency: string; // ISO-4217, formatted client-side
+  price: number;
+  trialDays: number;
+  isPublic: boolean;
+  sortOrder: number;
+  limits: { maxStudents: number | null; maxStaff: number | null; maxBranches: number | null; storageGb: number | null };
+  supportLevel: string | null;
+  whiteLabel: boolean;
+  features: string[];
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+};

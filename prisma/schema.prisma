@@ -917,3 +917,73 @@ model SchoolOnboarding {
   @@index([status])
   @@map("school_onboarding")
 }
+
+// ===========================================================================
+// Super Admin Phase SA-4A — Plans (subscription plan catalog). Platform-global
+// (NOT tenant-scoped): the price/limits/feature-entitlements template that later
+// Subscriptions/Trials/Usage/Billing phases will reference. Monetary values are
+// structured (Decimal + currency code) — never formatted strings. Archived
+// instead of hard-deleted so future subscriptions stay historically valid.
+// ===========================================================================
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+model Plan {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String?
+
+  status          PlanStatus      @default(DRAFT)
+  billingInterval BillingInterval @default(MONTHLY)
+  currency        String          @default("INR") // ISO-4217; formatted client-side
+  price           Decimal         @db.Decimal(12, 2)
+  trialDays       Int             @default(0)
+  isPublic        Boolean         @default(true)
+  sortOrder       Int             @default(0)
+
+  // Structured plan limits (null = unlimited / not set). Live usage calculation
+  // is a later phase (Usage & Limits) — these are just the plan's ceilings.
+  maxStudents Int?
+  maxStaff    Int?
+  maxBranches Int?
+  storageGb   Int?
+
+  // Display metadata carried by the existing UI.
+  supportLevel String?
+  whiteLabel   Boolean @default(false)
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  features PlanFeature[]
+
+  @@index([status])
+  @@index([billingInterval])
+  @@index([sortOrder])
+  @@map("plans")
+}
+
+model PlanFeature {
+  id     String @id @default(cuid())
+  planId String
+  key    String // e.g. students, admissions, attendance, fees, transport, library
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, key])
+  @@index([planId])
+  @@map("plan_features")
+}
