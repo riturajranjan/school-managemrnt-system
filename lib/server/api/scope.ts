@@ -98,11 +98,13 @@ export async function assertSessionInScope(scope: OrgScope, academicSessionId: s
 export async function resolveCreateBranch(scope: OrgScope, explicitBranchId?: string): Promise<string> {
   if (explicitBranchId) return assertBranchInScope(scope, explicitBranchId);
   if (scope.branchId) return scope.branchId;
-  const branches = await prisma.branch.findMany({
-    where: { schoolId: scope.schoolId, status: { not: "ARCHIVED" } },
+  // Fall back to the school's single ACTIVE branch (a setup-pending/inactive
+  // branch is not a valid enrolment target).
+  const active = await prisma.branch.findMany({
+    where: { schoolId: scope.schoolId, status: "ACTIVE" },
     select: { id: true },
   });
-  if (branches.length === 1) return branches[0].id;
+  if (active.length === 1) return active[0].id;
   throw new HttpError("INVALID_BRANCH", "Select a branch for this record");
 }
 

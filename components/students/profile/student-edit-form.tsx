@@ -1,22 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { schoolClasses } from "@/lib/data/seed/reference";
-import { useStudent } from "@/lib/hooks/use-students";
-import { updateStudent } from "@/lib/services/students-service";
+import { updateStudentRequest, useStudentDetail } from "@/lib/hooks/api/use-students";
 import type { StudentStatus } from "@/lib/types/students";
 import { studentStatusLabels } from "@/lib/types/students";
 
@@ -31,28 +24,37 @@ type EditValues = {
 };
 
 export function StudentEditForm({ studentId }: { studentId: string }) {
-  const student = useStudent(studentId);
   const router = useRouter();
-  const [saved, setSaved] = useState(false);
+  const { data: student, loading, error } = useStudentDetail(studentId);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const form = useForm<EditValues>({
-    values: student
-      ? {
-          firstName: student.profile.firstName,
-          lastName: student.profile.lastName,
-          rollNumber: student.rollNumber ?? "",
-          classId: student.classId,
-          sectionId: student.sectionId,
-          status: student.status,
-          house: student.profile.house ?? "",
-        }
-      : undefined,
-  });
+  // Reverse-map the real class/section labels back onto the reference picklist ids.
+  const initial = useMemo<EditValues | undefined>(() => {
+    if (!student) return undefined;
+    const cls = schoolClasses.find((c) => c.name === student.classLabel);
+    const section = cls?.sections.find((s) => s.name === student.sectionLabel);
+    return {
+      firstName: student.firstName,
+      lastName: student.lastName,
+      rollNumber: student.rollNumber ?? "",
+      classId: cls?.id ?? "",
+      sectionId: section?.id ?? "",
+      status: (student.status as StudentStatus) ?? "active",
+      house: student.house ?? "",
+    };
+  }, [student]);
 
-  if (!student) {
+  const form = useForm<EditValues>({ values: initial });
+
+  const classId = form.watch("classId");
+  const sections = schoolClasses.find((c) => c.id === classId)?.sections ?? [];
+
+  if (loading) return <div className="py-2xl text-center text-sm text-muted-foreground">Loading student…</div>;
+  if (error || !student) {
     return (
       <div className="flex flex-col items-center gap-sm py-2xl text-center">
-        <p className="text-sm font-medium text-foreground">Student not found</p>
+        <p className="text-sm font-medium text-foreground">{error ? "Could not load student" : "Student not found"}</p>
         <Button asChild variant="outline">
           <Link href="/students">Back to Students</Link>
         </Button>
@@ -60,51 +62,41 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
     );
   }
 
-  const classId = form.watch("classId");
-  const sections = schoolClasses.find((c) => c.id === classId)?.sections ?? [];
-
-  function onSubmit(values: EditValues) {
-    updateStudent(studentId, {
-      profile: {
-        ...student!.profile,
-        firstName: values.firstName,
-        lastName: values.lastName,
-        house: values.house || undefined,
-      },
+  async function onSubmit(values: EditValues) {
+    setSaveError(null);
+    setSaving(true);
+    const classLabel = schoolClasses.find((c) => c.id === values.classId)?.name;
+    const sectionLabel = sections.find((s) => s.id === values.sectionId)?.name;
+    const res = await updateStudentRequest(studentId, {
+      firstName: values.firstName,
+      lastName: values.lastName,
       rollNumber: values.rollNumber || undefined,
-      classId: values.classId,
-      sectionId: values.sectionId,
+      house: values.house || undefined,
+      classLabel,
+      sectionLabel,
       status: values.status,
     });
-    setSaved(true);
-    setTimeout(() => router.push(`/students/${studentId}`), 500);
+    setSaving(false);
+    if (!res.success) {
+      setSaveError(res.error.message);
+      return;
+    }
+    router.push(`/students/${studentId}`);
   }
 
   return (
-    <div className="mx-auto flex  flex-col gap-md">
+    <div className="mx-auto flex flex-col gap-md">
       <h1 className="text-lg font-semibold text-foreground">Edit student</h1>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
-        {saved && (
-          <p className="rounded-md border border-success/30 bg-success/10 p-sm text-xs text-success">
-            Saved — redirecting…
-          </p>
-        )}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
+        {saveError && <p className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error">{saveError}</p>}
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
           <div>
             <Label htmlFor="firstName">First name</Label>
-            <Input
-              id="firstName"
-              {...form.register("firstName", { required: true })}
-            />
+            <Input id="firstName" {...form.register("firstName", { required: true })} />
           </div>
           <div>
             <Label htmlFor="lastName">Last name</Label>
-            <Input
-              id="lastName"
-              {...form.register("lastName", { required: true })}
-            />
+            <Input id="lastName" {...form.register("lastName", { required: true })} />
           </div>
           <div>
             <Label htmlFor="rollNumber">Roll number</Label>
@@ -127,7 +119,7 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
                     form.setValue("sectionId", "");
                   }}>
                   <SelectTrigger aria-label="Class">
-                    <SelectValue />
+                    <SelectValue placeholder="Select class" />
                   </SelectTrigger>
                   <SelectContent>
                     {schoolClasses.map((c) => (
@@ -172,13 +164,11 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(studentStatusLabels).map(
-                      ([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
+                    {Object.entries(studentStatusLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
@@ -187,13 +177,12 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
         </div>
 
         <div className="flex justify-end gap-sm border-t border-border pt-md">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push(`/students/${studentId}`)}>
+          <Button type="button" variant="outline" disabled={saving} onClick={() => router.push(`/students/${studentId}`)}>
             Cancel
           </Button>
-          <Button type="submit">Save changes</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
         </div>
       </form>
     </div>

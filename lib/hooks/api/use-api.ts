@@ -80,6 +80,29 @@ export function useApiResource<T>(url: string | null): ResourceState<T> {
   return { ...state, reload };
 }
 
+type MutationState = { loading: boolean; error: string | null };
+
+/**
+ * Wrap an async API call (apiPost/apiPatch/apiDelete) with loading/error state.
+ * `run` resolves to the ApiResult so callers can branch on success and read data.
+ */
+export function useApiMutation<TArgs extends unknown[], TData>(
+  fn: (...args: TArgs) => Promise<ApiResult<TData>>,
+): MutationState & { run: (...args: TArgs) => Promise<ApiResult<TData>>; reset: () => void } {
+  const [state, setState] = useState<MutationState>({ loading: false, error: null });
+  const run = useCallback(
+    async (...args: TArgs) => {
+      setState({ loading: true, error: null });
+      const res = await fn(...args);
+      setState({ loading: false, error: res.success ? null : res.error.message });
+      return res;
+    },
+    [fn],
+  );
+  const reset = useCallback(() => setState({ loading: false, error: null }), []);
+  return { ...state, run, reset };
+}
+
 /** Build a query string from a params object, omitting empty values. */
 export function buildQuery(params: Record<string, string | number | undefined | null>): string {
   const sp = new URLSearchParams();

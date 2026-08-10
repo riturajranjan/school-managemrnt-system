@@ -6,7 +6,6 @@ import { emptySaasState } from "@/lib/data/seed/saas";
 
 function makeDb(overrides: Partial<Db>): Db {
   return {
-    applications: [],
     students: [],
     guardians: [],
     studentGuardianLinks: [],

@@ -5,7 +5,8 @@ import { use, useMemo, useState } from "react";
 import { AlertTriangle, BookOpen, Plus } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
-import { StudentMobileCard, buildStudentColumns, useGoToStudent } from "@/components/students/student-table";
+import { ClassRosterMobileCard, buildClassRosterColumns } from "@/components/academics/classes/class-roster-table";
+import { useGoToStudent } from "@/components/students/student-table";
 import { TimelineList } from "@/components/timeline/timeline-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,7 @@ export default function ClassDetailPage({ params }: { params: Promise<{ classId:
   }
 
   const { capacity, enrolled } = classCapacity(schoolClass);
-  const studentColumns = buildStudentColumns();
+  const studentColumns = buildClassRosterColumns();
 
   const activity = [
     ...classLessonPlans.slice(0, 5).map((p) => ({
@@ -155,7 +156,7 @@ export default function ClassDetailPage({ params }: { params: Promise<{ classId:
             getRowId={(s) => s.id}
             caption="Students in this class"
             onRowClick={(s) => goToStudent(s.id)}
-            renderMobileCard={(s) => <StudentMobileCard student={s} selected={false} onToggleSelect={() => {}} onOpen={() => goToStudent(s.id)} />}
+            renderMobileCard={(s) => <ClassRosterMobileCard student={s} onOpen={() => goToStudent(s.id)} />}
             emptyTitle="No students yet"
           />
         </TabsContent>

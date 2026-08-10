@@ -15,20 +15,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { schoolClasses } from "@/lib/data/seed/reference";
-import { useSisStore } from "@/lib/hooks/use-store";
 import {
   studentFormSchema,
   type StudentFormValues,
 } from "@/lib/schemas/student-form";
-import { isDuplicateAdmissionNumber } from "@/lib/services/students-service";
-import { setState } from "@/lib/data/store";
-import { generateId } from "@/lib/utils";
-import type { Student } from "@/lib/types/students";
+import { createStudentRequest } from "@/lib/hooks/api/use-students";
 
 export default function NewStudentPage() {
   const router = useRouter();
-  const db = useSisStore();
-  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(studentFormSchema),
@@ -41,142 +37,45 @@ export default function NewStudentPage() {
   const classId = form.watch("classId");
   const sections = schoolClasses.find((c) => c.id === classId)?.sections ?? [];
 
-  function onSubmit(values: StudentFormValues) {
-    if (isDuplicateAdmissionNumber(db, values.admissionNumber)) {
-      setDuplicateError(
-        `Admission number "${values.admissionNumber}" is already in use.`,
-      );
-      return;
-    }
-    const now = new Date().toISOString();
-    const studentId = generateId("student");
-    const guardianId = generateId("guardian");
-
-    const student: Student = {
-      id: studentId,
+  // Real create: POST /api/students. Class/section come from the reference
+  // picklist (labels); the server assigns tenant/school/branch/session.
+  async function onSubmit(values: StudentFormValues) {
+    setSubmitError(null);
+    setSubmitting(true);
+    const classLabel = schoolClasses.find((c) => c.id === values.classId)?.name;
+    const sectionLabel = sections.find((s) => s.id === values.sectionId)?.name;
+    const body = {
       admissionNumber: values.admissionNumber,
       rollNumber: values.rollNumber || undefined,
-      profile: {
-        firstName: values.firstName,
-        lastName: values.lastName,
-        dob: values.dob,
-        gender: values.gender,
-        nationality: "Indian",
-      },
-      classId: values.classId,
-      sectionId: values.sectionId,
-      session: "2026-2027",
-      branchId: "main",
-      status: "active",
+      firstName: values.firstName,
+      lastName: values.lastName,
+      dateOfBirth: values.dob,
+      gender: values.gender,
       admissionDate: values.admissionDate,
-      admissionType: "new",
-      address: {
-        line1: "",
-        city: "",
-        state: "",
-        postalCode: "",
-        country: "India",
-      },
-      guardianIds: [guardianId],
-      primaryGuardianId: guardianId,
-      academics: {
-        overallPercent: 0,
-        trend: "flat",
-        upcomingExams: [],
-        recentHomework: [],
-        subjectsAtRisk: [],
-      },
-      attendance: {
-        presentPercent: 100,
-        presentDays: 0,
-        absentDays: 0,
-        lateDays: 0,
-        totalDays: 0,
-        todayStatus: "not-marked",
-        trend7Day: [100, 100, 100, 100, 100, 100, 100],
-      },
-      fees: { status: "pending", totalDue: 0, totalPaid: 0, overdueAmount: 0 },
-      health: {
-        emergencyContactName: values.guardianFirstName,
-        emergencyContactPhone: values.guardianPhone,
-        allergies: [],
-        conditions: [],
-        medications: [],
-      },
-      behaviourNotes: [],
-      pulse: {
-        overallScore: 75,
-        status: "good",
-        positiveTrend: "New enrollment — baseline pulse not yet established",
-        mainRisk: "Insufficient data",
-        suggestedAction:
-          "Pulse will populate as attendance and academic data accrues.",
-        explanation:
-          "Pulse blends attendance, gradebook, homework, and behaviour records into six weighted dimensions.",
-        dimensions: (
-          [
-            "academics",
-            "attendance",
-            "engagement",
-            "behaviour",
-            "homework",
-            "wellbeing",
-          ] as const
-        ).map((key) => ({
-          key,
-          label: key.charAt(0).toUpperCase() + key.slice(1),
-          score: 75,
-          tone: "info" as const,
-          trend: "flat" as const,
-          summary: "New enrollment — establishing baseline",
-        })),
-      },
-      documents: [],
-      timeline: [
-        {
-          id: generateId("evt"),
-          subjectId: studentId,
-          category: "admission",
-          title: "Student record created",
-          actorName: "Administrator",
-          createdAt: now,
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setState((current) => ({
-      ...current,
-      students: [student, ...current.students],
+      admissionType: "new" as const,
+      classLabel,
+      sectionLabel,
       guardians: [
-        ...current.guardians,
         {
-          id: guardianId,
           firstName: values.guardianFirstName,
           lastName: values.guardianLastName,
-          contact: {
-            phone: values.guardianPhone,
-            email: values.guardianEmail || undefined,
-          },
-          communicationPreference: "sms",
-        },
-      ],
-      studentGuardianLinks: [
-        ...current.studentGuardianLinks,
-        {
-          studentId,
-          guardianId,
-          relationship: "guardian",
+          phone: values.guardianPhone,
+          email: values.guardianEmail || undefined,
+          relation: "guardian" as const,
           isPrimary: true,
           isEmergencyContact: true,
-          isAuthorizedPickup: true,
+          authorizedPickup: true,
           isFeeResponsible: true,
         },
       ],
-    }));
-
-    router.push(`/students/${studentId}`);
+    };
+    const res = await createStudentRequest(body);
+    setSubmitting(false);
+    if (!res.success) {
+      setSubmitError(res.error.message);
+      return;
+    }
+    router.push(`/students/${res.data.id}`);
   }
 
   return (
@@ -185,9 +84,9 @@ export default function NewStudentPage() {
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md">
-        {duplicateError && (
+        {submitError && (
           <p className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error">
-            {duplicateError}
+            {submitError}
           </p>
         )}
 
@@ -381,10 +280,13 @@ export default function NewStudentPage() {
           <Button
             type="button"
             variant="outline"
+            disabled={submitting}
             onClick={() => router.push("/students")}>
             Cancel
           </Button>
-          <Button type="submit">Create student</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Creating…" : "Create student"}
+          </Button>
         </div>
       </form>
     </div>

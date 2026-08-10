@@ -1,4 +1,3 @@
-import type { AdmissionApplication } from "@/lib/types/admissions";
 import type { Guardian, ParentAccount, Student, StudentGuardianLink } from "@/lib/types/students";
 import type { ImportJob } from "@/lib/types/import";
 import type { SavedView } from "@/lib/types/views";
@@ -266,7 +265,6 @@ import {
   reminderRules,
   vendors,
 } from "./seed/finance";
-import { generateAdmissionApplications } from "./seed/admissions";
 import { generateStudents } from "./seed/students";
 import {
   academicEvents,
@@ -322,7 +320,8 @@ import { buildAdminData } from "./seed/admin";
 import { buildSaasData } from "./seed/saas";
 
 export type Db = {
-  applications: AdmissionApplication[];
+  // Admissions/applications migrated to PostgreSQL (Backend Phase 4) — see
+  // /api/admissions. No mock admissions slice remains in this store.
   students: Student[];
   guardians: Guardian[];
   studentGuardianLinks: StudentGuardianLink[];
@@ -599,7 +598,6 @@ const DEFAULT_SHIFT_POLICIES: TransportShiftPolicy[] = [
 ];
 
 function buildSeedDb(): Db {
-  const applications = generateAdmissionApplications();
   const { students, guardians, studentGuardianLinks, parentAccounts } = generateStudents();
   const homeworkSubmissions = generateHomeworkSubmissions(students, homeworkList);
   const studentSupportAlerts = generateStudentSupportAlerts(students);
@@ -627,7 +625,6 @@ function buildSeedDb(): Db {
   });
 
   return {
-    applications,
     students: studentsWithTransport,
     guardians,
     studentGuardianLinks,
@@ -918,7 +915,10 @@ export function hydrateFromStorage() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Db;
-    if (parsed && Array.isArray(parsed.applications) && Array.isArray(parsed.students) && Array.isArray(parsed.classes)) {
+    // Note: admissions/applications migrated to PostgreSQL (Phase 4) and are no
+    // longer part of this store; a stale `applications` key in an old cached
+    // snapshot is simply ignored (nothing reads it).
+    if (parsed && Array.isArray(parsed.students) && Array.isArray(parsed.classes)) {
       // Older cached snapshots predate the conflict-dismissal feature and the whole Phase 4
       // exams domain — backfill missing fields rather than force a full reseed.
       state = {

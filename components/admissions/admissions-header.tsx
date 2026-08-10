@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useShell } from "@/components/shell/shell-context";
 import { usePermissions } from "@/components/providers/permissions-provider";
 
-export function AdmissionsHeader({ onImport, onExport }: { onImport: () => void; onExport: () => void }) {
+export function AdmissionsHeader({ onImport, onExport }: { onImport?: () => void; onExport: () => void }) {
   const { activeSession, activeBranchName } = useShell();
   const { can } = usePermissions();
   const branchName = activeBranchName || "All branches";
@@ -28,10 +28,12 @@ export function AdmissionsHeader({ onImport, onExport }: { onImport: () => void;
       </div>
 
       <div className="flex flex-wrap items-center gap-xs">
-        <Button variant="outline" size="sm" onClick={onImport}>
-          <Upload className="size-3.5" aria-hidden="true" />
-          Import
-        </Button>
+        {onImport && (
+          <Button variant="outline" size="sm" onClick={onImport}>
+            <Upload className="size-3.5" aria-hidden="true" />
+            Import
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={onExport}>
           <Download className="size-3.5" aria-hidden="true" />
           Export

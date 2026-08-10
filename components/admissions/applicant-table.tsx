@@ -5,34 +5,29 @@ import { CheckCircle2, Download, Trash2, UserCheck } from "lucide-react";
 import type { ColumnDef, RowAction } from "@/components/data-table/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { findClass } from "@/lib/data/seed/reference";
-import type { AdmissionApplication } from "@/lib/types/admissions";
-import { admissionSourceLabels } from "@/lib/types/admissions";
+import type { AdmissionListItemDto } from "@/lib/api/contracts";
+import { admissionSourceLabels, type AdmissionSource } from "@/lib/types/admissions";
 import { formatDate, initialsOf } from "@/lib/utils";
 import { stageTone } from "./stage-meta";
+import type { AdmissionStageKey } from "@/lib/types/admissions";
 
-function applicantName(app: AdmissionApplication) {
-  return `${app.student.firstName} ${app.student.lastName}`;
-}
+// Real-data admission columns. Guardian / document / interview columns were
+// dropped — that detail is not part of the list DTO and (interview) is future.
 
-function primaryGuardian(app: AdmissionApplication) {
-  return app.guardians.find((g) => g.isPrimary) ?? app.guardians[0];
-}
-
-export function buildApplicantColumns(): ColumnDef<AdmissionApplication>[] {
+export function buildApplicantColumns(): ColumnDef<AdmissionListItemDto>[] {
   return [
     {
       id: "applicant",
       header: "Applicant",
       alwaysVisible: true,
-      sortValue: (app) => applicantName(app),
+      sortValue: (app) => app.applicantName,
       cell: (app) => (
         <div className="flex items-center gap-sm">
           <Avatar className="size-8">
-            <AvatarFallback>{initialsOf(app.student.firstName, app.student.lastName)}</AvatarFallback>
+            <AvatarFallback>{initialsOf(app.firstName, app.lastName)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{applicantName(app)}</p>
+            <p className="truncate text-sm font-medium text-foreground">{app.applicantName}</p>
             <p className="truncate text-xs text-muted-foreground">{app.applicationNumber}</p>
           </div>
         </div>
@@ -41,51 +36,24 @@ export function buildApplicantColumns(): ColumnDef<AdmissionApplication>[] {
     {
       id: "appliedClass",
       header: "Applied class",
-      sortValue: (app) => findClass(app.appliedClassId)?.order ?? 0,
-      cell: (app) => <span className="text-sm text-foreground">{findClass(app.appliedClassId)?.name ?? "—"}</span>,
-    },
-    {
-      id: "parent",
-      header: "Parent",
-      cell: (app) => {
-        const guardian = primaryGuardian(app);
-        return <span className="text-sm text-foreground">{guardian ? `${guardian.firstName} ${guardian.lastName}` : "—"}</span>;
-      },
+      sortValue: (app) => app.appliedClass ?? "",
+      cell: (app) => <span className="text-sm text-foreground">{app.appliedClass ?? "—"}</span>,
     },
     {
       id: "contact",
       header: "Contact",
-      cell: (app) => <span className="text-xs text-muted-foreground">{primaryGuardian(app)?.contact.phone ?? "—"}</span>,
+      cell: (app) => <span className="text-xs text-muted-foreground">{app.phone ?? app.email ?? "—"}</span>,
     },
     {
       id: "source",
       header: "Source",
       sortValue: (app) => app.source,
-      cell: (app) => <span className="text-sm text-foreground">{admissionSourceLabels[app.source]}</span>,
+      cell: (app) => <span className="text-sm text-foreground">{admissionSourceLabels[app.source as AdmissionSource] ?? app.source}</span>,
     },
     {
       id: "stage",
       header: "Current stage",
-      cell: (app) => <Badge tone={stageTone[app.stage]}>{app.stage.replace(/-/g, " ")}</Badge>,
-    },
-    {
-      id: "documents",
-      header: "Documents",
-      cell: (app) => {
-        const approved = app.documents.filter((d) => d.status === "approved").length;
-        const total = app.documents.length;
-        return (
-          <span className="text-xs text-muted-foreground">
-            {total === 0 ? "—" : `${approved}/${total} approved`}
-          </span>
-        );
-      },
-    },
-    {
-      id: "interview",
-      header: "Interview date",
-      sortValue: (app) => (app.interview ? new Date(app.interview.scheduledAt).getTime() : 0),
-      cell: (app) => <span className="text-xs text-muted-foreground">{app.interview ? formatDate(app.interview.scheduledAt) : "—"}</span>,
+      cell: (app) => <Badge tone={stageTone[app.stage as AdmissionStageKey] ?? "neutral"}>{app.stage.replace(/-/g, " ")}</Badge>,
     },
     {
       id: "assigned",
@@ -110,21 +78,31 @@ export function buildApplicantColumns(): ColumnDef<AdmissionApplication>[] {
 }
 
 export function buildApplicantRowActions(actions: {
-  onApprove: (app: AdmissionApplication) => void;
-  onAssign: (app: AdmissionApplication) => void;
-  onExport: (app: AdmissionApplication) => void;
-  onReject: (app: AdmissionApplication) => void;
-}): RowAction<AdmissionApplication>[] {
+  onApprove: (app: AdmissionListItemDto) => void;
+  onOpen: (app: AdmissionListItemDto) => void;
+  onExport: (app: AdmissionListItemDto) => void;
+  onReject: (app: AdmissionListItemDto) => void;
+}): RowAction<AdmissionListItemDto>[] {
+  const terminal = (app: AdmissionListItemDto) => app.stage === "enrolled" || app.stage === "rejected";
   return [
-    { key: "approve", label: "Approve", icon: <CheckCircle2 className="size-3.5" />, onSelect: actions.onApprove, hidden: (app) => app.stage === "enrolled" || app.stage === "rejected" },
-    { key: "assign", label: "Assign staff", icon: <UserCheck className="size-3.5" />, onSelect: actions.onAssign },
+    { key: "approve", label: "Approve", icon: <CheckCircle2 className="size-3.5" />, onSelect: actions.onApprove, hidden: terminal },
+    { key: "open", label: "Open", icon: <UserCheck className="size-3.5" />, onSelect: actions.onOpen },
     { key: "export", label: "Export", icon: <Download className="size-3.5" />, onSelect: actions.onExport },
-    { key: "reject", label: "Reject", icon: <Trash2 className="size-3.5" />, onSelect: actions.onReject, destructive: true, hidden: (app) => app.stage === "enrolled" || app.stage === "rejected" },
+    { key: "reject", label: "Reject", icon: <Trash2 className="size-3.5" />, onSelect: actions.onReject, destructive: true, hidden: terminal },
   ];
 }
 
-export function ApplicantMobileCard({ app, selected, onToggleSelect, onOpen }: { app: AdmissionApplication; selected: boolean; onToggleSelect: () => void; onOpen: () => void }) {
-  const guardian = primaryGuardian(app);
+export function ApplicantMobileCard({
+  app,
+  selected,
+  onToggleSelect,
+  onOpen,
+}: {
+  app: AdmissionListItemDto;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onOpen: () => void;
+}) {
   return (
     <button
       type="button"
@@ -137,20 +115,22 @@ export function ApplicantMobileCard({ app, selected, onToggleSelect, onOpen }: {
         onClick={(e) => e.stopPropagation()}
         onChange={onToggleSelect}
         className="mt-1 size-4 shrink-0 accent-primary"
-        aria-label={`Select ${applicantName(app)}`}
+        aria-label={`Select ${app.applicantName}`}
       />
       <Avatar className="size-10 shrink-0">
-        <AvatarFallback>{initialsOf(app.student.firstName, app.student.lastName)}</AvatarFallback>
+        <AvatarFallback>{initialsOf(app.firstName, app.lastName)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-xs">
-          <p className="truncate text-sm font-semibold text-foreground">{applicantName(app)}</p>
-          <Badge tone={stageTone[app.stage]} className="shrink-0">{app.stage.replace(/-/g, " ")}</Badge>
+          <p className="truncate text-sm font-semibold text-foreground">{app.applicantName}</p>
+          <Badge tone={stageTone[app.stage as AdmissionStageKey] ?? "neutral"} className="shrink-0">
+            {app.stage.replace(/-/g, " ")}
+          </Badge>
         </div>
         <p className="truncate text-xs text-muted-foreground">
-          {app.applicationNumber} · {findClass(app.appliedClassId)?.name ?? "—"}
+          {app.applicationNumber} · {app.appliedClass ?? "—"}
         </p>
-        <p className="truncate text-xs text-muted-foreground">{guardian ? `${guardian.firstName} ${guardian.lastName} · ${guardian.contact.phone}` : "—"}</p>
+        <p className="truncate text-xs text-muted-foreground">{app.phone ?? app.email ?? "—"}</p>
       </div>
     </button>
   );

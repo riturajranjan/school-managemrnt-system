@@ -203,6 +203,33 @@ export async function listApplications(scope: OrgScope, params: AdmissionListPar
   return { data: rows.map(serializeApplicationSummary), meta };
 }
 
+/** Global admission aggregates for the pipeline board + insight tiles (§20). */
+export async function getAdmissionStats(scope: OrgScope) {
+  const where: Prisma.AdmissionApplicationWhereInput = { tenantId: scope.tenantId, schoolId: scope.schoolId };
+  const [total, byStageRaw, bySourceRaw] = await Promise.all([
+    prisma.admissionApplication.count({ where }),
+    prisma.admissionApplication.groupBy({ by: ["stage"], where, _count: { _all: true } }),
+    prisma.admissionApplication.groupBy({ by: ["source"], where, _count: { _all: true } }),
+  ]);
+
+  const byStage: Record<string, number> = {};
+  for (const s of Object.values(admissionStageToUi)) byStage[s] = 0;
+  for (const row of byStageRaw) byStage[admissionStageToUi[row.stage]] = row._count._all;
+
+  const bySource: Record<string, number> = {};
+  for (const row of bySourceRaw) bySource[admissionSourceToUi[row.source]] = row._count._all;
+
+  return {
+    total,
+    byStage,
+    bySource,
+    approved: byStage["approved"] ?? 0,
+    rejected: byStage["rejected"] ?? 0,
+    enrolled: byStage["enrolled"] ?? 0,
+    waitlisted: byStage["waitlisted"] ?? 0,
+  };
+}
+
 export async function getApplicationDetail(scope: OrgScope, applicationId: string) {
   const a = await prisma.admissionApplication.findFirst({
     where: { id: applicationId, tenantId: scope.tenantId, schoolId: scope.schoolId },

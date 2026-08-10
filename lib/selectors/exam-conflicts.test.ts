@@ -30,7 +30,6 @@ function subject(id: string, overrides: Partial<ExamSubject> = {}): ExamSubject 
 
 function makeDb(examSubjects: ExamSubject[], overrides: Partial<Db> = {}): Db {
   return {
-    applications: [],
     students: [],
     guardians: [],
     studentGuardianLinks: [],
