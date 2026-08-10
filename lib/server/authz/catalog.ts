@@ -61,10 +61,58 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "settings.manage", module: "settings", action: "manage", description: "Manage settings" },
 
   // Platform-only. Intentionally NOT granted to any tenant/school role.
+  // The umbrella gate for the SaaS control center.
   { key: "super_admin.access", module: "super_admin", action: "access", description: "Access the platform control center" },
+
+  // ---------------------------------------------------------------------------
+  // Platform (SaaS control center) permission namespace (Super Admin Phase SA-1).
+  // Prefixed `platform.*` so it can never be confused with a tenant/school
+  // permission. These are granted ONLY to platform admins, by their PlatformRole
+  // (see PLATFORM_ROLE_PERMISSIONS) — never via a tenant RoleAssignment.
+  // ---------------------------------------------------------------------------
+  { key: "platform.dashboard.view", module: "platform.dashboard", action: "view", description: "View the platform dashboard" },
+  { key: "platform.schools.view", module: "platform.schools", action: "view", description: "View customer schools" },
+  { key: "platform.schools.create", module: "platform.schools", action: "create", description: "Provision new schools" },
+  { key: "platform.schools.update", module: "platform.schools", action: "update", description: "Edit school records" },
+  { key: "platform.schools.suspend", module: "platform.schools", action: "suspend", description: "Suspend/reactivate schools" },
+  { key: "platform.onboarding.view", module: "platform.onboarding", action: "view", description: "View onboarding" },
+  { key: "platform.onboarding.manage", module: "platform.onboarding", action: "manage", description: "Manage onboarding" },
+  { key: "platform.plans.view", module: "platform.plans", action: "view", description: "View plans" },
+  { key: "platform.plans.manage", module: "platform.plans", action: "manage", description: "Manage plans" },
+  { key: "platform.subscriptions.view", module: "platform.subscriptions", action: "view", description: "View subscriptions" },
+  { key: "platform.subscriptions.manage", module: "platform.subscriptions", action: "manage", description: "Manage subscriptions" },
+  { key: "platform.trials.view", module: "platform.trials", action: "view", description: "View trials" },
+  { key: "platform.trials.manage", module: "platform.trials", action: "manage", description: "Manage trials" },
+  { key: "platform.usage.view", module: "platform.usage", action: "view", description: "View usage & limits" },
+  { key: "platform.billing.view", module: "platform.billing", action: "view", description: "View billing" },
+  { key: "platform.billing.manage", module: "platform.billing", action: "manage", description: "Manage billing" },
+  { key: "platform.invoices.view", module: "platform.invoices", action: "view", description: "View invoices" },
+  { key: "platform.invoices.manage", module: "platform.invoices", action: "manage", description: "Manage invoices" },
+  { key: "platform.payments.view", module: "platform.payments", action: "view", description: "View payments" },
+  { key: "platform.features.view", module: "platform.features", action: "view", description: "View features" },
+  { key: "platform.features.manage", module: "platform.features", action: "manage", description: "Manage features" },
+  { key: "platform.addons.view", module: "platform.addons", action: "view", description: "View add-ons" },
+  { key: "platform.addons.manage", module: "platform.addons", action: "manage", description: "Manage add-ons" },
+  { key: "platform.marketplace.view", module: "platform.marketplace", action: "view", description: "View marketplace" },
+  { key: "platform.marketplace.manage", module: "platform.marketplace", action: "manage", description: "Manage marketplace" },
+  { key: "platform.domains.view", module: "platform.domains", action: "view", description: "View domains" },
+  { key: "platform.domains.manage", module: "platform.domains", action: "manage", description: "Manage domains" },
+  { key: "platform.branding.view", module: "platform.branding", action: "view", description: "View platform branding" },
+  { key: "platform.branding.manage", module: "platform.branding", action: "manage", description: "Manage platform branding" },
+  { key: "platform.support.view", module: "platform.support", action: "view", description: "View support tickets" },
+  { key: "platform.support.manage", module: "platform.support", action: "manage", description: "Manage support tickets" },
+  { key: "platform.tenant_health.view", module: "platform.tenant_health", action: "view", description: "View tenant health" },
+  { key: "platform.settings.view", module: "platform.settings", action: "view", description: "View platform settings" },
+  { key: "platform.settings.manage", module: "platform.settings", action: "manage", description: "Manage platform settings" },
+  { key: "platform.audit.view", module: "platform.audit", action: "view", description: "View the platform audit log" },
 ];
 
 export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
+
+/** All platform-scope keys (the umbrella gate + the `platform.*` namespace). */
+export const PLATFORM_PERMISSION_KEYS = PERMISSION_KEYS.filter(
+  (k) => k === "super_admin.access" || k.startsWith("platform."),
+);
 
 // System-role key → permission keys. No wildcard admin; super_admin.access is
 // never granted here (platform access is a separate boundary via PlatformAdmin).
@@ -118,6 +166,58 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   TRANSPORT_MANAGER: ["dashboard.view", "transport.view", "transport.manage"],
   HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage"],
 };
+
+// ---------------------------------------------------------------------------
+// PlatformRole → platform permission keys (Super Admin Phase SA-1).
+//
+// This is a SEPARATE authorization domain from ROLE_PERMISSIONS above. It maps
+// the PlatformAdmin.role enum (SUPER_ADMIN | SUPPORT | BILLING | AUDITOR) to
+// `platform.*` permissions, resolved in code for platform admins only. Every
+// platform role also implicitly receives `super_admin.access` (the gate) in the
+// resolver. A platform role NEVER grants tenant permissions, and a tenant role
+// NEVER appears here.
+// ---------------------------------------------------------------------------
+const PLATFORM_ONLY_KEYS = PLATFORM_PERMISSION_KEYS.filter((k) => k !== "super_admin.access");
+
+export const PLATFORM_ROLE_PERMISSIONS: Record<string, string[]> = {
+  // Full platform authority.
+  SUPER_ADMIN: [...PLATFORM_ONLY_KEYS],
+  // Customer-success / support: schools + onboarding + support + health + read
+  // billing context; no plan/feature/domain/branding management.
+  SUPPORT: [
+    "platform.dashboard.view",
+    "platform.schools.view",
+    "platform.onboarding.view", "platform.onboarding.manage",
+    "platform.subscriptions.view",
+    "platform.trials.view",
+    "platform.usage.view",
+    "platform.invoices.view",
+    "platform.payments.view",
+    "platform.support.view", "platform.support.manage",
+    "platform.tenant_health.view",
+    "platform.audit.view",
+  ],
+  // Billing operations: revenue surfaces (plans/subscriptions/billing/invoices).
+  BILLING: [
+    "platform.dashboard.view",
+    "platform.schools.view",
+    "platform.plans.view", "platform.plans.manage",
+    "platform.subscriptions.view", "platform.subscriptions.manage",
+    "platform.trials.view", "platform.trials.manage",
+    "platform.usage.view",
+    "platform.billing.view", "platform.billing.manage",
+    "platform.invoices.view", "platform.invoices.manage",
+    "platform.payments.view",
+  ],
+  // Read-only compliance role: view everything, manage nothing.
+  AUDITOR: PLATFORM_ONLY_KEYS.filter((k) => k.endsWith(".view")),
+};
+
+/** Platform permission keys for a PlatformRole (incl. the umbrella gate). */
+export function platformPermissionsForRole(role: string | null | undefined): string[] {
+  const granted = (role && PLATFORM_ROLE_PERMISSIONS[role]) || [];
+  return ["super_admin.access", ...granted];
+}
 
 // Bridge: DB system-role key → the existing UI `UserRole` value, so the client
 // PermissionsProvider can render for the user's REAL active role (not a mock

@@ -6,10 +6,13 @@ import { cache } from "react";
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/server/auth/current-user";
 import type { SafeUser } from "@/lib/server/auth/service";
+import { platformPermissionsForRole } from "./catalog";
 
 export type AuthzContext = {
   user: SafeUser;
   isPlatformAdmin: boolean;
+  /** The PlatformAdmin.role (SUPER_ADMIN | SUPPORT | BILLING | AUDITOR) or null. */
+  platformRole: string | null;
   activeRoleKey: string | null;
   permissions: Set<string>;
   schoolId: string | null;
@@ -51,8 +54,17 @@ export async function resolveUserAuthz(
     : [];
 
   const permissions = new Set(rolePerms.map((rp) => rp.permission.key));
-  // Platform access is a separate boundary — never derived from a tenant role.
-  if (isPlatformAdmin) permissions.add("super_admin.access");
+
+  // Platform authorization is a SEPARATE domain — granted only to real platform
+  // admins, by their PlatformRole, and never derived from (or mixed with) tenant
+  // role permissions. Tenant permissions above come exclusively from real role
+  // assignments; we never do `if (isPlatformAdmin) return true`.
+  let platformRole: string | null = null;
+  if (isPlatformAdmin) {
+    const pa = await prisma.platformAdmin.findUnique({ where: { userId }, select: { role: true } });
+    platformRole = pa?.role ?? null;
+    for (const key of platformPermissionsForRole(platformRole)) permissions.add(key);
+  }
 
   const activeRoleKey = activeRoleId
     ? assignments.find((a) => a.roleId === activeRoleId)?.role.key ?? null
@@ -60,6 +72,7 @@ export async function resolveUserAuthz(
 
   return {
     isPlatformAdmin,
+    platformRole,
     activeRoleKey,
     permissions,
     schoolId: uac?.schoolId ?? null,

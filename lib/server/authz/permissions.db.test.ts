@@ -48,11 +48,29 @@ describe.skipIf(!dbReady)("permission resolver (DB)", () => {
     expect(ctx.permissions.has("fees.collect")).toBe(false);
   });
 
-  it("platform admin gets super_admin.access but NO tenant role permissions", async () => {
+  it("platform admin gets super_admin.access + platform permissions but NO tenant permissions", async () => {
     const { ctx } = await permsFor("platform.admin@novyra.example");
     expect(ctx.isPlatformAdmin).toBe(true);
+    expect(ctx.platformRole).toBe("SUPER_ADMIN");
+    // Gate + granular platform permissions (from PlatformRole, resolved in code).
     expect(ctx.permissions.has("super_admin.access")).toBe(true);
+    expect(ctx.permissions.has("platform.schools.view")).toBe(true);
+    expect(ctx.permissions.has("platform.schools.create")).toBe(true);
+    // But NEVER tenant permissions — platform is a separate authorization domain.
     expect(ctx.permissions.has("students.create")).toBe(false);
+    expect(ctx.permissions.has("students.view")).toBe(false);
+    expect(ctx.permissions.has("fees.collect")).toBe(false);
+    expect(ctx.permissions.has("admissions.approve")).toBe(false);
+  });
+
+  it("a school role gets NO platform permissions (and no gate)", async () => {
+    const { ctx } = await permsFor("admin@novyra-demo.example");
+    expect(ctx.isPlatformAdmin).toBe(false);
+    expect(ctx.platformRole).toBeNull();
+    expect(ctx.permissions.has("super_admin.access")).toBe(false);
+    expect(ctx.permissions.has("platform.schools.view")).toBe(false);
+    expect(ctx.permissions.has("platform.dashboard.view")).toBe(false);
+    expect([...ctx.permissions].some((k) => k.startsWith("platform."))).toBe(false);
   });
 
   it("selecting an unassigned role does not grant its permissions (tenant isolation)", async () => {

@@ -31,6 +31,11 @@ const FULLSCREEN_PREFIXES = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isFullscreen = FULLSCREEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  // PLATFORM context = the SaaS control center. A platform admin has no school
+  // context, so the school sidebar, branch/session switchers and school-scoped
+  // mobile nav are suppressed; the /super-admin layout supplies platform nav.
+  // (Server-side, requirePlatformAdmin already gates these routes.)
+  const isPlatform = pathname === "/super-admin" || pathname.startsWith("/super-admin/");
 
   if (isFullscreen) return <>{children}</>;
 
@@ -47,8 +52,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </a>
 
         <div className="flex h-dvh w-full overflow-hidden bg-background print:h-auto print:overflow-visible">
-          <Sidebar />
-          <TabletDrawer />
+          {!isPlatform && <Sidebar />}
+          {!isPlatform && <TabletDrawer />}
 
           {/* min-w-0 lets this column shrink below its content's intrinsic width instead of forcing the page to overflow horizontally.
               relative z-10: the sidebar's lg: 3D transform (rotateY/translateZ, see sidebar.tsx) opens its own compositing layer,
@@ -56,8 +61,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               column has an explicit, higher stacking context to reliably paint above it — this is what was read as the header
               "clipping" at lg+ widths. */}
           <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
-            <Header />
-            <MobileHeader />
+            <Header platform={isPlatform} />
+            <MobileHeader platform={isPlatform} />
 
             <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden outline-none print:overflow-visible">
               <PageTransition>
@@ -69,13 +74,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <MobileBottomNav />
-        <MobileMoreSheet />
-        <MobileFab />
-        <MobileContextSheet />
-        <MobileSearchScreen />
-        <CommandPaletteDialog />
-        <AiCommandDialog />
+        {/* School-scoped mobile nav + command surfaces — omitted in platform context. */}
+        {!isPlatform && <MobileBottomNav />}
+        {!isPlatform && <MobileMoreSheet />}
+        {!isPlatform && <MobileFab />}
+        {!isPlatform && <MobileContextSheet />}
+        {!isPlatform && <MobileSearchScreen />}
+        {!isPlatform && <CommandPaletteDialog />}
+        {!isPlatform && <AiCommandDialog />}
         <NotificationCenter />
       </TooltipProvider>
     </ShellProvider>
