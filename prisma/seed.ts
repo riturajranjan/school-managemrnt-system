@@ -13,6 +13,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { hashPassword } from "../lib/server/password";
 import { PERMISSIONS, ROLE_PERMISSIONS } from "../lib/server/authz/catalog";
+import { seedPhase4 } from "./seed-phase4";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
@@ -87,7 +88,7 @@ async function main() {
     },
   });
 
-  await prisma.branch.upsert({
+  const mainBranch = await prisma.branch.upsert({
     where: { schoolId_code: { schoolId: school.id, code: "MAIN" } },
     update: {},
     create: {
@@ -125,7 +126,7 @@ async function main() {
     },
   });
 
-  await prisma.academicSession.upsert({
+  const academicSession = await prisma.academicSession.upsert({
     where: { schoolId_code: { schoolId: school.id, code: "2026-27" } },
     update: {},
     create: {
@@ -223,6 +224,16 @@ async function main() {
     where: { userId: platformUser.id },
     update: {},
     create: { userId: platformUser.id, role: "SUPER_ADMIN", status: "ACTIVE" },
+  });
+
+  // =========================================================================
+  // Phase 4 — Admissions, Students & Guardians (real business data)
+  // =========================================================================
+  await seedPhase4(prisma, {
+    tenantId: tenant.id,
+    schoolId: school.id,
+    branchId: mainBranch.id,
+    academicSessionId: academicSession.id,
   });
 
   // -------------------------------------------------------------------------

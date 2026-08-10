@@ -6,6 +6,7 @@
 import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthzContext, type AuthzContext } from "@/lib/server/authz/permissions";
+import { ConflictError, NotFoundError, ValidationError } from "@/lib/server/errors";
 import { fail, type ApiErrorCode } from "./response";
 
 export class HttpError extends Error {
@@ -94,6 +95,11 @@ export async function handle(fn: () => Promise<NextResponse>): Promise<NextRespo
     return await fn();
   } catch (error) {
     if (error instanceof HttpError) return fail(error.code, error.message);
+    // Typed application errors from the service/validation layer.
+    if (error instanceof ValidationError) return fail("VALIDATION_ERROR", error.message);
+    if (error instanceof NotFoundError) return fail("NOT_FOUND", error.message);
+    if (error instanceof ConflictError) return fail("CONFLICT", error.message);
+    // Never leak raw Prisma errors.
     console.error("[api] unexpected error");
     return fail("SERVER_ERROR", "Something went wrong");
   }

@@ -34,4 +34,12 @@ describe("RBAC catalog", () => {
     expect(ROLE_PERMISSIONS.SCHOOL_ADMIN).toContain("settings.manage");
     expect(ROLE_PERMISSIONS.SCHOOL_ADMIN).toContain("fees.collect");
   });
+
+  it("scopes guardian permissions: SCHOOL_ADMIN manages, TEACHER only views", () => {
+    expect(ROLE_PERMISSIONS.SCHOOL_ADMIN).toContain("guardians.create");
+    expect(ROLE_PERMISSIONS.SCHOOL_ADMIN).toContain("guardians.update");
+    expect(ROLE_PERMISSIONS.TEACHER).toContain("guardians.view");
+    expect(ROLE_PERMISSIONS.TEACHER).not.toContain("guardians.create");
+    expect(ROLE_PERMISSIONS.TEACHER).not.toContain("guardians.update");
+  });
 });

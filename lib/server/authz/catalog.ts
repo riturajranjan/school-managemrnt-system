@@ -19,6 +19,10 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "admissions.update", module: "admissions", action: "update", description: "Edit admissions" },
   { key: "admissions.approve", module: "admissions", action: "approve", description: "Approve admissions" },
 
+  { key: "guardians.view", module: "guardians", action: "view", description: "View guardians" },
+  { key: "guardians.create", module: "guardians", action: "create", description: "Add guardians" },
+  { key: "guardians.update", module: "guardians", action: "update", description: "Edit guardians and links" },
+
   { key: "academics.view", module: "academics", action: "view", description: "View academics" },
   { key: "academics.manage", module: "academics", action: "manage", description: "Manage academics" },
 
@@ -69,6 +73,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "dashboard.view",
     "students.view", "students.create", "students.update", "students.archive", "students.export",
     "admissions.view", "admissions.create", "admissions.update", "admissions.approve",
+    "guardians.view", "guardians.create", "guardians.update",
     "academics.view", "academics.manage",
     "attendance.view", "attendance.mark",
     "timetable.view", "timetable.manage",
@@ -86,6 +91,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "dashboard.view",
     "students.view",
     "admissions.view", "admissions.approve",
+    "guardians.view",
     "academics.view", "academics.manage",
     "attendance.view",
     "timetable.view", "timetable.manage",
@@ -99,6 +105,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   TEACHER: [
     "dashboard.view",
     "students.view",
+    "guardians.view",
     "academics.view",
     "attendance.view", "attendance.mark",
     "timetable.view",

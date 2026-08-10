@@ -439,3 +439,442 @@ model Session {
   @@index([expiresAt])
   @@map("sessions")
 }
+
+// ===========================================================================
+// Backend Phase 4 — Admissions, Students & Guardians.
+//
+// Real business domain. Org scope (tenant/school/branch/session) is stored as
+// plain, indexed String columns and ALWAYS re-validated against the caller's
+// real access in the service layer (the same fail-closed convention used by
+// UserActiveContext) — so no FK relations are placed on the four core org
+// models, keeping this migration self-contained. Relations WITHIN Phase 4
+// (Student ↔ StudentGuardian ↔ Guardian, Application ↔ history/notes/docs,
+// Student ↔ documents/timeline) use real foreign keys with cascade delete.
+//
+// Enum values deliberately mirror the existing UI vocabularies so the REST
+// APIs speak the shapes the frontend already understands.
+// ===========================================================================
+
+/// Mirrors UI StudentStatus (active | inactive | alumni | transferred | archived).
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  ALUMNI
+  TRANSFERRED
+  ARCHIVED
+}
+
+/// Mirrors the UI gender union (male | female | other | prefer-not-to-say).
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+/// Mirrors UI AdmissionType.
+enum AdmissionType {
+  NEW
+  TRANSFER
+  SIBLING
+  STAFF_WARD
+  MANAGEMENT_QUOTA
+}
+
+/// Mirrors UI AdmissionSource.
+enum AdmissionSource {
+  WEBSITE
+  WALK_IN
+  REFERRAL
+  SOCIAL_MEDIA
+  EDUCATION_FAIR
+  AGENT
+  PHONE_ENQUIRY
+}
+
+/// Mirrors UI AdmissionStageKey. "REJECTED"/"WAITLISTED" are terminal side
+/// branches, "ENROLLED" is the converted terminal state.
+enum AdmissionStage {
+  NEW_ENQUIRY
+  APPLICATION_STARTED
+  DOCUMENTS_PENDING
+  UNDER_REVIEW
+  INTERVIEW_SCHEDULED
+  APPROVED
+  FEE_PENDING
+  ENROLLED
+  REJECTED
+  WAITLISTED
+}
+
+/// Mirrors UI StudentGuardianRelationship / GuardianRole.
+enum GuardianRelation {
+  FATHER
+  MOTHER
+  GUARDIAN
+}
+
+/// Metadata-only document verification lifecycle (no file storage in Phase 4).
+enum DocVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+/// Persisted student timeline event kinds (recorded when the action occurs).
+enum StudentTimelineType {
+  ADMITTED
+  PROFILE_UPDATED
+  STATUS_CHANGED
+  GUARDIAN_LINKED
+  GUARDIAN_UNLINKED
+  DOCUMENT_UPDATED
+  ADMISSION_CONVERTED
+  NOTE_ADDED
+}
+
+// ---------------------------------------------------------------------------
+// Guardian — a parent/guardian. Tenant-scoped; one Guardian may be linked to
+// many Students (via StudentGuardian) and vice-versa. Optional User linkage for
+// a future parent portal account. Deduped by (tenantId, email) in the service.
+// ---------------------------------------------------------------------------
+
+model Guardian {
+  id           String  @id @default(cuid())
+  tenantId     String
+  firstName    String
+  lastName     String
+  email        String? // stored lowercased by the service; unique within a tenant when present
+  phone        String?
+  occupation   String?
+  organization String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  country      String?
+  postalCode   String?
+  photoUrl     String?
+  // Optional linkage to a login identity (parent portal). Never required.
+  userId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  students StudentGuardian[]
+
+  // At most one guardian per (tenant, email). Postgres treats NULLs as distinct,
+  // so guardians without an email are unconstrained.
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([tenantId, phone])
+  @@map("guardians")
+}
+
+// ---------------------------------------------------------------------------
+// Student — the enrolled learner. Identity/profile only; academic/fee/etc.
+// summaries are owned by their future modules and are NOT stored here.
+// ---------------------------------------------------------------------------
+
+model Student {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  admissionNumber String
+  rollNumber      String?
+
+  firstName     String
+  middleName    String?
+  lastName      String
+  preferredName String?
+  dateOfBirth   DateTime @db.Date
+  gender        Gender   @default(PREFER_NOT_TO_SAY)
+  bloodGroup    String?
+  nationality   String?
+  religion      String?
+  category      String?
+  motherTongue  String?
+  house         String?
+  photoUrl      String?
+
+  email String?
+  phone String?
+
+  // Denormalized academic placement labels (the academics module owns the real
+  // class/section relations later); kept as plain strings for display/filtering.
+  classLabel   String?
+  sectionLabel String?
+
+  admissionDate DateTime      @db.Date
+  admissionType AdmissionType @default(NEW)
+  status        StudentStatus @default(ACTIVE)
+
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  country      String?
+  postalCode   String?
+
+  // Set when created via admission conversion (traceability; no FK to avoid a
+  // circular relation — validated in the service).
+  sourceApplicationId String? @unique
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  guardians StudentGuardian[]
+  documents StudentDocument[]
+  timeline  StudentTimelineEvent[]
+
+  // Admission number is unique within a school.
+  @@unique([schoolId, admissionNumber])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@index([branchId])
+  @@index([academicSessionId])
+  @@map("students")
+}
+
+// ---------------------------------------------------------------------------
+// StudentGuardian — the Student ↔ Guardian relationship with per-link flags.
+// ---------------------------------------------------------------------------
+
+model StudentGuardian {
+  id                 String           @id @default(cuid())
+  studentId          String
+  guardianId         String
+  relation           GuardianRelation @default(GUARDIAN)
+  isPrimary          Boolean          @default(false)
+  isEmergencyContact Boolean          @default(false)
+  authorizedPickup   Boolean          @default(false)
+  isFeeResponsible   Boolean          @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, guardianId])
+  @@index([guardianId])
+  @@map("student_guardians")
+}
+
+// ---------------------------------------------------------------------------
+// StudentDocument — metadata only (no cloud/file storage in Phase 4).
+// ---------------------------------------------------------------------------
+
+model StudentDocument {
+  id                 String                @id @default(cuid())
+  studentId          String
+  type               String
+  displayName        String
+  status             String                @default("missing")
+  verificationStatus DocVerificationStatus @default(PENDING)
+  fileName           String?
+  expiryDate         DateTime?             @db.Date
+  notes              String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@map("student_documents")
+}
+
+// ---------------------------------------------------------------------------
+// StudentTimelineEvent — persisted when an action occurs (never faked on read).
+// ---------------------------------------------------------------------------
+
+model StudentTimelineEvent {
+  id          String              @id @default(cuid())
+  studentId   String
+  type        StudentTimelineType
+  title       String
+  detail      String?
+  category    String?
+  actorUserId String?
+  actorName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+  @@map("student_timeline_events")
+}
+
+// ---------------------------------------------------------------------------
+// AdmissionApplication — the admissions pipeline record. Core queryable fields
+// are columns; rich optional UI sub-objects (previous school, medical info,
+// transport/hostel requirements, fee details, interview, payments) live in a
+// single `detailsJson` blob to avoid over-modeling (spec §6: keep it simple).
+// Applicant guardians are snapshotted in `guardiansJson` and materialized into
+// real Guardian rows only on conversion.
+// ---------------------------------------------------------------------------
+
+model AdmissionApplication {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  applicationNumber String
+  draft             Boolean         @default(false)
+  stage             AdmissionStage  @default(NEW_ENQUIRY)
+  priority          String          @default("medium")
+  source            AdmissionSource @default(WEBSITE)
+  admissionType     AdmissionType   @default(NEW)
+
+  appliedClass            String?
+  appliedSectionPreference String?
+
+  // Applicant identity
+  firstName     String
+  middleName    String?
+  lastName      String
+  preferredName String?
+  dateOfBirth   DateTime? @db.Date
+  gender        Gender    @default(PREFER_NOT_TO_SAY)
+  bloodGroup    String?
+  nationality   String?
+  religion      String?
+  category      String?
+  motherTongue  String?
+  photoUrl      String?
+
+  email String?
+  phone String?
+
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  country      String?
+  postalCode   String?
+
+  guardiansJson Json? // ApplicantGuardian[] snapshot (materialized on conversion)
+  detailsJson   Json? // previousSchool / medical / transport / hostel / fee / interview / payments
+
+  assignedOfficerId   String?
+  assignedOfficerName String?
+
+  submittedAt DateTime? @db.Timestamptz(6)
+  approvedAt  DateTime? @db.Timestamptz(6)
+  rejectedAt  DateTime? @db.Timestamptz(6)
+  enrolledAt  DateTime? @db.Timestamptz(6)
+
+  // Set once, in the conversion transaction. Uniqueness + a stage guard prevent
+  // double conversion.
+  convertedStudentId String? @unique
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  stageHistory AdmissionStageHistory[]
+  notes        AdmissionNote[]
+  documents    AdmissionDocument[]
+
+  @@unique([schoolId, applicationNumber])
+  @@index([tenantId])
+  @@index([schoolId, stage])
+  @@index([branchId])
+  @@index([academicSessionId])
+  @@map("admission_applications")
+}
+
+// ---------------------------------------------------------------------------
+// AdmissionStageHistory — persisted stage transitions (audit trail).
+// ---------------------------------------------------------------------------
+
+model AdmissionStageHistory {
+  id            String          @id @default(cuid())
+  applicationId String
+  fromStage     AdmissionStage?
+  toStage       AdmissionStage
+  changedByUserId String?
+  changedByName   String?
+  reason        String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("admission_stage_history")
+}
+
+// ---------------------------------------------------------------------------
+// AdmissionNote — internal notes on an application.
+// ---------------------------------------------------------------------------
+
+model AdmissionNote {
+  id            String  @id @default(cuid())
+  applicationId String
+  authorUserId  String?
+  authorName    String
+  authorRole    String?
+  body          String
+  pinned        Boolean @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("admission_notes")
+}
+
+// ---------------------------------------------------------------------------
+// AdmissionDocument — metadata only (transferred to StudentDocument on convert).
+// ---------------------------------------------------------------------------
+
+model AdmissionDocument {
+  id                 String                @id @default(cuid())
+  applicationId      String
+  type               String
+  displayName        String
+  status             String                @default("missing")
+  verificationStatus DocVerificationStatus @default(PENDING)
+  fileName           String?
+  expiryDate         DateTime?             @db.Date
+  notes              String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("admission_documents")
+}
+
+// ---------------------------------------------------------------------------
+// AuditEvent — lightweight, generic audit log for important business actions
+// (spec §30). Org-scoped; no bulky PII payloads (only ids + a small meta blob).
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id          String  @id @default(cuid())
+  tenantId    String
+  schoolId    String?
+  actorUserId String?
+  actorName   String?
+  action      String // e.g. STUDENT_CREATED, ADMISSION_CONVERTED
+  entityType  String // e.g. Student, AdmissionApplication, Guardian
+  entityId    String
+  metaJson    Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_events")
+}
