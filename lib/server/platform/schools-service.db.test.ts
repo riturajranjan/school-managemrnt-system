@@ -98,6 +98,23 @@ describe.skipIf(!dbReady)("platform school provisioning (DB)", () => {
     expect(memberships).toBeGreaterThanOrEqual(2);
   });
 
+  it("rejects a malformed admin email as a validation error (400, never 500) with no partial rows", async () => {
+    const before = await prisma.tenant.count();
+    // e.g. a markdown/mailto-formatted value that slipped past the client.
+    const bad = input("bademail", { admin: { firstName: "N", lastName: "T", email: "[admin@novyra.in](mailto:admin@novyra.in)" } });
+    await expect(provisionSchool(actor, bad)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    // Validation happens before the transaction — nothing is created.
+    const after = await prisma.tenant.count();
+    expect(after).toBe(before);
+    const school = await prisma.school.findFirst({ where: { code: "T2-bademail" }, select: { id: true } });
+    expect(school).toBeNull();
+  });
+
+  it("rejects a malformed school email as a validation error", async () => {
+    const bad = input("badschoolemail", { school: { name: "T2-badschoolemail School", code: "T2-badschoolemail", email: "not-an-email" } });
+    await expect(provisionSchool(actor, bad)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
   it("rejects invalid academic-session dates", async () => {
     await expect(
       provisionSchool(actor, input("epsilon", { academicSession: { name: "Bad", startDate: "2027-04-01", endDate: "2026-03-31" } })),

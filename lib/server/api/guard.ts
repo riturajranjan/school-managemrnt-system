@@ -95,12 +95,15 @@ export async function handle(fn: () => Promise<NextResponse>): Promise<NextRespo
     return await fn();
   } catch (error) {
     if (error instanceof HttpError) return fail(error.code, error.message);
-    // Typed application errors from the service/validation layer.
-    if (error instanceof ValidationError) return fail("VALIDATION_ERROR", error.message);
+    // Typed application errors from the service/validation layer. ValidationError
+    // carries flattened field issues so the client sees WHICH field failed.
+    if (error instanceof ValidationError) return fail("VALIDATION_ERROR", "Invalid request", error.details);
     if (error instanceof NotFoundError) return fail("NOT_FOUND", error.message);
     if (error instanceof ConflictError) return fail("CONFLICT", error.message);
-    // Never leak raw Prisma errors.
-    console.error("[api] unexpected error");
+    // Never leak raw Prisma errors to the client — but DO log the real error
+    // server-side so genuine 500s are diagnosable (this is what makes an
+    // otherwise-opaque "Something went wrong" traceable in the server logs).
+    console.error("[api] unexpected error:", error);
     return fail("SERVER_ERROR", "Something went wrong");
   }
 }

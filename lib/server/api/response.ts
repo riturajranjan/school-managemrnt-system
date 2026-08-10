@@ -54,7 +54,12 @@ export function ok<T>(data: T, meta?: ListMeta): NextResponse {
   return NextResponse.json(meta ? { success: true, data, meta } : { success: true, data });
 }
 
-/** Error envelope with a safe code + human message and the matching HTTP status. */
-export function fail(code: ApiErrorCode, message: string): NextResponse {
-  return NextResponse.json({ success: false, error: { code, message } }, { status: STATUS[code] });
+/**
+ * Error envelope with a safe code + human message and the matching HTTP status.
+ * Optional `details` carries field-level issues (e.g. flattened Zod errors) so
+ * clients can surface which field failed — never raw Prisma internals.
+ */
+export function fail(code: ApiErrorCode, message: string, details?: unknown): NextResponse {
+  const error = details === undefined ? { code, message } : { code, message, details };
+  return NextResponse.json({ success: false, error }, { status: STATUS[code] });
 }

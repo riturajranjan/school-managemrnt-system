@@ -16,10 +16,13 @@ import { FieldError, Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { provisionSchoolRequest } from "@/lib/hooks/api/use-platform-schools";
 
+// Client validation is UX only — the server re-validates authoritatively. Emails
+// are validated with the non-deprecated z.email() and stored/sent as plain
+// strings (no markdown/mailto formatting).
 const schema = z.object({
   name: z.string().trim().min(1, "School name is required"),
   code: z.string().trim().min(1, "Code is required"),
-  email: z.string().email("Enter a valid email").optional().or(z.literal("")),
+  email: z.union([z.literal(""), z.email("Enter a valid email")]),
   phone: z.string().optional().or(z.literal("")),
   schoolType: z.string().optional().or(z.literal("")),
   board: z.string().optional().or(z.literal("")),
@@ -28,7 +31,7 @@ const schema = z.object({
   endDate: z.string().min(1, "End date is required"),
   adminFirstName: z.string().trim().min(1, "Admin first name is required"),
   adminLastName: z.string().trim().min(1, "Admin last name is required"),
-  adminEmail: z.string().email("Enter a valid admin email"),
+  adminEmail: z.email("Enter a valid admin email"),
 });
 type Values = z.infer<typeof schema>;
 
@@ -44,24 +47,27 @@ export default function NewSchoolPage() {
   async function onSubmit(values: Values) {
     setSubmitError(null);
     setSubmitting(true);
+    // Normalize emails to plain, trimmed, lowercase strings before sending.
+    const schoolEmail = values.email.trim().toLowerCase();
+    const adminEmail = values.adminEmail.trim().toLowerCase();
     const res = await provisionSchoolRequest({
       school: {
-        name: values.name,
-        code: values.code,
-        email: values.email || undefined,
-        phone: values.phone || undefined,
-        schoolType: values.schoolType || undefined,
-        board: values.board || undefined,
+        name: values.name.trim(),
+        code: values.code.trim(),
+        email: schoolEmail || undefined,
+        phone: values.phone?.trim() || undefined,
+        schoolType: values.schoolType?.trim() || undefined,
+        board: values.board?.trim() || undefined,
       },
       academicSession: {
-        name: values.sessionName,
+        name: values.sessionName.trim(),
         startDate: values.startDate,
         endDate: values.endDate,
       },
       admin: {
-        firstName: values.adminFirstName,
-        lastName: values.adminLastName,
-        email: values.adminEmail,
+        firstName: values.adminFirstName.trim(),
+        lastName: values.adminLastName.trim(),
+        email: adminEmail,
       },
     });
     setSubmitting(false);
