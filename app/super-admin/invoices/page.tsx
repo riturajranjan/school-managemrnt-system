@@ -8,13 +8,13 @@ import { Receipt, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
+import Link from "next/link";
 import {
   useInvoiceList,
   useInvoice,
   generateInvoiceRequest,
   issueInvoiceRequest,
   voidInvoiceRequest,
-  markInvoicePaidRequest,
 } from "@/lib/hooks/api/use-billing";
 import { useSubscriptionList } from "@/lib/hooks/api/use-subscriptions";
 import { formatPlanPrice } from "@/lib/hooks/api/use-plans";
@@ -136,9 +136,6 @@ export default function InvoicesPage() {
                   {manage && i.status === "draft" && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => act(i.id, () => issueInvoiceRequest(i.id), `Invoice ${i.invoiceNumber} issued.`)}>Issue</Button>
                   )}
-                  {manage && i.status === "open" && (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => act(i.id, () => markInvoicePaidRequest(i.id), `Invoice ${i.invoiceNumber} marked paid.`)}>Mark paid</Button>
-                  )}
                   {manage && (i.status === "draft" || i.status === "open") && (
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(i.id, () => voidInvoiceRequest(i.id), `Invoice ${i.invoiceNumber} voided.`)}>Void</Button>
                   )}
@@ -180,7 +177,24 @@ export default function InvoicesPage() {
                 <tr><td className="py-1 text-neutral-500">Amount due</td><td className="py-1 text-right">{formatPlanPrice(inv.amountDue, inv.currency)}</td></tr>
               </tbody>
             </table>
-            <p className="mt-3 text-center text-[9px] text-neutral-400">No payment gateway — settlement is manual/administrative.</p>
+            {inv.payments.length > 0 && (
+              <div className="mt-3 border-t border-neutral-200 pt-2">
+                <p className="mb-1 text-[10px] font-semibold text-neutral-500">Payments received</p>
+                {inv.payments.map((pay) => (
+                  <div key={pay.id} className="flex items-center justify-between text-[11px]">
+                    <span className={pay.status === "reversed" ? "text-neutral-400 line-through" : "text-neutral-700"}>{pay.paymentNumber} · {formatDate(pay.receivedAt)}</span>
+                    <span className={pay.status === "reversed" ? "text-neutral-400 line-through" : "text-neutral-900"}>{formatPlanPrice(pay.amount, inv.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-3 text-center text-[9px] text-neutral-400">No payment gateway — record settlements on the Payments page.</p>
+          </div>
+        )}
+        {inv && (inv.derivedState === "open" || inv.derivedState === "overdue") && manage && (
+          <div className="mt-sm rounded-md border border-border bg-surface p-sm text-xs text-muted-foreground">
+            Outstanding {formatPlanPrice(inv.amountDue, inv.currency)} —{" "}
+            <Link href="/super-admin/payments" className="text-primary">record a payment</Link>.
           </div>
         )}
       </DetailDrawer>

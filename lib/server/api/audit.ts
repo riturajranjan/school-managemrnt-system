@@ -34,7 +34,9 @@ export type AuditAction =
   | "INVOICE_GENERATED"
   | "INVOICE_ISSUED"
   | "INVOICE_PAID"
-  | "INVOICE_VOIDED";
+  | "INVOICE_VOIDED"
+  | "PAYMENT_RECORDED"
+  | "PAYMENT_REVERSED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

@@ -45,7 +45,7 @@ export default function BillingPage() {
           <StatTile label="MRR" value={money(summary.mrr)} icon={TrendingUp} tone="success" hint="Active subs, monthly-normalized" />
           <StatTile label="ARR" value={money(summary.arr)} tone="success" hint="MRR × 12" />
           <StatTile label="Outstanding" value={money(summary.outstandingAmount)} tone={summary.outstandingAmount > 0 ? "warning" : "success"} hint="Open invoices" />
-          <StatTile label="Collected" value={money(summary.paidAmount)} tone="info" hint="Paid invoices" />
+          <StatTile label="Collected" value={money(summary.collectedAmount)} tone="info" hint="All-time payments" />
           <StatTile label="Active subs" value={String(summary.activeSubscriptions)} tone="info" />
           <StatTile label="Trialing" value={String(summary.trialingSubscriptions)} tone="info" />
           <StatTile label="Open invoices" value={String(summary.openInvoices)} icon={Receipt} tone="neutral" />

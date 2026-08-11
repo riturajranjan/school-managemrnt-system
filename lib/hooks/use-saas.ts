@@ -35,10 +35,6 @@ export function useInvoice(id: string | undefined) {
   const db = useSisStore();
   return useMemo(() => db.saas.invoices.find((i) => i.id === id), [db.saas.invoices, id]);
 }
-export function usePayments(tenantId?: string) {
-  const db = useSisStore();
-  return useMemo(() => (tenantId ? db.saas.payments.filter((p) => p.tenantId === tenantId) : db.saas.payments), [db.saas.payments, tenantId]);
-}
 export function useOverrides(tenantId?: string) {
   const db = useSisStore();
   return useMemo(() => (tenantId ? db.saas.overrides.filter((o) => o.tenantId === tenantId) : db.saas.overrides), [db.saas.overrides, tenantId]);

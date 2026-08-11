@@ -10,6 +10,7 @@
 // OUTSTANDING: Σ amountDue over OPEN invoices. PAID amount: Σ amountPaid over PAID.
 // OVERDUE: OPEN invoices with dueAt < now && amountDue > 0 (derived).
 import { prisma } from "@/lib/db/prisma";
+import { collectedTotal } from "@/lib/server/platform/payments-service";
 import type { BillingInterval } from "@/lib/generated/prisma/enums";
 
 export function round2(n: number): number {
@@ -35,20 +36,21 @@ export type BillingSummary = {
   openInvoices: number;
   overdueInvoices: number;
   outstandingAmount: number;
-  paidAmount: number;
+  collectedAmount: number; // real cash collected (all-time), from SUCCEEDED payments
 };
 
 export async function getBillingSummary(): Promise<BillingSummary> {
   const now = new Date();
 
-  const [activeSubs, activeSubscriptions, trialingSubscriptions, openInvoices, overdueInvoices, outstandingAgg, paidAgg] = await Promise.all([
+  const [activeSubs, activeSubscriptions, trialingSubscriptions, openInvoices, overdueInvoices, outstandingAgg, collected] = await Promise.all([
     prisma.subscription.findMany({ where: { status: "ACTIVE" }, select: { priceAmount: true, billingInterval: true } }),
     prisma.subscription.count({ where: { status: "ACTIVE" } }),
     prisma.subscription.count({ where: { status: "TRIALING" } }),
     prisma.invoice.count({ where: { status: "OPEN" } }),
     prisma.invoice.count({ where: { status: "OPEN", dueAt: { lt: now }, amountDue: { gt: 0 } } }),
     prisma.invoice.aggregate({ where: { status: "OPEN" }, _sum: { amountDue: true } }),
-    prisma.invoice.aggregate({ where: { status: "PAID" }, _sum: { amountPaid: true } }),
+    // Collected is derived from real payments (SA-4E), not invoice.amountPaid.
+    collectedTotal(),
   ]);
 
   const mrr = computeMrr(activeSubs.map((s) => ({ priceAmount: Number(s.priceAmount), billingInterval: s.billingInterval })));
@@ -62,6 +64,6 @@ export async function getBillingSummary(): Promise<BillingSummary> {
     openInvoices,
     overdueInvoices,
     outstandingAmount: round2(Number(outstandingAgg._sum.amountDue ?? 0)),
-    paidAmount: round2(Number(paidAgg._sum.amountPaid ?? 0)),
+    collectedAmount: round2(collected),
   };
 }

@@ -1,6 +1,6 @@
 import type {
   MarketplaceItem, PlanFeature, PlatformAdminUser, PlatformRole, SaasAddon, SaasInvoice,
-  SaasPayment, SaasPlan, SaasState, SaasTenant, SaasTenantStatus, SubscriptionStatus, TenantDomain, TenantLifecycleStage,
+  SaasPlan, SaasState, SaasTenant, SaasTenantStatus, SubscriptionStatus, TenantDomain, TenantLifecycleStage,
   TenantSubscription, TenantUsageMetric, UsageKey, PlatformSupportTicket, SupportCategory,
 } from "@/lib/types/saas";
 import { seededHelpers } from "./rng";
@@ -63,7 +63,7 @@ export function emptySaasState(): SaasState {
   ];
 
   return {
-    tenants: [], plans, subscriptions: [], usage: [], invoices: [], payments: [], overrides: [], addons, marketplace,
+    tenants: [], plans, subscriptions: [], usage: [], invoices: [], overrides: [], addons, marketplace,
     domains: [], support: [], success: [], announcements: [], status: [], auditLog: [], admins: [],
     settings: { platformName: "Novyra Campus OS", supportContact: "platform@novyra.io", defaultTrialDays: 21, defaultPlanId: "plan-growth", defaultBillingCycle: "monthly", gracePeriodDays: 7, maintenanceMessage: "We'll be back shortly.", legalLinks: [{ label: "Master Services Agreement", url: "/legal/msa" }, { label: "Data Processing Addendum", url: "/legal/dpa" }] },
   };
@@ -131,9 +131,9 @@ export function buildSaasData(): SaasState {
     });
   });
 
-  // Invoices & payments
+  // Invoices (mock — still used by the global-search palette). Platform payments
+  // are real (SA-4E), so no mock payment rows are generated here.
   const invoices: SaasInvoice[] = [];
-  const payments: SaasPayment[] = [];
   let invSeq = 1000;
   tenants.forEach((t, ti) => {
     const sub = subscriptions[ti];
@@ -152,8 +152,6 @@ export function buildSaasData(): SaasState {
         subtotalMinor: subtotal, taxMinor: tax, totalMinor: total, dueDate: daysAgo(30 * k - 7), status: status as SaasInvoice["status"],
       };
       invoices.push(inv);
-      if (inv.status === "paid") payments.push({ id: `pay-${invSeq}`, tenantId: t.id, invoiceNumber: inv.number, amountMinor: total, method: helpers.pick(["UPI", "Card", "Bank transfer", "NEFT"]), date: daysAgo(30 * k - 5), status: "successful" });
-      else if (overdue) payments.push({ id: `pay-${invSeq}`, tenantId: t.id, invoiceNumber: inv.number, amountMinor: total, method: helpers.pick(["Card", "UPI"]), date: daysAgo(30 * k - 6), status: "failed" });
     }
   });
 
@@ -222,7 +220,6 @@ export function buildSaasData(): SaasState {
   base.subscriptions = subscriptions;
   base.usage = usage;
   base.invoices = invoices;
-  base.payments = payments;
   base.domains = domains;
   base.support = support;
   return base;

@@ -167,25 +167,9 @@ export type SaasInvoice = {
   status: InvoiceStatus;
 };
 
-export type PaymentStatus = "successful" | "pending" | "failed" | "refunded";
-
-export const paymentStatusLabels: Record<PaymentStatus, string> = {
-  successful: "Successful", pending: "Pending", failed: "Failed", refunded: "Refunded",
-};
-
-export const paymentStatusTone: Record<PaymentStatus, StatusTone> = {
-  successful: "success", pending: "warning", failed: "error", refunded: "neutral",
-};
-
-export type SaasPayment = {
-  id: ID;
-  tenantId: ID;
-  invoiceNumber: string;
-  amountMinor: number;
-  method: string;
-  date: string;
-  status: PaymentStatus;
-};
+// NOTE: the mock platform-payment types (PaymentStatus/paymentStatusLabels/
+// paymentStatusTone/SaasPayment) and the `db.saas.payments` slice were removed in
+// Super Admin Phase SA-4E — payments are now real (Payment model + /api/super-admin/payments).
 
 // ---------------------------------------------------------------------------
 // Usage
@@ -393,7 +377,6 @@ export type SaasState = {
   subscriptions: TenantSubscription[];
   usage: TenantUsageMetric[];
   invoices: SaasInvoice[];
-  payments: SaasPayment[];
   overrides: TenantFeatureOverride[];
   addons: SaasAddon[];
   marketplace: MarketplaceItem[];

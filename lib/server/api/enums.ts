@@ -10,6 +10,8 @@ import type {
   Gender as DbGender,
   GuardianRelation as DbGuardianRelation,
   InvoiceStatus as DbInvoiceStatus,
+  PaymentMethod as DbPaymentMethod,
+  PaymentStatus as DbPaymentStatus,
   PlanStatus as DbPlanStatus,
   SchoolStatus as DbSchoolStatus,
   StudentStatus as DbStudentStatus,
@@ -127,3 +129,19 @@ export const invoiceStatusToUi: Record<DbInvoiceStatus, string> = {
   VOID: "void",
 };
 export const invoiceStatusFromUi = invert(invoiceStatusToUi);
+
+/** Payment lifecycle + method (Super Admin SA-4E). Manual/offline methods only. */
+export const paymentStatusToUi: Record<DbPaymentStatus, string> = {
+  SUCCEEDED: "succeeded",
+  REVERSED: "reversed",
+};
+export const paymentStatusFromUi = invert(paymentStatusToUi);
+
+export const paymentMethodToUi: Record<DbPaymentMethod, string> = {
+  CASH: "cash",
+  BANK_TRANSFER: "bank-transfer",
+  UPI: "upi",
+  CHEQUE: "cheque",
+  OTHER: "other",
+};
+export const paymentMethodFromUi = invert(paymentMethodToUi);

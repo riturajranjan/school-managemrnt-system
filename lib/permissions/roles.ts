@@ -345,7 +345,9 @@ export type Permission =
   | "platform.billing.view"
   | "platform.billing.manage"
   | "platform.invoices.view"
-  | "platform.invoices.manage";
+  | "platform.invoices.manage"
+  | "platform.payments.view"
+  | "platform.payments.manage";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),

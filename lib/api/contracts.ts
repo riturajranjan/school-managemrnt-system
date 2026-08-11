@@ -381,7 +381,7 @@ export type BillingSummaryDto = {
   openInvoices: number;
   overdueInvoices: number;
   outstandingAmount: number;
-  paidAmount: number;
+  collectedAmount: number; // real cash collected (all-time) from SUCCEEDED payments
 };
 
 export type InvoiceLineItemDto = {
@@ -414,6 +414,40 @@ export type InvoiceDto = {
   paidAt: string | null;
   voidedAt: string | null;
   lineItems: InvoiceLineItemDto[];
+  payments: InvoicePaymentSummaryDto[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvoicePaymentSummaryDto = {
+  id: string;
+  paymentNumber: string;
+  amount: number;
+  method: string;
+  status: string; // succeeded | reversed
+  receivedAt: string;
+  reference: string | null;
+  reversedAt: string | null;
+};
+
+// --- Platform (Super Admin) payments (SA-4E) ---------------------------------
+
+export type PaymentDto = {
+  id: string;
+  paymentNumber: string;
+  status: string; // succeeded | reversed
+  method: string; // cash | bank-transfer | upi | cheque | other
+  amount: number;
+  currency: string;
+  reference: string | null;
+  notes: string | null;
+  receivedAt: string;
+  reversedAt: string | null;
+  recordedBy: { id: string | null; name: string | null };
+  invoice: { id: string; invoiceNumber: string; status: string; totalAmount: number; amountDue: number };
+  school: { id: string; name: string; code: string };
+  tenant: { id: string; name: string; slug: string };
+  subscription: { id: string; planCode: string; planName: string };
   createdAt: string;
   updatedAt: string;
 };

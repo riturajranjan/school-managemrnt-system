@@ -81,6 +81,7 @@ model Tenant {
   roles       Role[] // tenant-scoped custom roles (system roles have null tenantId)
   subscriptions Subscription[] // Super Admin Phase SA-4B
   invoices      Invoice[] // Super Admin Phase SA-4D
+  payments      Payment[] // Super Admin Phase SA-4E
 
   @@index([status])
   @@map("tenants")
@@ -123,6 +124,7 @@ model School {
   onboarding       SchoolOnboarding? // Super Admin Phase SA-3
   subscriptions    Subscription[] // Super Admin Phase SA-4B
   invoices         Invoice[] // Super Admin Phase SA-4D
+  payments         Payment[] // Super Admin Phase SA-4E
 
   // School code is unique within its tenant.
   @@unique([tenantId, code])
@@ -1050,6 +1052,7 @@ model Subscription {
   school   School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   plan     Plan      @relation(fields: [planId], references: [id], onDelete: Restrict)
   invoices Invoice[] // Super Admin Phase SA-4D
+  payments Payment[] // Super Admin Phase SA-4E
 
   @@index([schoolId])
   @@index([tenantId])
@@ -1113,6 +1116,7 @@ model Invoice {
   school       School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   subscription Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   lineItems    InvoiceLineItem[]
+  payments     Payment[] // Super Admin Phase SA-4E
 
   // One invoice per subscription billing period (duplicate-generation guard).
   @@unique([subscriptionId, periodStart, periodEnd])
@@ -1137,4 +1141,65 @@ model InvoiceLineItem {
 
   @@index([invoiceId])
   @@map("invoice_line_items")
+}
+
+// ===========================================================================
+// Super Admin Phase SA-4E — Payments. A real financial record settling an
+// Invoice: Tenant → School → Subscription → Invoice → Payment. Recording a
+// payment atomically increments Invoice.amountPaid / decrements amountDue and
+// flips the invoice to PAID when fully settled. Supports partial payments and
+// administrative reversal (history preserved). Money is Decimal(12,2).
+//
+// This is an internal/manual ledger — NO payment gateway. Methods are offline
+// (cash/bank/UPI/cheque); "UPI" here means a manually recorded UPI transfer, not
+// automated gateway verification. Payment numbers come from payment_number_seq
+// (created in the migration) for concurrency-safe uniqueness.
+// ===========================================================================
+
+enum PaymentStatus {
+  SUCCEEDED
+  REVERSED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  UPI
+  CHEQUE
+  OTHER
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  paymentNumber  String        @unique
+  tenantId       String
+  schoolId       String
+  invoiceId      String
+  subscriptionId String
+  status         PaymentStatus @default(SUCCEEDED)
+  method         PaymentMethod
+
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @default("INR")
+
+  reference        String? // e.g. UTR / cheque no. — manually entered, optional
+  notes            String?
+  receivedAt       DateTime  @db.Timestamptz(6)
+  recordedByUserId String?
+  recordedByName   String?
+  reversedAt       DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId])
+  @@index([invoiceId])
+  @@index([status])
+  @@map("payments")
 }

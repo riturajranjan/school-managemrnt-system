@@ -89,6 +89,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "platform.invoices.view", module: "platform.invoices", action: "view", description: "View invoices" },
   { key: "platform.invoices.manage", module: "platform.invoices", action: "manage", description: "Manage invoices" },
   { key: "platform.payments.view", module: "platform.payments", action: "view", description: "View payments" },
+  { key: "platform.payments.manage", module: "platform.payments", action: "manage", description: "Record & reverse payments" },
   { key: "platform.features.view", module: "platform.features", action: "view", description: "View features" },
   { key: "platform.features.manage", module: "platform.features", action: "manage", description: "Manage features" },
   { key: "platform.addons.view", module: "platform.addons", action: "view", description: "View add-ons" },
@@ -207,7 +208,7 @@ export const PLATFORM_ROLE_PERMISSIONS: Record<string, string[]> = {
     "platform.usage.view",
     "platform.billing.view", "platform.billing.manage",
     "platform.invoices.view", "platform.invoices.manage",
-    "platform.payments.view",
+    "platform.payments.view", "platform.payments.manage",
   ],
   // Read-only compliance role: view everything, manage nothing.
   AUDITOR: PLATFORM_ONLY_KEYS.filter((k) => k.endsWith(".view")),

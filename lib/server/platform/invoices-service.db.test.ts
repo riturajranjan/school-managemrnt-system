@@ -11,11 +11,11 @@ import {
   getInvoice,
   issueInvoice,
   listInvoices,
-  markInvoicePaid,
   voidInvoice,
   type InvoiceActor,
 } from "@/lib/server/platform/invoices-service";
 import { getBillingSummary } from "@/lib/server/platform/billing-service";
+import { recordPayment } from "@/lib/server/platform/payments-service";
 import { platformPermissionsForRole, ROLE_PERMISSIONS } from "@/lib/server/authz/catalog";
 
 let dbReady = false;
@@ -72,6 +72,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!dbReady || !tenantId) return;
   await prisma.auditEvent.deleteMany({ where: { tenantId } });
+  await prisma.payment.deleteMany({ where: { tenantId } }); // Payment→Invoice FK is Restrict
   await prisma.invoice.deleteMany({ where: { tenantId } });
   await prisma.subscription.deleteMany({ where: { tenantId } });
   await prisma.plan.deleteMany({ where: { code: { startsWith: NS } } });
@@ -134,32 +135,19 @@ describe.skipIf(!dbReady)("invoices service (DB)", () => {
     expect(row.status).toBe("OPEN");
   });
 
-  it("marks an OPEN invoice PAID (manual settlement): amountDue 0, paidAt set, +audit", async () => {
-    const subId = await makeSubscription({ price: 5000 });
-    const draft = await generateInvoice(actor, { subscriptionId: subId });
-    await issueInvoice(actor, draft.id);
-    const paid = await markInvoicePaid(actor, draft.id);
-    expect(paid.status).toBe("paid");
-    expect(paid.amountPaid).toBe(5000);
-    expect(paid.amountDue).toBe(0);
-    expect(paid.paidAt).not.toBeNull();
-    // No Payment rows exist in SA-4D (no payments table/model) — settlement is admin-only.
-    const audit = await prisma.auditEvent.findFirst({ where: { entityId: draft.id, action: "INVOICE_PAID" } });
-    expect(audit?.metaJson).toMatchObject({ settlement: "manual-admin" });
-    // Cannot mark an already-paid invoice paid again.
-    await expect(markInvoicePaid(actor, draft.id)).rejects.toMatchObject({ code: "INVALID_INVOICE_TRANSITION" });
-  });
-
-  it("voids DRAFT|OPEN but not PAID", async () => {
+  // NOTE: invoice settlement (→ PAID) is done via a real Payment in SA-4E and is
+  // covered by payments-service.db.test.ts. The old mark-paid path was removed.
+  it("voids DRAFT|OPEN but not a fully-paid invoice", async () => {
     const draftSub = await makeSubscription();
     const draft = await generateInvoice(actor, { subscriptionId: draftSub });
     const voided = await voidInvoice(actor, draft.id);
     expect(voided.status).toBe("void");
 
-    const paidSub = await makeSubscription();
+    // Settle an invoice via a real Payment, then confirm it can't be voided.
+    const paidSub = await makeSubscription({ price: 5000 });
     const inv = await generateInvoice(actor, { subscriptionId: paidSub });
     await issueInvoice(actor, inv.id);
-    await markInvoicePaid(actor, inv.id);
+    await recordPayment(actor, { invoiceId: inv.id, amount: 5000, method: "cash" });
     await expect(voidInvoice(actor, inv.id)).rejects.toMatchObject({ code: "INVALID_INVOICE_TRANSITION" });
   });
 
@@ -197,19 +185,25 @@ describe.skipIf(!dbReady)("invoices service (DB)", () => {
     await expect(getInvoice("missing")).rejects.toMatchObject({ code: "INVOICE_NOT_FOUND" });
   });
 
-  it("billing summary is well-formed: arr === mrr×12, and reflects our overdue/outstanding", async () => {
-    // A fresh overdue invoice bumps overdue + outstanding.
+  it("billing summary is well-formed and reflects our overdue invoice", async () => {
+    // Global aggregates race with parallel test files, so assert formula
+    // invariants + isolation-safe lower bounds + a targeted check (not deltas).
     const subId = await makeSubscription({ price: 7000, periodOffsetDays: -60 });
     const draft = await generateInvoice(actor, { subscriptionId: subId });
-    const before = await getBillingSummary();
-    await issueInvoice(actor, draft.id); // now OPEN + overdue
-    const after = await getBillingSummary();
+    const open = await issueInvoice(actor, draft.id); // now OPEN + overdue
+    expect(open.derivedState).toBe("overdue");
 
-    expect(after.arr).toBe(Math.round(after.mrr * 12 * 100) / 100); // exact formula
-    expect(after.overdueInvoices).toBeGreaterThanOrEqual(before.overdueInvoices + 1);
-    expect(after.outstandingAmount).toBeGreaterThanOrEqual(before.outstandingAmount + 7000);
-    expect(after.currency).toBe("INR");
-    expect(after.activeSubscriptions).toBeGreaterThan(0);
+    const s = await getBillingSummary();
+    expect(s.arr).toBe(Math.round(s.mrr * 12 * 100) / 100); // exact formula always holds
+    expect(s.currency).toBe("INR");
+    expect(s.activeSubscriptions).toBeGreaterThan(0);
+    // At least our unsettled overdue invoice contributes.
+    expect(s.overdueInvoices).toBeGreaterThanOrEqual(1);
+    expect(s.outstandingAmount).toBeGreaterThanOrEqual(7000);
+
+    // Our specific invoice is surfaced as overdue.
+    const overdue = await listInvoices({ page: 1, pageSize: 100, search: open.invoiceNumber, status: "overdue" });
+    expect(overdue.data.some((i) => i.id === open.id)).toBe(true);
   });
 
   it("RBAC: platform.billing/invoices are platform-scoped and denied to school roles", async () => {

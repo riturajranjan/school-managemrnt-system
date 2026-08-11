@@ -12,7 +12,7 @@ import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { ListMeta } from "@/lib/server/api/response";
-import { billingIntervalToUi, invoiceStatusFromUi, invoiceStatusToUi } from "@/lib/server/api/enums";
+import { billingIntervalToUi, invoiceStatusFromUi, invoiceStatusToUi, paymentMethodToUi, paymentStatusToUi } from "@/lib/server/api/enums";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type InvoiceActor = { id: string; name: string | null };
@@ -49,7 +49,19 @@ function derivedState(row: { status: string; dueAt: Date; amountDue: Prisma.Deci
   return row.dueAt.getTime() < now.getTime() && Number(row.amountDue) > 0 ? "overdue" : "open";
 }
 
-function serialize(inv: InvoiceRow, now: Date) {
+// Payment history summary shown on the invoice detail (SA-4E).
+export type InvoicePaymentSummary = {
+  id: string;
+  paymentNumber: string;
+  amount: number;
+  method: string;
+  status: string;
+  receivedAt: string;
+  reference: string | null;
+  reversedAt: string | null;
+};
+
+function serialize(inv: InvoiceRow, now: Date, payments: InvoicePaymentSummary[] = []) {
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
@@ -81,6 +93,7 @@ function serialize(inv: InvoiceRow, now: Date) {
       .slice()
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((li) => ({ id: li.id, description: li.description, quantity: li.quantity, unitAmount: dec(li.unitAmount), amount: dec(li.amount) })),
+    payments,
     createdAt: inv.createdAt.toISOString(),
     updatedAt: inv.updatedAt.toISOString(),
   };
@@ -164,9 +177,25 @@ export async function listInvoices(params: InvoiceListParams) {
 }
 
 export async function getInvoice(id: string) {
-  const inv = await prisma.invoice.findUnique({ where: { id }, include: includeRelations });
+  const inv = await prisma.invoice.findUnique({
+    where: { id },
+    include: {
+      ...includeRelations,
+      payments: { orderBy: { receivedAt: "desc" }, select: { id: true, paymentNumber: true, amount: true, method: true, status: true, receivedAt: true, reference: true, reversedAt: true } },
+    },
+  });
   if (!inv) throw new HttpError("INVOICE_NOT_FOUND", "Invoice not found");
-  return serialize(inv, new Date());
+  const payments: InvoicePaymentSummary[] = inv.payments.map((p) => ({
+    id: p.id,
+    paymentNumber: p.paymentNumber,
+    amount: dec(p.amount),
+    method: paymentMethodToUi[p.method],
+    status: paymentStatusToUi[p.status],
+    receivedAt: p.receivedAt.toISOString(),
+    reference: p.reference,
+    reversedAt: iso(p.reversedAt),
+  }));
+  return serialize(inv, new Date(), payments);
 }
 
 // --- Writes -----------------------------------------------------------------
@@ -270,23 +299,7 @@ export async function voidInvoice(actor: InvoiceActor, id: string) {
   return serialize(updated, new Date());
 }
 
-/**
- * Manual administrative settlement (NOT a real payment). Marks an OPEN invoice
- * PAID, zeroing the amount due. No Payment record is created — real collection
- * belongs to the future Payments phase.
- */
-export async function markInvoicePaid(actor: InvoiceActor, id: string) {
-  const inv = await loadForTransition(id);
-  if (inv.status !== "OPEN") throw new HttpError("INVALID_INVOICE_TRANSITION", `Only an open invoice can be marked paid (is ${invoiceStatusToUi[inv.status]})`);
-  const now = new Date();
-  const updated = await prisma.invoice.update({
-    where: { id },
-    data: { status: "PAID", paidAt: now, amountPaid: inv.totalAmount, amountDue: 0 },
-    include: includeRelations,
-  });
-  await recordAudit(prisma, auditScope(actor, inv.tenantId, inv.schoolId), "INVOICE_PAID", "Invoice", id, {
-    settlement: "manual-admin",
-    note: "No payment gateway; manual administrative settlement",
-  });
-  return serialize(updated, now);
-}
+// NOTE: the SA-4D `markInvoicePaid` (which flipped an invoice to PAID without a
+// Payment record) was removed in SA-4E. Settlement now flows exclusively through
+// the payments service (recordPayment), the single financial mutation path.
+// `loadForTransition` also exposes totalAmount for callers that need it.

@@ -17,6 +17,7 @@ import { seedPhase4 } from "./seed-phase4";
 import { seedPlans } from "./seed-plans";
 import { seedSubscriptions } from "./seed-subscriptions";
 import { seedInvoices } from "./seed-invoices";
+import { seedPayments } from "./seed-payments";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
@@ -253,6 +254,11 @@ async function main() {
   // Super Admin Phase SA-4D — invoices on the real ACTIVE subscription
   // =========================================================================
   await seedInvoices(prisma);
+
+  // =========================================================================
+  // Super Admin Phase SA-4E — a real payment settling a seeded invoice
+  // =========================================================================
+  await seedPayments(prisma);
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

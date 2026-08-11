@@ -50,6 +50,5 @@ export const issueInvoiceRequest = (id: string): Promise<ApiResult<InvoiceDto>> 
 
 export const voidInvoiceRequest = (id: string): Promise<ApiResult<InvoiceDto>> =>
   apiPost<InvoiceDto>(`/api/super-admin/invoices/${id}/void`, {});
-
-export const markInvoicePaidRequest = (id: string): Promise<ApiResult<InvoiceDto>> =>
-  apiPost<InvoiceDto>(`/api/super-admin/invoices/${id}/mark-paid`, {});
+// NOTE: invoice mark-paid was removed in SA-4E — settlement is a real Payment
+// (see use-payments.recordPaymentRequest), the single financial mutation path.
