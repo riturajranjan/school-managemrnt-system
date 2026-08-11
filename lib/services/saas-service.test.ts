@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
-  extendTrial, setEntitlementOverride, setInvoiceStatus, setTenantStatus,
+  setEntitlementOverride, setInvoiceStatus, setTenantStatus,
 } from "./saas-service";
 import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 
@@ -19,19 +19,10 @@ describe("tenant lifecycle", () => {
   });
 });
 
-describe("subscriptions", () => {
-  beforeEach(() => resetDemoData());
-
-  // NOTE: mock `changePlan`/`setSubscriptionStatus` were removed in Super Admin
-  // Phase SA-4B (subscriptions are now real via /api/super-admin/subscriptions).
-  // `extendTrial` remains until Trials (SA-4C) migrates off the mock slice.
-  it("extendTrial only works on trial subscriptions", () => {
-    const active = getSnapshot().saas.subscriptions.find((s) => s.status === "active");
-    if (active) expect(extendTrial(active.id, 7).ok).toBe(false);
-    const trial = getSnapshot().saas.subscriptions.find((s) => s.status === "trial");
-    if (trial) expect(extendTrial(trial.id, 7).ok).toBe(true);
-  });
-});
+// NOTE: subscription + trial mock CRUD were removed as those modules went real —
+// `changePlan`/`setSubscriptionStatus` in SA-4B, `extendTrial` in SA-4C. They are
+// now exercised by the DB-integration tests for subscriptions-service /
+// trials-service, not this mock-store suite.
 
 describe("billing", () => {
   beforeEach(() => resetDemoData());

@@ -39,25 +39,13 @@ export function addTenantNote(tenantId: string, text: string, by = "Super Admin"
 }
 
 // ---------------------------------------------------------------------------
-// Subscriptions
+// Subscriptions & Trials — now REAL (no mock service methods)
 // ---------------------------------------------------------------------------
-// NOTE: the mock subscription CRUD (`changePlan`, `setSubscriptionStatus`) was
-// removed in Super Admin Phase SA-4B — subscriptions are now real DB rows managed
-// via /api/super-admin/subscriptions. `extendTrial` remains because the Trials
-// page (SA-4C) still runs on the mock `db.saas.subscriptions` slice, which also
-// backs the not-yet-migrated Billing/Health/revenue selectors.
-
-export function extendTrial(subscriptionId: string, days: number, admin = "Super Admin"): Result {
-  const db = getSnapshot();
-  const sub = db.saas.subscriptions.find((s) => s.id === subscriptionId);
-  if (!sub) return { ok: false, error: "Subscription not found." };
-  if (sub.status !== "trial") return { ok: false, error: "Only trial subscriptions can be extended." };
-  const base = sub.trialEndDate ? new Date(sub.trialEndDate) : new Date();
-  base.setDate(base.getDate() + days);
-  patchSaas((s) => ({ ...s, subscriptions: s.subscriptions.map((x) => (x.id === subscriptionId ? { ...x, trialEndDate: base.toISOString().slice(0, 10) } : x)) }));
-  logAudit(admin, `Trial extended ${days}d`, tenantName(sub.tenantId), "Subscriptions");
-  return { ok: true };
-}
+// The mock subscription CRUD (`changePlan`, `setSubscriptionStatus`) was removed
+// in SA-4B, and the mock `extendTrial` was removed in SA-4C. Subscriptions and
+// trials are real DB rows managed via /api/super-admin/subscriptions and
+// /api/super-admin/trials. The `db.saas.subscriptions` slice is retained only as
+// read-only backing for the not-yet-migrated Billing/Health/revenue selectors.
 
 // ---------------------------------------------------------------------------
 // Entitlement overrides

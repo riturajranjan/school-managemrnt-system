@@ -27,7 +27,10 @@ export type AuditAction =
   | "SCHOOL_SUSPENDED"
   | "SCHOOL_REACTIVATED"
   | "ONBOARDING_UPDATED"
-  | "ONBOARDING_COMPLETED";
+  | "ONBOARDING_COMPLETED"
+  | "TRIAL_EXTENDED"
+  | "TRIAL_CONVERTED"
+  | "TRIAL_ENDED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

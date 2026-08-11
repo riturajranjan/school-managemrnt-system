@@ -348,3 +348,24 @@ export type SubscriptionDto = {
   createdAt: string;
   updatedAt: string;
 };
+
+// --- Platform (Super Admin) trials (SA-4C) -----------------------------------
+// A trial is a Subscription with a trial window — not a separate model. `state`
+// and `daysRemaining` are derived server-side from persisted trial dates.
+
+export type TrialDto = {
+  subscriptionId: string;
+  state: string; // active | expiring | expired | converted | ended
+  status: string; // underlying subscription status (trialing | active | ended)
+  school: { id: string; name: string; code: string; status: string };
+  tenant: { id: string; name: string; slug: string };
+  plan: { id: string; code: string; name: string; price: number; currency: string; billingInterval: string };
+  trialStart: string | null;
+  trialEnd: string | null;
+  daysRemaining: number; // server-computed; may be ≤0 when expired
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};

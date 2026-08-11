@@ -1,8 +1,6 @@
 import type { Db } from "@/lib/data/store";
 import type { SaasState, SaasTenant } from "@/lib/types/saas";
 
-const TODAY = () => new Date().toISOString().slice(0, 10);
-
 // ---------------------------------------------------------------------------
 // Command centre metrics
 // ---------------------------------------------------------------------------
@@ -122,12 +120,6 @@ export function schoolsByMonth(db: Db) {
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8).map(([month, count]) => ({ month, count }));
 }
 
-// Trials with days-remaining derived from subscriptions.
-export function trialRows(db: Db) {
-  const today = TODAY();
-  return db.saas.tenants.filter((t) => t.status === "trial" || t.status === "setup-pending").map((t) => {
-    const sub = db.saas.subscriptions.find((s) => s.tenantId === t.id);
-    const daysRemaining = sub?.trialEndDate ? Math.ceil((new Date(sub.trialEndDate).getTime() - new Date(today).getTime()) / 86400000) : null;
-    return { tenant: t, subscription: sub, daysRemaining };
-  });
-}
+// NOTE: the mock `trialRows` selector was removed in Super Admin Phase SA-4C —
+// the Trials page is now real (GET /api/super-admin/trials). Remaining selectors
+// here still back not-yet-migrated Billing/Health/dashboard-revenue surfaces.
