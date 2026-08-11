@@ -10,7 +10,7 @@ retained **only** while another unmigrated module still consumes them. No
 production code falls back to mock data on API failure — failures render real
 loading/error/empty states.
 
-_Last updated: SA-4I (Support)._
+_Last updated: SA-4J (Dashboard metrics)._
 
 | Module | Status | Real source | Mock source (if any) | Remaining mock consumers |
 |---|---|---|---|---|
@@ -27,36 +27,36 @@ _Last updated: SA-4I (Support)._
 | Usage & Limits | **REAL** | `usage-service` + `/api/super-admin/usage` (students/branches; staff/storage NOT_TRACKED) | — | — |
 | Global Search | **REAL** | `search-service` + `/api/super-admin/search` (schools/subscriptions/invoices/payments/plans, permission-filtered) | — | — |
 | Support | **REAL** | `support-service` + `/api/super-admin/support` (tickets/messages/notes/assign, real health badge) | — | — |
-| Dashboard | **MOSTLY REAL** | real: setup-pending, active/trialing subs, MRR/ARR, overdue, Pulse, attention, limit warnings, recent schools, **escalations** | `saas-brief.saasSummary` + `db.saas.tenants` | Suspended, New-this-month tiles |
+| Dashboard | **REAL** | every tile: school counts (`dashboard-service` + `/dashboard/summary`), subs, MRR/ARR, overdue, Pulse, attention, limit warnings, escalations, recent schools | — | — |
 | Features/Entitlements | MOCK | — | `db.saas` overrides | `/super-admin/features` |
 | Branding / Domains | MOCK | — | `db.saas` | `/super-admin/branding`, `/super-admin/domains` |
 | Domains / Branding | MOCK | — | `db.saas` | `/super-admin/domains`, `/super-admin/branding` |
 | Add-ons / Marketplace / System | MOCK | — | `db.saas` | those pages |
 
-## Shared mock slices — exact remaining consumers (post SA-4I)
+## Shared mock slices — exact remaining consumers (post SA-4J)
 
-- **`db.saas.support`** — **DELETED in SA-4I** (slice, `PlatformSupportTicket`/
-  `SupportCategory`/`SupportTicketStatus`/`supportCategoryLabels`/`supportStatusTone`
-  types, `use-saas.useSupportTickets`/`useSupportTicket`, `saas-service.replyTicket`/
-  `setTicketStatus`, `saasSummary.supportEscalations`, and the seed; zero consumers).
-- **`saas-brief.tenantHealth`** (+ `HealthState`/`TenantHealth`/`healthLabels`/
-  `healthTone`) — **DELETED in SA-4I** (Support was its last consumer; the badge is
-  the real SA-4F health now).
-- Deleted earlier: `db.saas.invoices` (SA-4H), `db.saas.usage` (SA-4G),
-  `db.saas.subscriptions` (SA-4F), `db.saas.payments` (SA-4E).
-- **`db.saas.tenants`** — still read by `saas-brief.saasSummary` (dashboard tiles:
-  totalSchools/activeSchools/trialSchools/suspended/setupPending/newThisMonth) +
-  the `impersonation` provider. **Retained** — cannot be deleted until saasSummary
-  is migrated.
+- **`lib/selectors/saas-brief.ts`** (whole file incl. `saasSummary` + dead
+  `planDistribution`/`statusDistribution`/`schoolsByMonth`) — **DELETED in SA-4J**;
+  the dashboard is fully real (`dashboard-service`).
+- Deleted earlier: `db.saas.support` + mock `tenantHealth` (SA-4I),
+  `db.saas.invoices` (SA-4H), `db.saas.usage` (SA-4G), `db.saas.subscriptions`
+  (SA-4F), `db.saas.payments` (SA-4E).
+- **`db.saas.tenants`** — STILL read by the still-mock **Features** (`/super-admin/
+  features`), **Domains** (`/super-admin/domains`), **Branding** (`/super-admin/
+  branding`) pages (tenant pickers). **Retained** until those pages migrate. The
+  dashboard, search, health and impersonation no longer read it.
+- **Impersonation** (`components/super-admin/impersonation.tsx`) — LEGACY MOCK, NOT
+  AUTHORITY: React-state-only, no localStorage, no server, no `db.saas`; grants no
+  access. Real server-authoritative impersonation is deferred to **SA-4K**.
 - **`db.saas` (overrides/domains/addons/marketplace/admins/settings/announcements/
   success/status/auditLog)** — the still-mock Features/Domains/Branding/Add-ons/
   Marketplace/System/Settings/Activity/Announcements pages.
 - Note: `db.finance.payments` is a **separate** fees/finance slice — untouched.
 
-All migrated Super Admin pages (plans/subscriptions/trials/billing/invoices/
-payments/health/usage/support) + the layout, global-search, platform-pulse &
-usage-meter widgets import no mock authority (guarded). Real API failures render
-loading/error/empty states — never a mock fallback.
+All migrated Super Admin pages (dashboard + plans/subscriptions/trials/billing/
+invoices/payments/health/usage/support) + the layout, global-search,
+platform-pulse & usage-meter widgets import no mock authority (guarded). Real API
+failures render loading/error/empty states — never a mock fallback.
 
 ## Removed as modules went real
 
@@ -69,6 +69,7 @@ loading/error/empty states — never a mock fallback.
 - SA-4G: **`db.saas.usage` slice deleted** + `TenantUsageMetric`/`UsageKey`/`usageKeyLabels`/`usageKeyUnit` types + `use-saas.useTenantUsage` + `saasSummary.limitWarnings`; `tenantHealth` decoupled from usage; `UsageMeter` rewritten for the real DTO. Usage integrated into real health (usage warnings → ATTENTION).
 - SA-4H: **`db.saas.invoices` slice deleted** + `SaasInvoice`/`SaasInvoiceItem`/`InvoiceStatus`(mock)/`invoiceStatusLabels`/`invoiceStatusTone` types + `use-saas.useInvoices`/`useInvoice`; layout `useSaas` search removed (real server search); dashboard "Recently added schools" migrated to real Schools API.
 - SA-4I: **`db.saas.support` slice deleted** + `PlatformSupportTicket`/`SupportCategory`/`SupportTicketStatus`/`supportCategoryLabels`/`supportStatusTone` types + `use-saas` support hooks + `saas-service.replyTicket`/`setTicketStatus` + `saasSummary.supportEscalations`; **mock `saas-brief.tenantHealth` (+ HealthState/TenantHealth/healthLabels/healthTone) deleted** — Support badge is real SA-4F health.
+- SA-4J: **`lib/selectors/saas-brief.ts` deleted entirely** (`saasSummary`/`SaasSummary` + dead `planDistribution`/`statusDistribution`/`schoolsByMonth`); dashboard school counts + new-this-month are real (`dashboard-service` + `/api/super-admin/dashboard/summary`). Dashboard imports zero mock authority (guarded). Impersonation documented LEGACY MOCK — NOT AUTHORITY (deferred to SA-4K).
 
 ## Guard
 

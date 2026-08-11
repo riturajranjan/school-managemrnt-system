@@ -81,10 +81,12 @@ describe.skipIf(!dbReady)("platform school provisioning (DB)", () => {
 
   it("rejects a duplicate school code and creates nothing", async () => {
     await provision("beta");
-    const before = await prisma.tenant.count();
     await expect(provisionSchool(actor, input("beta"))).rejects.toMatchObject({ code: "SCHOOL_CODE_EXISTS" });
-    const after = await prisma.tenant.count();
-    expect(after).toBe(before); // atomic — no orphan tenant/school
+    // Atomic — the rejected retry left no orphan: still exactly one T2-beta school.
+    // (Scoped to our namespaced code; a global tenant.count() would race with
+    // other DB test files inserting/deleting rows in parallel.)
+    const betaSchools = await prisma.school.count({ where: { code: "T2-beta" } });
+    expect(betaSchools).toBe(1);
   });
 
   it("reuses an existing admin user (adds a membership; never touches the password)", async () => {
@@ -99,15 +101,16 @@ describe.skipIf(!dbReady)("platform school provisioning (DB)", () => {
   });
 
   it("rejects a malformed admin email as a validation error (400, never 500) with no partial rows", async () => {
-    const before = await prisma.tenant.count();
     // e.g. a markdown/mailto-formatted value that slipped past the client.
     const bad = input("bademail", { admin: { firstName: "N", lastName: "T", email: "[admin@novyra.in](mailto:admin@novyra.in)" } });
     await expect(provisionSchool(actor, bad)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
-    // Validation happens before the transaction — nothing is created.
-    const after = await prisma.tenant.count();
-    expect(after).toBe(before);
+    // Validation happens before the transaction — nothing is created. Assert on
+    // our namespaced rows rather than a global tenant.count() (which would race
+    // with other DB test files inserting/deleting rows in parallel).
     const school = await prisma.school.findFirst({ where: { code: "T2-bademail" }, select: { id: true } });
     expect(school).toBeNull();
+    const admin = await prisma.user.findFirst({ where: { email: "admin.bademail@sa2.test" }, select: { id: true } });
+    expect(admin).toBeNull();
   });
 
   it("rejects a malformed school email as a validation error", async () => {

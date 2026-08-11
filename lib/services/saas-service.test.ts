@@ -3,7 +3,6 @@ import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
   setEntitlementOverride, setTenantStatus,
 } from "./saas-service";
-import { saasSummary } from "@/lib/selectors/saas-brief";
 
 // NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 (school creation
 // is now real via POST /api/super-admin/schools). Its tests were removed with it.
@@ -43,16 +42,7 @@ describe("entitlement overrides", () => {
   });
 });
 
-describe("selectors", () => {
-  beforeEach(() => resetDemoData());
-
-  it("summary reports total schools and non-negative counts", () => {
-    const s = saasSummary(getSnapshot());
-    expect(s.totalSchools).toBeGreaterThan(0);
-    expect(s.trialSchools).toBeGreaterThanOrEqual(0);
-  });
-
-  // NOTE: mock `platformPulse` (SA-4F) and mock `tenantHealth` (SA-4I) were
-  // removed — tenant health + Platform Pulse are real now (health-service DB
-  // integration tests). saasSummary remains for the still-mock dashboard tiles.
-});
+// NOTE: the `saas-brief` selectors were removed as the dashboard went real —
+// `platformPulse` (SA-4F), mock `tenantHealth` (SA-4I) and `saasSummary` +
+// dead analytics selectors (SA-4J). Dashboard metrics are real now (dashboard/
+// health/billing/usage/support services + DB integration tests).

@@ -30,6 +30,7 @@ const MIGRATED_FILES = [
   "components/super-admin/usage-meter.tsx",
   "components/super-admin/global-search.tsx",
   "app/super-admin/layout.tsx",
+  "app/super-admin/page.tsx", // dashboard — fully real (SA-4J)
 ];
 
 // Forbidden mock-authority markers (substring match against source text).

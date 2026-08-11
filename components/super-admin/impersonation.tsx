@@ -8,8 +8,15 @@ import { Button } from "@/components/ui/button";
 type ImpersonationValue = { active: string | null; request: (schoolName: string) => void; confirm: () => void; exit: () => void; pending: string | null; cancel: () => void };
 const Ctx = createContext<ImpersonationValue | null>(null);
 
-/** Frontend-only impersonation simulation. NO authentication is involved — this
- * only shows a confirmation modal and a persistent banner. */
+/**
+ * LEGACY MOCK — NOT AUTHORITY. Frontend-only impersonation simulation: it holds
+ * a school NAME in React state (no localStorage, no server, no DB) and only shows
+ * a confirmation modal + banner. It grants NO access, alters NO tenant/school
+ * context, and NEVER influences API authorization. It reads no `db.saas` data and
+ * does not persist across refresh. Real server-authoritative impersonation is a
+ * dedicated future phase (SA-4K); until then a browser-selected tenant must never
+ * become an authorization source.
+ */
 export function ImpersonationProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);

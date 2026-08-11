@@ -477,6 +477,16 @@ export type HealthSummaryDto = {
   pulse: { score: number; factors: PlatformPulseFactorDto[] };
 };
 
+// --- Platform (Super Admin) dashboard summary (SA-4J) ------------------------
+
+export type DashboardSummaryDto = {
+  totalSchools: number;
+  activeSchools: number;
+  setupPendingSchools: number;
+  suspendedSchools: number;
+  newSchoolsThisMonth: number; // createdAt >= start of current calendar month (UTC)
+};
+
 // --- Platform (Super Admin) support (SA-4I) ----------------------------------
 
 export type SupportTicketDto = {
