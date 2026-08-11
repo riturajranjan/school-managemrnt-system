@@ -4,12 +4,15 @@
 // Never trusts anything from the browser. Request-deduped via React cache().
 import { cache } from "react";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/server/auth/current-user";
+import { getCurrentSessionContext } from "@/lib/server/auth/current-user";
+import { resolveActiveTarget } from "@/lib/server/auth/impersonation";
 import type { SafeUser } from "@/lib/server/auth/service";
-import { platformPermissionsForRole } from "./catalog";
+import { INSPECTION_PERMISSION_KEYS, platformPermissionsForRole } from "./catalog";
 
 export type AuthzContext = {
   user: SafeUser;
+  /** The current auth Session row id — the anchor impersonation binds to. */
+  sessionId: string;
   isPlatformAdmin: boolean;
   /** The PlatformAdmin.role (SUPER_ADMIN | SUPPORT | BILLING | AUDITOR) or null. */
   platformRole: string | null;
@@ -17,6 +20,14 @@ export type AuthzContext = {
   permissions: Set<string>;
   schoolId: string | null;
   branchId: string | null;
+  /**
+   * When set, this request is a platform admin READ-ONLY inspecting a school
+   * (SA-4K). The actor identity is unchanged; `permissions` has been narrowed to
+   * platform perms + tenant `.view` inspection reads, and `schoolId` points at
+   * the target. Business scope (requireOrgScope) derives the target tenant/school
+   * from this — never from the actor's membership.
+   */
+  impersonation: { targetTenantId: string; targetSchoolId: string } | null;
 };
 
 /**
@@ -27,7 +38,7 @@ export type AuthzContext = {
 export async function resolveUserAuthz(
   userId: string,
   isPlatformAdmin: boolean,
-): Promise<Omit<AuthzContext, "user">> {
+): Promise<Omit<AuthzContext, "user" | "sessionId">> {
   const [uac, memberships] = await Promise.all([
     prisma.userActiveContext.findUnique({
       where: { userId },
@@ -77,15 +88,44 @@ export async function resolveUserAuthz(
     permissions,
     schoolId: uac?.schoolId ?? null,
     branchId: uac?.branchId ?? null,
+    impersonation: null,
   };
 }
 
-/** Resolve the current request's authorization context, or null if unauthenticated. */
+/**
+ * Resolve the current request's authorization context, or null if
+ * unauthenticated. When the session has an active impersonation AND the actor is
+ * a real platform admin, the context is narrowed to READ-ONLY school inspection:
+ * the actor keeps their platform permissions (identity + the ability to stop),
+ * gains ONLY tenant `.view` inspection reads for the target, and `schoolId` is
+ * pointed at the target school. The actor's own tenant role permissions are
+ * deliberately dropped — they belong to a different tenant and must never apply
+ * to the inspection target. No writes are ever granted (no `.create/.update/…`).
+ */
 export const getAuthzContext = cache(async (): Promise<AuthzContext | null> => {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const session = await getCurrentSessionContext();
+  if (!session) return null;
+  const { sessionId, user } = session;
   const resolved = await resolveUserAuthz(user.id, user.isPlatformAdmin);
-  return { user, ...resolved };
+
+  // Impersonation is a platform-admin-only capability; a non-platform session can
+  // never carry an active target (defense in depth — the start route also gates).
+  const target = user.isPlatformAdmin ? await resolveActiveTarget(sessionId) : null;
+  if (target) {
+    const permissions = new Set<string>(platformPermissionsForRole(resolved.platformRole));
+    for (const key of INSPECTION_PERMISSION_KEYS) permissions.add(key);
+    return {
+      user,
+      sessionId,
+      ...resolved,
+      permissions,
+      schoolId: target.targetSchoolId,
+      branchId: null,
+      impersonation: { targetTenantId: target.targetTenantId, targetSchoolId: target.targetSchoolId },
+    };
+  }
+
+  return { user, sessionId, ...resolved };
 });
 
 /** The current user's effective permission keys (for the capabilities endpoint). */

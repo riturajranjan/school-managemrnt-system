@@ -204,6 +204,43 @@ export async function resolveSessionUser(token: string | undefined | null): Prom
 }
 
 /**
+ * Resolve a raw session token to the SESSION IDENTITY ({ sessionId, user }), or
+ * null. Same validation as resolveSessionUser (existence, expiry, ACTIVE user),
+ * but also returns the session row id — the anchor that server-authoritative
+ * impersonation binds to. Fails closed (null) on any error.
+ */
+export async function resolveSessionContext(
+  token: string | undefined | null,
+): Promise<{ sessionId: string; user: SafeUser } | null> {
+  if (!token) return null;
+  try {
+    const session = await prisma.session.findUnique({
+      where: { tokenHash: hashToken(token) },
+      select: {
+        id: true,
+        expiresAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            status: true,
+            platformAdmin: { select: { id: true } },
+          },
+        },
+      },
+    });
+    if (!session) return null;
+    if (session.expiresAt.getTime() <= Date.now()) return null;
+    if (session.user.status !== "ACTIVE") return null;
+    return { sessionId: session.id, user: toSafeUser(session.user) };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Invalidate a server session by deleting its row (revokes it everywhere, so a
  * replayed cookie no longer authenticates). Uses deleteMany so a missing/already
  * removed session is a no-op. Fails closed on error without leaking details.

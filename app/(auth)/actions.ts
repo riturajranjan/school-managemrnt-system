@@ -4,7 +4,8 @@
 // Return only safe UI info (never the session token, hash, or DB internals).
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { authenticateWithPassword, destroySession } from "@/lib/server/auth/service";
+import { authenticateWithPassword, destroySession, resolveSessionContext } from "@/lib/server/auth/service";
+import { stopImpersonation } from "@/lib/server/platform/impersonation-service";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/server/auth/config";
 import { sanitizeReturnTo } from "@/lib/server/auth/routes";
 import { resolvePostLogin } from "@/lib/server/context/resolver";
@@ -45,6 +46,17 @@ export async function loginAction(input: {
 export async function logout(): Promise<void> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE_NAME)?.value;
+  // End any active impersonation FIRST so it lands an IMPERSONATION_ENDED audit
+  // with the real actor (deleting the session below would cascade-remove the row
+  // silently). Best-effort — never block logout on it.
+  try {
+    const session = await resolveSessionContext(token);
+    if (session) {
+      await stopImpersonation({ sessionId: session.sessionId, actor: { id: session.user.id, name: session.user.name } });
+    }
+  } catch {
+    // Ignore — the session delete below still invalidates everything (cascade).
+  }
   await destroySession(token);
   // Clear with matching path/attributes so no stale cookie remains.
   store.set(SESSION_COOKIE_NAME, "", sessionCookieOptions(0));

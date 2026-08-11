@@ -7,6 +7,17 @@ import { hasPermission, type Permission, type UserRole } from "@/lib/permissions
 
 type AssignedRole = { id: string; key: string; name: string; uiRole: UserRole | null };
 
+/** Server-authoritative impersonation state (SA-4K) — mirrors the API DTO. */
+export type ImpersonationState =
+  | { active: false }
+  | {
+      active: true;
+      school: { id: string; name: string };
+      tenant: { id: string; name: string };
+      startedAt: string;
+      readOnly: true;
+    };
+
 type PermissionsContextValue = {
   role: UserRole;
   setRole: (role: UserRole) => void; // switches among genuinely-assigned roles only
@@ -18,6 +29,12 @@ type PermissionsContextValue = {
   isPlatformAdmin: boolean;
   assignedRoles: AssignedRole[];
   capabilitiesLoading: boolean;
+  /** Active read-only school inspection, or { active:false }. UI gating only. */
+  impersonation: ImpersonationState;
+  /** True while inspecting a school read-only — hide/disable write actions. */
+  isReadOnlyInspection: boolean;
+  /** Stop impersonation server-side, then reload capabilities + refresh routes. */
+  stopImpersonation: () => Promise<void>;
 };
 
 type Capabilities = {
@@ -26,6 +43,7 @@ type Capabilities = {
   uiRole: UserRole | null;
   isPlatformAdmin: boolean;
   assignedRoles: AssignedRole[];
+  impersonation: ImpersonationState;
 };
 
 const PermissionsContext = createContext<PermissionsContextValue | null>(null);
@@ -46,6 +64,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [assignedRoles, setAssignedRoles] = useState<AssignedRole[]>([]);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
+  const [impersonation, setImpersonation] = useState<ImpersonationState>({ active: false });
 
   const load = useCallback(async () => {
     const res = await apiGet<Capabilities>("/api/auth/capabilities");
@@ -59,6 +78,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       setManagedKeys(new Set(data.managedPermissionKeys));
       setIsPlatformAdmin(data.isPlatformAdmin);
       setAssignedRoles(data.assignedRoles);
+      setImpersonation(data.impersonation ?? { active: false });
     }
     setCapabilitiesLoading(false);
   }, []);
@@ -97,6 +117,15 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     [managedKeys, serverPermissions, role],
   );
 
+  // Stop server-authoritative impersonation, then re-resolve capabilities (which
+  // drops the read-only inspection permissions) and refresh the current route.
+  const stopImpersonation = useCallback(async () => {
+    const res = await apiPost("/api/super-admin/impersonation/stop", {});
+    if (!res.success) return;
+    apply(await load());
+    router.refresh();
+  }, [apply, load, router]);
+
   const value = useMemo<PermissionsContextValue>(
     () => ({
       role,
@@ -108,8 +137,11 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       isPlatformAdmin,
       assignedRoles,
       capabilitiesLoading,
+      impersonation,
+      isReadOnlyInspection: impersonation.active === true,
+      stopImpersonation,
     }),
-    [role, setRole, can, serverPermissions, isPlatformAdmin, assignedRoles, capabilitiesLoading],
+    [role, setRole, can, serverPermissions, isPlatformAdmin, assignedRoles, capabilitiesLoading, impersonation, stopImpersonation],
   );
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>;

@@ -446,11 +446,45 @@ model Session {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonation PlatformImpersonation?
 
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// PlatformImpersonation — server-authoritative "view a school as platform admin"
+// context (Super Admin Phase SA-4K). SECURITY MODEL:
+//   • Bound to ONE auth Session (sessionId @unique → at most one active per
+//     session). The row is the ONLY authority — never localStorage/cookies/React.
+//   • FK cascade to Session: logout (session delete) or a session teardown
+//     removes it automatically; an expired session never resolves a user, so the
+//     row can never authorize on its own.
+//   • Actor stays the platform admin (platformUserId). Target tenant is DERIVED
+//     from the target School at start — never client-supplied.
+//   • V1 is READ-ONLY inspection: the resolver grants only tenant `.view`
+//     permissions for the target, never tenant writes and never a tenant role.
+// The start/stop audit trail lives in AuditEvent (IMPERSONATION_STARTED/ENDED);
+// this table holds only the single current-state row (deleted on stop).
+// ---------------------------------------------------------------------------
+model PlatformImpersonation {
+  id             String   @id @default(cuid())
+  sessionId      String   @unique
+  platformUserId String
+  targetTenantId String
+  targetSchoolId String
+  startedAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId])
+  @@index([targetSchoolId])
+  @@map("platform_impersonations")
 }
 
 // ===========================================================================

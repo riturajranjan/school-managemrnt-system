@@ -1,6 +1,7 @@
 import { getAuthzContext } from "@/lib/server/authz/permissions";
 import { getAssignedRoles } from "@/lib/server/context/service";
 import { DB_ROLE_TO_UI, PERMISSION_KEYS, PLATFORM_UI_ROLE } from "@/lib/server/authz/catalog";
+import { getActiveImpersonation } from "@/lib/server/platform/impersonation-service";
 import { fail, ok } from "@/lib/server/api/response";
 
 // GET /api/auth/capabilities — the current user's real permission keys, active
@@ -9,6 +10,11 @@ import { fail, ok } from "@/lib/server/api/response";
 export async function GET() {
   const ctx = await getAuthzContext();
   if (!ctx) return fail("UNAUTHENTICATED", "Sign in required");
+
+  // Impersonation state (SA-4K) so the client can render the app-wide read-only
+  // banner + gate write actions. This is a UI convenience — the server enforces
+  // read-only independently (the permission set carries no tenant writes).
+  const impersonation = await getActiveImpersonation(ctx.sessionId);
 
   const assigned = await getAssignedRoles(ctx.user.id);
   // Effective role for display: the selected active role, else the sole assigned
@@ -30,5 +36,6 @@ export async function GET() {
     uiRole,
     isPlatformAdmin: ctx.isPlatformAdmin,
     assignedRoles: assigned.map((r) => ({ id: r.id, key: r.key, name: r.name, uiRole: DB_ROLE_TO_UI[r.key] ?? null })),
+    impersonation,
   });
 }

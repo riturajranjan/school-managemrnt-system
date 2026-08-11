@@ -29,6 +29,28 @@ async function accessibleTenantIds(userId: string): Promise<string[]> {
  * branch/session are only kept if they still belong to the active school.
  */
 export async function requireOrgScope(ctx: AuthzContext): Promise<OrgScope> {
+  // Impersonation (SA-4K): the target tenant/school is server-authoritative
+  // (recorded at start, re-validated by the authz resolver) — NOT the actor's
+  // membership. Read-only inspection needs no branch/session selection. Writes
+  // are already blocked upstream: the impersonation permission set contains no
+  // tenant write permission, so requirePermission fails before a write route
+  // ever reaches here.
+  if (ctx.impersonation) {
+    const { targetTenantId, targetSchoolId } = ctx.impersonation;
+    const school = await prisma.school.findFirst({
+      where: { id: targetSchoolId, tenantId: targetTenantId },
+      select: { id: true },
+    });
+    if (!school) throw new HttpError("INVALID_SCHOOL", "Impersonation target is no longer available");
+    return {
+      tenantId: targetTenantId,
+      schoolId: targetSchoolId,
+      branchId: null,
+      academicSessionId: null,
+      actor: { id: ctx.user.id, name: ctx.user.name ?? null },
+    };
+  }
+
   if (!ctx.schoolId) throw new HttpError("INVALID_SCHOOL", "No school selected");
 
   const tenantIds = await accessibleTenantIds(ctx.user.id);

@@ -106,6 +106,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "platform.settings.view", module: "platform.settings", action: "view", description: "View platform settings" },
   { key: "platform.settings.manage", module: "platform.settings", action: "manage", description: "Manage platform settings" },
   { key: "platform.audit.view", module: "platform.audit", action: "view", description: "View the platform audit log" },
+  // High-trust: start/stop server-authoritative read-only impersonation of a
+  // school. Deliberately `.manage` (never `.view`) so the read-only AUDITOR role
+  // — which receives all `platform.*.view` keys — does NOT get it. Only
+  // SUPER_ADMIN receives it (via the full PLATFORM_ONLY_KEYS spread below); it is
+  // absent from the explicit SUPPORT/BILLING allowlists.
+  { key: "platform.impersonation.manage", module: "platform.impersonation", action: "manage", description: "Impersonate (read-only inspect) a school" },
 ];
 
 export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
@@ -114,6 +120,20 @@ export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
 export const PLATFORM_PERMISSION_KEYS = PERMISSION_KEYS.filter(
   (k) => k === "super_admin.access" || k.startsWith("platform."),
 );
+
+/**
+ * Read-only tenant INSPECTION permission set (Super Admin Phase SA-4K). The
+ * exact permissions a platform admin receives for the TARGET school while
+ * impersonating — every tenant/school permission whose action is `view` (the
+ * codebase convention for a pure read). Derived from the catalog so it can never
+ * drift: adding a new `*.view` permission automatically becomes inspectable, and
+ * NO write action (`create`/`update`/`archive`/`approve`/`manage`/`mark`/… or
+ * `export`) can ever leak in. Platform (`platform.*`) keys are excluded — those
+ * come from the actor's own platform role, not from the target tenant.
+ */
+export const INSPECTION_PERMISSION_KEYS: string[] = PERMISSIONS.filter(
+  (p) => p.action === "view" && p.key !== "super_admin.access" && !p.key.startsWith("platform."),
+).map((p) => p.key);
 
 // System-role key → permission keys. No wildcard admin; super_admin.access is
 // never granted here (platform access is a separate boundary via PlatformAdmin).

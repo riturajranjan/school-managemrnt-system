@@ -6,7 +6,6 @@ import { useState, type ReactNode } from "react";
 import { Building2, ChevronDown, Command } from "lucide-react";
 import { saasNav } from "@/components/super-admin/saas-nav";
 import { GlobalSearch } from "@/components/super-admin/global-search";
-import { ImpersonationProvider } from "@/components/super-admin/impersonation";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { roleLabels } from "@/lib/permissions/roles";
@@ -27,8 +26,7 @@ export default function SuperAdminLayout({ children }: { children: ReactNode }) 
   const isActive = (href: string) => pathname === href || (href !== "/super-admin" && pathname.startsWith(`${href}/`));
 
   return (
-    <ImpersonationProvider>
-      <div className="flex flex-col gap-md">
+    <div className="flex flex-col gap-md">
         {/* Workspace identity header */}
         <div className="flex flex-col gap-sm rounded-xl border border-border bg-[linear-gradient(135deg,#022c43,#0a3a52)] p-sm text-white sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
@@ -61,6 +59,5 @@ export default function SuperAdminLayout({ children }: { children: ReactNode }) 
           <div className="min-w-0">{children}</div>
         </div>
       </div>
-    </ImpersonationProvider>
   );
 }

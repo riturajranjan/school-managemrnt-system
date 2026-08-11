@@ -6,14 +6,20 @@
 // fabricated here — they arrive with the Revenue phase. Opening this page is
 // platform inspection; it does NOT grant the platform admin tenant permissions.
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { setSchoolStatusRequest, useSchoolDetail } from "@/lib/hooks/api/use-platform-schools";
+import { startImpersonationRequest } from "@/lib/hooks/api/use-impersonation";
 import type { StatusTone } from "@/lib/types/common";
+
+// School statuses a platform admin may read-only inspect (mirrors the server's
+// INSPECTABLE_STATUSES; ARCHIVED/INACTIVE are excluded — fail closed).
+const INSPECTABLE_UI_STATUSES = new Set(["active", "setup-pending", "suspended"]);
 
 const statusLabels: Record<string, string> = {
   "setup-pending": "Setup pending",
@@ -32,10 +38,25 @@ const statusTone: Record<string, StatusTone> = {
 
 export default function SchoolDetailPage({ params }: { params: Promise<{ schoolId: string }> }) {
   const { schoolId } = use(params);
-  const { can } = usePermissions();
+  const router = useRouter();
+  const { can, hasServerPermission } = usePermissions();
   const { data, loading, error, reload } = useSchoolDetail(schoolId);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [inspecting, setInspecting] = useState(false);
+
+  async function startInspect() {
+    setInspecting(true);
+    setActionError(null);
+    const res = await startImpersonationRequest(schoolId);
+    if (!res.success) {
+      setInspecting(false);
+      setActionError(res.error.message);
+      return;
+    }
+    // Enter the school application read-only; the app-wide banner shows the mode.
+    router.push("/");
+  }
 
   if (loading) return <div className="py-2xl text-center text-sm text-muted-foreground">Loading school…</div>;
   if (error || !data) {
@@ -79,6 +100,11 @@ export default function SchoolDetailPage({ params }: { params: Promise<{ schoolI
           </p>
         </div>
         <div className="flex gap-xs">
+          {hasServerPermission("platform.impersonation.manage") && INSPECTABLE_UI_STATUSES.has(school.status) && (
+            <Button size="sm" variant="outline" disabled={inspecting} onClick={() => void startInspect()}>
+              <Eye className="size-4" /> {inspecting ? "Starting…" : "Inspect (read-only)"}
+            </Button>
+          )}
           {school.setupPending ? (
             <Button asChild size="sm">
               <Link href={`/super-admin/onboarding/${school.id}`}>Continue setup</Link>

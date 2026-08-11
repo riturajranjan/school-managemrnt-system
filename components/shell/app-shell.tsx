@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AiCommandDialog } from "./ai-command";
 import { CommandPaletteDialog } from "./command-palette";
 import { Header } from "./header";
+import { ImpersonationBanner } from "./impersonation-banner";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { MobileContextSheet } from "./mobile-context-sheet";
 import { MobileFab } from "./mobile-fab";
@@ -61,6 +62,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               column has an explicit, higher stacking context to reliably paint above it — this is what was read as the header
               "clipping" at lg+ widths. */}
           <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
+            {/* App-wide: shown in BOTH platform and school context while inspecting. */}
+            <ImpersonationBanner />
             <Header platform={isPlatform} />
             <MobileHeader platform={isPlatform} />
 

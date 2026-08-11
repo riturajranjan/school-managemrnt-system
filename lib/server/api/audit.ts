@@ -41,7 +41,9 @@ export type AuditAction =
   | "SUPPORT_TICKET_ASSIGNED"
   | "SUPPORT_TICKET_STATUS_CHANGED"
   | "SUPPORT_MESSAGE_ADDED"
-  | "SUPPORT_NOTE_ADDED";
+  | "SUPPORT_NOTE_ADDED"
+  | "IMPERSONATION_STARTED"
+  | "IMPERSONATION_ENDED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,
