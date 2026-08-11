@@ -369,3 +369,51 @@ export type TrialDto = {
   createdAt: string;
   updatedAt: string;
 };
+
+// --- Platform (Super Admin) billing + invoices (SA-4D) -----------------------
+
+export type BillingSummaryDto = {
+  currency: string;
+  activeSubscriptions: number;
+  trialingSubscriptions: number;
+  mrr: number;
+  arr: number;
+  openInvoices: number;
+  overdueInvoices: number;
+  outstandingAmount: number;
+  paidAmount: number;
+};
+
+export type InvoiceLineItemDto = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitAmount: number;
+  amount: number;
+};
+
+export type InvoiceDto = {
+  id: string;
+  invoiceNumber: string;
+  status: string; // draft | open | paid | void
+  derivedState: string; // draft | open | overdue | paid | void
+  school: { id: string; name: string; code: string };
+  tenant: { id: string; name: string; slug: string };
+  subscription: { id: string; status: string; planCode: string; planName: string; billingInterval: string };
+  currency: string;
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  amountPaid: number;
+  amountDue: number;
+  periodStart: string;
+  periodEnd: string;
+  issuedAt: string | null;
+  dueAt: string;
+  paidAt: string | null;
+  voidedAt: string | null;
+  lineItems: InvoiceLineItemDto[];
+  createdAt: string;
+  updatedAt: string;
+};

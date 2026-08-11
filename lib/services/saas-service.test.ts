@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
-  setEntitlementOverride, setInvoiceStatus, setTenantStatus,
+  setEntitlementOverride, setTenantStatus,
 } from "./saas-service";
 import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 
@@ -24,18 +24,9 @@ describe("tenant lifecycle", () => {
 // now exercised by the DB-integration tests for subscriptions-service /
 // trials-service, not this mock-store suite.
 
-describe("billing", () => {
-  beforeEach(() => resetDemoData());
-
-  it("marking an invoice paid creates a successful payment", () => {
-    const inv = getSnapshot().saas.invoices.find((i) => i.status !== "paid")!;
-    const beforePayments = getSnapshot().saas.payments.length;
-    setInvoiceStatus(inv.id, "paid");
-    const db = getSnapshot();
-    expect(db.saas.invoices.find((i) => i.id === inv.id)!.status).toBe("paid");
-    expect(db.saas.payments.length).toBe(beforePayments + 1);
-  });
-});
+// NOTE: mock `setInvoiceStatus` was removed in Super Admin Phase SA-4D — billing
+// + invoices are now real (/api/super-admin/invoices), covered by
+// invoices-service DB integration tests.
 
 describe("entitlement overrides", () => {
   beforeEach(() => resetDemoData());
@@ -55,10 +46,10 @@ describe("entitlement overrides", () => {
 describe("selectors", () => {
   beforeEach(() => resetDemoData());
 
-  it("summary reports total schools and non-negative MRR", () => {
+  it("summary reports total schools and non-negative counts", () => {
     const s = saasSummary(getSnapshot());
     expect(s.totalSchools).toBeGreaterThan(0);
-    expect(s.mrrMinor).toBeGreaterThanOrEqual(0);
+    expect(s.activeSubscriptions).toBeGreaterThanOrEqual(0);
   });
 
   it("platform pulse is within 0-100", () => {

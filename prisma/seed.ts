@@ -16,6 +16,7 @@ import { PERMISSIONS, ROLE_PERMISSIONS } from "../lib/server/authz/catalog";
 import { seedPhase4 } from "./seed-phase4";
 import { seedPlans } from "./seed-plans";
 import { seedSubscriptions } from "./seed-subscriptions";
+import { seedInvoices } from "./seed-invoices";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
@@ -247,6 +248,11 @@ async function main() {
   // Super Admin Phase SA-4B — subscriptions on real schools + plans
   // =========================================================================
   await seedSubscriptions(prisma, { tenantId: tenant.id, schoolId: school.id });
+
+  // =========================================================================
+  // Super Admin Phase SA-4D — invoices on the real ACTIVE subscription
+  // =========================================================================
+  await seedInvoices(prisma);
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

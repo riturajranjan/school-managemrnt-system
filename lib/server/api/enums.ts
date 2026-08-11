@@ -9,6 +9,7 @@ import type {
   DocVerificationStatus as DbDocVerification,
   Gender as DbGender,
   GuardianRelation as DbGuardianRelation,
+  InvoiceStatus as DbInvoiceStatus,
   PlanStatus as DbPlanStatus,
   SchoolStatus as DbSchoolStatus,
   StudentStatus as DbStudentStatus,
@@ -117,3 +118,12 @@ export const subscriptionStatusToUi: Record<DbSubscriptionStatus, string> = {
   ENDED: "ended",
 };
 export const subscriptionStatusFromUi = invert(subscriptionStatusToUi);
+
+/** Invoice lifecycle (Super Admin SA-4D). OVERDUE is derived, not stored. */
+export const invoiceStatusToUi: Record<DbInvoiceStatus, string> = {
+  DRAFT: "draft",
+  OPEN: "open",
+  PAID: "paid",
+  VOID: "void",
+};
+export const invoiceStatusFromUi = invert(invoiceStatusToUi);

@@ -5,17 +5,18 @@ import type { SaasState, SaasTenant } from "@/lib/types/saas";
 // Command centre metrics
 // ---------------------------------------------------------------------------
 
+// NOTE: fake MRR/ARR + overdue-invoice counts were removed from this summary in
+// Super Admin Phase SA-4D — those are now real, derived server-side from
+// PostgreSQL (GET /api/super-admin/billing/summary). The fields below back only
+// still-mock dashboard tiles (schools counts, support/usage) and the Health page.
 export type SaasSummary = {
   totalSchools: number; activeSchools: number; trialSchools: number; suspended: number; setupPending: number;
-  activeSubscriptions: number; mrrMinor: number; arrMinor: number; overdue: number; supportEscalations: number;
-  limitWarnings: number; newThisMonth: number;
+  activeSubscriptions: number; supportEscalations: number; limitWarnings: number; newThisMonth: number;
 };
 
 export function saasSummary(db: Db): SaasSummary {
   const s = db.saas;
   const active = s.tenants.filter((t) => t.status === "active");
-  const mrrMinor = s.subscriptions.filter((sub) => sub.status === "active" || sub.status === "past-due" || sub.status === "grace-period")
-    .reduce((sum, sub) => sum + Math.round((sub.billingCycle === "annual" ? sub.priceMinor / 12 : sub.priceMinor) * (1 - sub.discountPercent / 100)), 0);
   const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
   return {
     totalSchools: s.tenants.length,
@@ -24,9 +25,6 @@ export function saasSummary(db: Db): SaasSummary {
     suspended: s.tenants.filter((t) => t.status === "suspended").length,
     setupPending: s.tenants.filter((t) => t.status === "setup-pending").length,
     activeSubscriptions: s.subscriptions.filter((sub) => sub.status === "active").length,
-    mrrMinor,
-    arrMinor: mrrMinor * 12,
-    overdue: s.invoices.filter((i) => i.status === "overdue").length,
     supportEscalations: s.support.filter((t) => t.status === "escalated").length,
     limitWarnings: s.usage.filter((u) => u.limit > 0 && u.used / u.limit >= 0.8).length,
     newThisMonth: s.tenants.filter((t) => t.createdAt >= monthAgo.toISOString().slice(0, 10)).length,

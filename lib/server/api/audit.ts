@@ -30,7 +30,11 @@ export type AuditAction =
   | "ONBOARDING_COMPLETED"
   | "TRIAL_EXTENDED"
   | "TRIAL_CONVERTED"
-  | "TRIAL_ENDED";
+  | "TRIAL_ENDED"
+  | "INVOICE_GENERATED"
+  | "INVOICE_ISSUED"
+  | "INVOICE_PAID"
+  | "INVOICE_VOIDED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

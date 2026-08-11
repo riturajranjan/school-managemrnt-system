@@ -1,6 +1,6 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type {
-  EntitlementLevel, InvoiceStatus, PlatformAnnouncement, SaasState, SaasTenantStatus,
+  EntitlementLevel, PlatformAnnouncement, SaasState, SaasTenantStatus,
   SupportTicketStatus,
 } from "@/lib/types/saas";
 import { generateId } from "@/lib/utils";
@@ -70,21 +70,13 @@ export function clearEntitlementOverride(overrideId: string): Result {
 }
 
 // ---------------------------------------------------------------------------
-// Invoices & payments
+// Billing & Invoices — now REAL (no mock service methods)
 // ---------------------------------------------------------------------------
-
-export function setInvoiceStatus(invoiceId: string, status: InvoiceStatus, admin = "Billing Admin"): Result {
-  const db = getSnapshot();
-  const inv = db.saas.invoices.find((i) => i.id === invoiceId);
-  if (!inv) return { ok: false, error: "Invoice not found." };
-  patchSaas((s) => {
-    const invoices = s.invoices.map((i) => (i.id === invoiceId ? { ...i, status } : i));
-    const payments = status === "paid" ? [{ id: generateId("pay"), tenantId: inv.tenantId, invoiceNumber: inv.number, amountMinor: inv.totalMinor, method: "Manual", date: new Date().toISOString().slice(0, 10), status: "successful" as const }, ...s.payments] : s.payments;
-    return { ...s, invoices, payments };
-  });
-  if (status === "paid") logAudit(admin, "Invoice marked paid", tenantName(inv.tenantId), "Billing");
-  return { ok: true };
-}
+// The mock `setInvoiceStatus` (which also fabricated a Payment row) was removed
+// in Super Admin Phase SA-4D. Billing + invoices are real DB rows managed via
+// /api/super-admin/billing and /api/super-admin/invoices. The remaining
+// `db.saas.invoices`/`payments` slices back only the still-mock global search
+// (layout) and the not-yet-migrated Payments page.
 
 // ---------------------------------------------------------------------------
 // Support

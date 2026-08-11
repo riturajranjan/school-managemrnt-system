@@ -10,7 +10,7 @@ retained **only** while another unmigrated module still consumes them. No
 production code falls back to mock data on API failure — failures render real
 loading/error/empty states.
 
-_Last updated: SA-4C (Trials)._
+_Last updated: SA-4D (Billing + Invoices)._
 
 | Module | Status | Real source | Mock source (if any) | Remaining mock consumers |
 |---|---|---|---|---|
@@ -19,34 +19,39 @@ _Last updated: SA-4C (Trials)._
 | Plans | **REAL** | `plans-service` + `/api/super-admin/plans` | — | — |
 | Subscriptions | **REAL** | `subscriptions-service` + `/api/super-admin/subscriptions` | — | — |
 | Trials | **REAL** | `trials-service` + `/api/super-admin/trials` | — | — |
-| Dashboard | **PARTIAL** | real: setup-pending (schools), active + trialing (subscriptions) | `saas-brief` selectors | MRR/ARR, overdue, escalations, limit warnings, tenant health/pulse |
+| Billing | **REAL** | `billing-service` + `/api/super-admin/billing/summary` | — | — |
+| Invoices | **REAL** | `invoices-service` + `/api/super-admin/invoices` | — | — |
+| Dashboard | **PARTIAL** | real: setup-pending, active/trialing subs, MRR/ARR, overdue | `saas-brief` selectors | escalations, limit warnings, tenant health/pulse |
 | Usage & Limits | MOCK | — | `db.saas.usage` | `/super-admin/usage` |
-| Billing | MOCK | — | `db.saas` (subscriptions/invoices) | `/super-admin/billing` |
-| Invoices | MOCK | — | `db.saas.invoices` | `/super-admin/invoices` |
 | Payments | MOCK | — | `db.saas.payments` | `/super-admin/payments` |
 | Features/Entitlements | MOCK | — | `db.saas` overrides | `/super-admin/features` |
 | Branding / Domains | MOCK | — | `db.saas` | `/super-admin/branding`, `/super-admin/domains` |
-| Tenant Health | MOCK | — | `saas-brief.tenantHealth` | `/super-admin/health`, dashboard |
+| Tenant Health | MOCK | — | `saas-brief.tenantHealth`/`platformPulse` | `/super-admin/health`, dashboard pulse |
+| Global search | MOCK | — | `db.saas` (tenants/invoices/support/domains/admins) | `/super-admin/layout.tsx` command palette |
 
-## Shared mock slice: `db.saas.subscriptions`
+## Shared mock slices — exact remaining consumers (post SA-4D)
 
-Retained (read-only) because these **unmigrated** surfaces still derive from it:
+- **`db.saas.subscriptions`** — still read by `saas-brief.tenantHealth` &
+  `platformPulse` (the `/super-admin/health` page + the dashboard Platform Pulse
+  widget), and by `use-saas.useSubscriptions`. **Cannot be deleted yet.**
+- **`db.saas.invoices`** — still read by the `layout.tsx` global-search command
+  palette (invoice-number search) and `use-saas.useInvoices`. Retained.
+- **`db.saas.payments`** — still read by `/super-admin/payments` (unmigrated) and
+  the fees/finance domain. Retained for the Payments phase.
 
-- **Billing** (`/super-admin/billing`) — plan/price rollups.
-- **Health / dashboard revenue** (`saas-brief`: `saasSummary`, `platformPulse`,
-  `tenantHealth`, MRR/ARR) — mock revenue math.
-
-It must NOT be deleted until Billing + the dashboard revenue metrics go real.
-Trials and Subscriptions no longer read or write it.
+The Billing/Invoices **pages** no longer import any mock authority (enforced by
+the guard). Real API failures render loading/error/empty states — never a mock
+fallback.
 
 ## Removed as modules went real
 
 - SA-3: mock `createTenant`.
 - SA-4B: mock `changePlan`, `setSubscriptionStatus`.
-- SA-4C: mock `extendTrial` (saas-service) and `trialRows` (saas-brief) + orphaned `TODAY()` helper.
+- SA-4C: mock `extendTrial` (saas-service) and `trialRows` (saas-brief) + orphaned `TODAY()`.
+- SA-4D: mock `setInvoiceStatus` (saas-service) and the fake `mrrMinor`/`arrMinor`/`overdue` fields in `saasSummary` (saas-brief).
 
 ## Guard
 
 `lib/server/platform/route-mock-guard.test.ts` fails if a migrated real route
-(`plans`, `subscriptions`, `trials`) reintroduces a mock authority
-(`useSisStore`, `saas-service`, `saas-brief`, `db.saas`).
+(`plans`, `subscriptions`, `trials`, `billing`, `invoices`) reintroduces a mock
+authority (`useSisStore`, `saas-service`, `saas-brief`, `db.saas`).

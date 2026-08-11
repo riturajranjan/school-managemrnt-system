@@ -13,6 +13,8 @@ const MIGRATED_ROUTE_DIRS = [
   "app/super-admin/plans",
   "app/super-admin/subscriptions",
   "app/super-admin/trials",
+  "app/super-admin/billing",
+  "app/super-admin/invoices",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
