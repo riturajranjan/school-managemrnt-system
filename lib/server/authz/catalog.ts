@@ -209,6 +209,7 @@ export const PLATFORM_ROLE_PERMISSIONS: Record<string, string[]> = {
     "platform.billing.view", "platform.billing.manage",
     "platform.invoices.view", "platform.invoices.manage",
     "platform.payments.view", "platform.payments.manage",
+    "platform.tenant_health.view",
   ],
   // Read-only compliance role: view everything, manage nothing.
   AUDITOR: PLATFORM_ONLY_KEYS.filter((k) => k.endsWith(".view")),

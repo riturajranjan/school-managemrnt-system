@@ -430,6 +430,53 @@ export type InvoicePaymentSummaryDto = {
   reversedAt: string | null;
 };
 
+// --- Platform (Super Admin) tenant health + pulse (SA-4F) --------------------
+// Health is DERIVED server-side from real signals (school/onboarding/subscription/
+// invoice/payment). Read-only — there is no health mutation.
+
+export type TenantHealthDto = {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  schoolStatus: string;
+  tenantId: string;
+  tenantName: string;
+  onboardingStatus: string; // not-started | in-progress | completed | none
+  subscriptionId: string | null;
+  subscriptionStatus: string | null;
+  plan: string | null;
+  trialEnd: string | null;
+  trialDaysRemaining: number | null;
+  overdueInvoices: number;
+  outstandingAmount: number;
+  lastPaymentAt: string | null;
+  healthState: string; // healthy | attention | critical
+  reasons: string[];
+};
+
+export type PlatformPulseFactorDto = {
+  key: string;
+  label: string;
+  score: number;
+  displayValue: string;
+  tone: "success" | "warning" | "error";
+};
+
+export type HealthSummaryDto = {
+  currency: string;
+  totalSchools: number;
+  healthy: number;
+  attention: number;
+  critical: number;
+  setupPending: number;
+  activeSubscriptions: number;
+  trialingSubscriptions: number;
+  pastDueSubscriptions: number;
+  overdueInvoices: number;
+  outstandingAmount: number;
+  pulse: { score: number; factors: PlatformPulseFactorDto[] };
+};
+
 // --- Platform (Super Admin) payments (SA-4E) ---------------------------------
 
 export type PaymentDto = {

@@ -3,7 +3,7 @@ import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
   setEntitlementOverride, setTenantStatus,
 } from "./saas-service";
-import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
+import { saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 
 // NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 (school creation
 // is now real via POST /api/super-admin/schools). Its tests were removed with it.
@@ -49,16 +49,12 @@ describe("selectors", () => {
   it("summary reports total schools and non-negative counts", () => {
     const s = saasSummary(getSnapshot());
     expect(s.totalSchools).toBeGreaterThan(0);
-    expect(s.activeSubscriptions).toBeGreaterThanOrEqual(0);
+    expect(s.trialSchools).toBeGreaterThanOrEqual(0);
   });
 
-  it("platform pulse is within 0-100", () => {
-    const p = platformPulse(getSnapshot());
-    expect(p.score).toBeGreaterThanOrEqual(0);
-    expect(p.score).toBeLessThanOrEqual(100);
-    expect(p.factors.length).toBe(6);
-  });
-
+  // NOTE: mock `platformPulse` was removed in Super Admin Phase SA-4F (the
+  // dashboard Platform Pulse is real now). `tenantHealth` remains for the
+  // still-mock Support page and is covered below.
   it("suspended tenant reports suspended health", () => {
     const db = getSnapshot();
     const t = db.saas.tenants.find((x) => x.status === "suspended");

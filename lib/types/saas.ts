@@ -114,31 +114,10 @@ export type TenantFeatureOverride = {
 // Subscriptions, invoices, payments
 // ---------------------------------------------------------------------------
 
-export type SubscriptionStatus = "trial" | "active" | "past-due" | "grace-period" | "suspended" | "cancelled" | "expired";
-
-export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
-  trial: "Trial", active: "Active", "past-due": "Past due", "grace-period": "Grace period",
-  suspended: "Suspended", cancelled: "Cancelled", expired: "Expired",
-};
-
-export const subscriptionStatusTone: Record<SubscriptionStatus, StatusTone> = {
-  trial: "info", active: "success", "past-due": "warning", "grace-period": "warning",
-  suspended: "error", cancelled: "neutral", expired: "neutral",
-};
-
-export type TenantSubscription = {
-  id: ID;
-  tenantId: ID;
-  planId: ID;
-  billingCycle: "monthly" | "annual";
-  startDate: string;
-  renewalDate: string;
-  trialEndDate?: string;
-  gracePeriodEnds?: string;
-  priceMinor: number; // in paise/cents
-  discountPercent: number;
-  status: SubscriptionStatus;
-};
+// NOTE: the mock subscription types (SubscriptionStatus/subscriptionStatusLabels/
+// subscriptionStatusTone/TenantSubscription) and the `db.saas.subscriptions` slice
+// were removed in Super Admin Phase SA-4F — subscriptions + tenant health are real
+// (Subscription model + /api/super-admin/subscriptions, health-service).
 
 export type InvoiceStatus = "draft" | "issued" | "paid" | "overdue" | "cancelled" | "refunded";
 
@@ -374,7 +353,6 @@ export type PlatformSettings = {
 export type SaasState = {
   tenants: SaasTenant[];
   plans: SaasPlan[];
-  subscriptions: TenantSubscription[];
   usage: TenantUsageMetric[];
   invoices: SaasInvoice[];
   overrides: TenantFeatureOverride[];

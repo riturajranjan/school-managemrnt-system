@@ -11,9 +11,11 @@ import { usePermissions } from "@/components/providers/permissions-provider";
 import { useSchoolList } from "@/lib/hooks/api/use-platform-schools";
 import { useSubscriptionList } from "@/lib/hooks/api/use-subscriptions";
 import { useBillingSummary } from "@/lib/hooks/api/use-billing";
+import { useHealthSummary, useTenantHealthList } from "@/lib/hooks/api/use-health";
 import { formatPlanPrice } from "@/lib/hooks/api/use-plans";
 import { useSisStore } from "@/lib/hooks/use-store";
-import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
+import { saasSummary } from "@/lib/selectors/saas-brief";
+import { healthStateTone, healthStateLabel } from "@/lib/plans/health-state";
 import { tenantStatusLabels, tenantStatusTone } from "@/lib/types/saas";
 import { formatDate } from "@/lib/utils";
 
@@ -30,9 +32,11 @@ export default function SaasDashboard() {
   // Real revenue + overdue metrics from PostgreSQL (SA-4D). MRR/ARR from ACTIVE
   // subscription snapshots; overdue derived from OPEN invoices past due.
   const billing = useBillingSummary();
+  // Real Platform Pulse + tenant-health attention list from PostgreSQL (SA-4F).
+  const health = useHealthSummary();
+  const attentionQuery = useTenantHealthList({ pageSize: 20, sort: "healthState" });
+  const attention = attentionQuery.data.filter((h) => h.healthState !== "healthy").slice(0, 6);
   const summary = useMemo(() => saasSummary(db), [db]);
-  const pulse = useMemo(() => platformPulse(db), [db]);
-  const attention = useMemo(() => db.saas.tenants.map((t) => ({ t, h: tenantHealth(db.saas, t) })).filter((x) => x.h.state === "at-risk" || x.h.state === "needs-attention").slice(0, 6), [db.saas]);
   const recent = useMemo(() => [...db.saas.tenants].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [db.saas.tenants]);
 
   return (
@@ -66,13 +70,13 @@ export default function SaasDashboard() {
           <section className="rounded-lg border border-border bg-surface p-md">
             <div className="mb-sm flex items-center justify-between"><h2 className="text-sm font-semibold text-foreground">Needs attention</h2><Link href="/super-admin/health" className="text-xs text-primary">Tenant health →</Link></div>
             <div className="flex flex-col gap-xs">
-              {attention.map(({ t, h }) => (
-                <Link key={t.id} href={`/super-admin/schools/${t.id}`} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm transition hover:border-primary/40">
-                  <div className="min-w-0"><p className="truncate font-medium text-foreground">{t.name}</p><p className="truncate text-xs text-muted-foreground">{h.reasons[0]}</p></div>
-                  <Badge tone={h.state === "at-risk" ? "error" : "warning"}>{h.state === "at-risk" ? "At risk" : "Attention"}</Badge>
+              {attention.map((h) => (
+                <Link key={h.schoolId} href={`/super-admin/schools/${h.schoolId}`} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm transition hover:border-primary/40">
+                  <div className="min-w-0"><p className="truncate font-medium text-foreground">{h.schoolName}</p><p className="truncate text-xs text-muted-foreground">{h.reasons[0]}</p></div>
+                  <Badge tone={healthStateTone(h.healthState)}>{healthStateLabel(h.healthState)}</Badge>
                 </Link>
               ))}
-              {attention.length === 0 && <p className="py-md text-center text-sm text-muted-foreground">All tenants healthy.</p>}
+              {!attentionQuery.loading && attention.length === 0 && <p className="py-md text-center text-sm text-muted-foreground">All schools healthy.</p>}
             </div>
           </section>
 
@@ -89,7 +93,11 @@ export default function SaasDashboard() {
           </section>
         </div>
 
-        <PlatformPulse score={pulse.score} factors={pulse.factors} />
+        {health.data ? (
+          <PlatformPulse score={health.data.pulse.score} factors={health.data.pulse.factors} />
+        ) : (
+          <div className="rounded-lg border border-border bg-surface p-md text-center text-sm text-muted-foreground">Loading Platform Pulse…</div>
+        )}
       </div>
     </div>
   );

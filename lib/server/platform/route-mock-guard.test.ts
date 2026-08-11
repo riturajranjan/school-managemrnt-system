@@ -16,7 +16,13 @@ const MIGRATED_ROUTE_DIRS = [
   "app/super-admin/billing",
   "app/super-admin/invoices",
   "app/super-admin/payments",
+  "app/super-admin/health",
 ];
+
+// Individual migrated files (not whole directories) that must stay mock-free.
+// The dashboard page still legitimately uses db.saas for not-yet-migrated tiles,
+// but its Platform Pulse widget is real — guard the widget component itself.
+const MIGRATED_FILES = ["components/super-admin/platform-pulse.tsx"];
 
 // Forbidden mock-authority markers (substring match against source text).
 const FORBIDDEN: { marker: string; why: string }[] = [
@@ -41,18 +47,30 @@ function collectSources(dir: string): string[] {
   return out;
 }
 
+function offendersIn(files: string[]): string[] {
+  const offenders: string[] = [];
+  for (const file of files) {
+    const src = readFileSync(file, "utf8");
+    for (const { marker, why } of FORBIDDEN) {
+      if (src.includes(marker)) offenders.push(`${file.replace(ROOT + "/", "")} → ${marker} (${why})`);
+    }
+  }
+  return offenders;
+}
+
 describe("migrated Super Admin routes contain no mock dependency", () => {
   for (const dir of MIGRATED_ROUTE_DIRS) {
     it(`${dir} is mock-free`, () => {
       const files = collectSources(dir);
       expect(files.length).toBeGreaterThan(0);
-      const offenders: string[] = [];
-      for (const file of files) {
-        const src = readFileSync(file, "utf8");
-        for (const { marker, why } of FORBIDDEN) {
-          if (src.includes(marker)) offenders.push(`${file.replace(ROOT + "/", "")} → ${marker} (${why})`);
-        }
-      }
+      const offenders = offendersIn(files);
+      expect(offenders, offenders.join("\n")).toEqual([]);
+    });
+  }
+
+  for (const file of MIGRATED_FILES) {
+    it(`${file} is mock-free`, () => {
+      const offenders = offendersIn([join(ROOT, file)]);
       expect(offenders, offenders.join("\n")).toEqual([]);
     });
   }

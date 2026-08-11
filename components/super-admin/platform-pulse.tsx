@@ -6,7 +6,7 @@ import { LayoutList } from "lucide-react";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { MiniBar } from "@/components/dashboard/mini-charts";
 import { toneClasses } from "@/components/dashboard/tone";
-import type { PulseFactor } from "@/lib/selectors/saas-brief";
+import type { PlatformPulseFactorDto as PulseFactor } from "@/lib/api/contracts";
 
 /** Platform Pulse — a subtle orbit of tenant-health nodes around an aggregate
  * score. Data-driven (node distance/tone maps to each factor's score). No
