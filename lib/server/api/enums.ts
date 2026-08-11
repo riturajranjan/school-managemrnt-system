@@ -16,6 +16,9 @@ import type {
   SchoolStatus as DbSchoolStatus,
   StudentStatus as DbStudentStatus,
   SubscriptionStatus as DbSubscriptionStatus,
+  SupportTicketCategory as DbSupportCategory,
+  SupportTicketPriority as DbSupportPriority,
+  SupportTicketStatus as DbSupportStatus,
 } from "@/lib/generated/prisma/enums";
 
 function invert<K extends string, V extends string>(map: Record<K, V>): Record<V, K> {
@@ -145,3 +148,31 @@ export const paymentMethodToUi: Record<DbPaymentMethod, string> = {
   OTHER: "other",
 };
 export const paymentMethodFromUi = invert(paymentMethodToUi);
+
+/** Support ticket lifecycle / priority / category (Super Admin SA-4I). */
+export const supportStatusToUi: Record<DbSupportStatus, string> = {
+  OPEN: "open",
+  IN_PROGRESS: "in-progress",
+  WAITING_CUSTOMER: "waiting-customer",
+  RESOLVED: "resolved",
+  CLOSED: "closed",
+};
+export const supportStatusFromUi = invert(supportStatusToUi);
+
+export const supportPriorityToUi: Record<DbSupportPriority, string> = {
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+  URGENT: "urgent",
+};
+export const supportPriorityFromUi = invert(supportPriorityToUi);
+
+export const supportCategoryToUi: Record<DbSupportCategory, string> = {
+  BILLING: "billing",
+  ACCOUNT: "account",
+  TECHNICAL: "technical",
+  ONBOARDING: "onboarding",
+  FEATURE: "feature",
+  OTHER: "other",
+};
+export const supportCategoryFromUi = invert(supportCategoryToUi);

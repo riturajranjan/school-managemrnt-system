@@ -1,7 +1,6 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type {
   EntitlementLevel, PlatformAnnouncement, SaasState, SaasTenantStatus,
-  SupportTicketStatus,
 } from "@/lib/types/saas";
 import { generateId } from "@/lib/utils";
 
@@ -79,19 +78,11 @@ export function clearEntitlementOverride(overrideId: string): Result {
 // (layout) and the not-yet-migrated Payments page.
 
 // ---------------------------------------------------------------------------
-// Support
+// Support — now REAL (no mock service methods)
 // ---------------------------------------------------------------------------
-
-export function setTicketStatus(ticketId: string, status: SupportTicketStatus): Result {
-  patchSaas((s) => ({ ...s, support: s.support.map((t) => (t.id === ticketId ? { ...t, status, lastActivity: new Date().toISOString() } : t)) }));
-  return { ok: true };
-}
-
-export function replyTicket(ticketId: string, text: string, internal: boolean, author = "Support"): Result {
-  if (!text.trim()) return { ok: false, error: "Message cannot be empty." };
-  patchSaas((s) => ({ ...s, support: s.support.map((t) => (t.id === ticketId ? { ...t, lastActivity: new Date().toISOString(), messages: [...t.messages, { id: generateId("m"), author, internal, at: new Date().toISOString(), text: text.trim() }] } : t)) }));
-  return { ok: true };
-}
+// The mock support CRUD (`setTicketStatus`, `replyTicket`) and `db.saas.support`
+// slice were removed in Super Admin Phase SA-4I — support tickets are real DB
+// rows managed via /api/super-admin/support (support-service).
 
 // ---------------------------------------------------------------------------
 // Announcements & marketplace

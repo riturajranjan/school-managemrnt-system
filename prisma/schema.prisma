@@ -82,6 +82,7 @@ model Tenant {
   subscriptions Subscription[] // Super Admin Phase SA-4B
   invoices      Invoice[] // Super Admin Phase SA-4D
   payments      Payment[] // Super Admin Phase SA-4E
+  supportTickets SupportTicket[] // Super Admin Phase SA-4I
 
   @@index([status])
   @@map("tenants")
@@ -125,6 +126,7 @@ model School {
   subscriptions    Subscription[] // Super Admin Phase SA-4B
   invoices         Invoice[] // Super Admin Phase SA-4D
   payments         Payment[] // Super Admin Phase SA-4E
+  supportTickets   SupportTicket[] // Super Admin Phase SA-4I
 
   // School code is unique within its tenant.
   @@unique([tenantId, code])
@@ -1202,4 +1204,92 @@ model Payment {
   @@index([invoiceId])
   @@index([status])
   @@map("payments")
+}
+
+// ===========================================================================
+// Super Admin Phase SA-4I — Support tickets. Platform-level support (separate
+// from the tenant/school helpdesk). A ticket belongs to a real Tenant (and
+// optionally a School). Assignment is to a platform admin (validated in the
+// service; stored as a plain userId + denormalized name, no FK to keep it
+// simple). Escalation is DERIVED (never a stored boolean). Ticket numbers come
+// from support_ticket_number_seq (concurrency-safe) + a UNIQUE constraint.
+// Conversation entries live in SupportTicketMessage; internal notes are the same
+// table with `internal = true` and are split out in the API DTO.
+// ===========================================================================
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportTicketCategory {
+  BILLING
+  ACCOUNT
+  TECHNICAL
+  ONBOARDING
+  FEATURE
+  OTHER
+}
+
+model SupportTicket {
+  id           String                @id @default(cuid())
+  ticketNumber String                @unique
+  tenantId     String
+  schoolId     String?
+  subject      String
+  description   String
+  category     SupportTicketCategory  @default(OTHER)
+  priority     SupportTicketPriority  @default(MEDIUM)
+  status       SupportTicketStatus    @default(OPEN)
+
+  assignedToUserId String?
+  assignedToName   String?
+  createdByUserId  String?
+  createdByName    String?
+  createdByEmail   String?
+
+  openedAt        DateTime  @default(now()) @db.Timestamptz(6)
+  firstResponseAt DateTime? @db.Timestamptz(6)
+  resolvedAt      DateTime? @db.Timestamptz(6)
+  closedAt        DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant   Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  school   School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  messages SupportTicketMessage[]
+
+  @@index([tenantId])
+  @@index([schoolId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToUserId])
+  @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id           String  @id @default(cuid())
+  ticketId     String
+  authorUserId String?
+  authorName   String
+  body         String
+  internal     Boolean @default(false) // true = platform-internal note
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("support_ticket_messages")
 }

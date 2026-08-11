@@ -1,20 +1,16 @@
 import type { Db } from "@/lib/data/store";
-import type { SaasState, SaasTenant } from "@/lib/types/saas";
 
 // ---------------------------------------------------------------------------
 // Command centre metrics
 // ---------------------------------------------------------------------------
 
-// NOTE: fake MRR/ARR + overdue-invoice counts were removed from this summary in
-// Super Admin Phase SA-4D — those are now real, derived server-side from
-// PostgreSQL (GET /api/super-admin/billing/summary). The fields below back only
-// still-mock dashboard tiles (schools counts, support/usage) and the Health page.
-// NOTE: fake MRR/ARR/overdue removed in SA-4D, activeSubscriptions in SA-4F, and
-// `limitWarnings` in SA-4G — all real now (billing/usage services). The remaining
-// fields back still-mock dashboard tiles (school counts, support escalations).
+// NOTE: fake MRR/ARR/overdue removed in SA-4D, activeSubscriptions in SA-4F,
+// `limitWarnings` in SA-4G, and `supportEscalations` in SA-4I — all real now
+// (billing/usage/support services). The remaining fields back still-mock
+// dashboard tiles (tenant/school counts).
 export type SaasSummary = {
   totalSchools: number; activeSchools: number; trialSchools: number; suspended: number; setupPending: number;
-  supportEscalations: number; newThisMonth: number;
+  newThisMonth: number;
 };
 
 export function saasSummary(db: Db): SaasSummary {
@@ -27,54 +23,14 @@ export function saasSummary(db: Db): SaasSummary {
     trialSchools: s.tenants.filter((t) => t.status === "trial").length,
     suspended: s.tenants.filter((t) => t.status === "suspended").length,
     setupPending: s.tenants.filter((t) => t.status === "setup-pending").length,
-    supportEscalations: s.support.filter((t) => t.status === "escalated").length,
     newThisMonth: s.tenants.filter((t) => t.createdAt >= monthAgo.toISOString().slice(0, 10)).length,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Platform Pulse — aggregate operational health (not churn prediction).
-// ---------------------------------------------------------------------------
-
-// NOTE: the mock `platformPulse` (+ its `PulseFactor` type / `toneFor` helper)
-// was removed in Super Admin Phase SA-4F — the dashboard Platform Pulse is now
-// real (GET /api/super-admin/health/summary), derived from real DB signals.
-
-// ---------------------------------------------------------------------------
-// Tenant health — transparent, rule-based (never AI churn prediction).
-// SA-4F: the real tenant-health surface (/super-admin/health + dashboard) is now
-// server-derived (health-service). This mock selector is RETAINED only for the
-// not-yet-migrated Support ticket page; it no longer reads `db.saas.subscriptions`.
-// ---------------------------------------------------------------------------
-
-export type HealthState = "healthy" | "needs-attention" | "at-risk" | "suspended";
-
-export const healthLabels: Record<HealthState, string> = { healthy: "Healthy", "needs-attention": "Needs attention", "at-risk": "At risk", suspended: "Suspended" };
-export const healthTone: Record<HealthState, "success" | "warning" | "error" | "neutral"> = { healthy: "success", "needs-attention": "warning", "at-risk": "error", suspended: "neutral" };
-
-export type TenantHealth = { state: HealthState; reasons: string[]; recommendations: string[] };
-
-export function tenantHealth(saas: SaasState, tenant: SaasTenant): TenantHealth {
-  if (tenant.status === "suspended") return { state: "suspended", reasons: ["Subscription suspended"], recommendations: ["Resolve billing to reactivate"] };
-  const reasons: string[] = [];
-  const recommendations: string[] = [];
-  let severity = 0;
-
-  // Billing signals here read the mock tenant status only (real subscription/
-  // invoice health lives in the server-side health-service, SA-4F).
-  if (tenant.status === "payment-due") { reasons.push("Invoice payment is overdue"); recommendations.push("Follow up on payment"); severity += 2; }
-  if (tenant.status === "grace-period") { reasons.push("In grace period after failed payment"); recommendations.push("Contact billing owner"); severity += 2; }
-  // Usage-limit signals moved to the real usage-service (SA-4G); this mock
-  // selector no longer reads `db.saas.usage`.
-  const openTickets = saas.support.filter((t) => t.tenantId === tenant.id && t.status !== "resolved" && t.status !== "closed").length;
-  if (openTickets >= 2) { reasons.push(`${openTickets} unresolved support tickets`); recommendations.push("Resolve support issues"); severity += 1; }
-  if (tenant.setupPercent < 60) { reasons.push(`Setup only ${tenant.setupPercent}% complete`); recommendations.push("Assist with onboarding"); severity += 1; }
-  if (tenant.status === "inactive") { reasons.push("No recent activity"); recommendations.push("Re-engage the school"); severity += 2; }
-
-  const state: HealthState = severity >= 3 ? "at-risk" : severity >= 1 ? "needs-attention" : "healthy";
-  if (state === "healthy") { reasons.push("All indicators within normal range"); }
-  return { state, reasons, recommendations };
-}
+// NOTE: the mock `platformPulse` was removed in SA-4F and the mock `tenantHealth`
+// helper (+ HealthState/TenantHealth/healthLabels/healthTone) in SA-4I — tenant
+// health + Platform Pulse are real now (health-service + /api/super-admin/health).
+// Support was tenantHealth's last consumer and now uses the real health badge.
 
 // ---------------------------------------------------------------------------
 // Analytics

@@ -3,7 +3,7 @@ import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
   setEntitlementOverride, setTenantStatus,
 } from "./saas-service";
-import { saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
+import { saasSummary } from "@/lib/selectors/saas-brief";
 
 // NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 (school creation
 // is now real via POST /api/super-admin/schools). Its tests were removed with it.
@@ -52,22 +52,7 @@ describe("selectors", () => {
     expect(s.trialSchools).toBeGreaterThanOrEqual(0);
   });
 
-  // NOTE: mock `platformPulse` was removed in Super Admin Phase SA-4F (the
-  // dashboard Platform Pulse is real now). `tenantHealth` remains for the
-  // still-mock Support page and is covered below.
-  it("suspended tenant reports suspended health", () => {
-    const db = getSnapshot();
-    const t = db.saas.tenants.find((x) => x.status === "suspended");
-    if (t) expect(tenantHealth(db.saas, t).state).toBe("suspended");
-  });
-
-  it("healthy tenant lists a normal-range reason", () => {
-    const db = getSnapshot();
-    const active = db.saas.tenants.find((x) => x.status === "active" && x.setupPercent >= 90);
-    if (active) {
-      const h = tenantHealth(db.saas, active);
-      expect(["healthy", "needs-attention", "at-risk"]).toContain(h.state);
-      expect(h.reasons.length).toBeGreaterThan(0);
-    }
-  });
+  // NOTE: mock `platformPulse` (SA-4F) and mock `tenantHealth` (SA-4I) were
+  // removed — tenant health + Platform Pulse are real now (health-service DB
+  // integration tests). saasSummary remains for the still-mock dashboard tiles.
 });

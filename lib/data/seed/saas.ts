@@ -1,7 +1,6 @@
 import type {
   MarketplaceItem, PlanFeature, PlatformAdminUser, PlatformRole, SaasAddon,
   SaasPlan, SaasState, SaasTenant, SaasTenantStatus, TenantDomain, TenantLifecycleStage,
-  PlatformSupportTicket, SupportCategory,
 } from "@/lib/types/saas";
 import { seededHelpers } from "./rng";
 
@@ -64,7 +63,7 @@ export function emptySaasState(): SaasState {
 
   return {
     tenants: [], plans, overrides: [], addons, marketplace,
-    domains: [], support: [], success: [], announcements: [], status: [], auditLog: [], admins: [],
+    domains: [], success: [], announcements: [], status: [], auditLog: [], admins: [],
     settings: { platformName: "Novyra Campus OS", supportContact: "platform@novyra.io", defaultTrialDays: 21, defaultPlanId: "plan-growth", defaultBillingCycle: "monthly", gracePeriodDays: 7, maintenanceMessage: "We'll be back shortly.", legalLinks: [{ label: "Master Services Agreement", url: "/legal/msa" }, { label: "Data Processing Addendum", url: "/legal/dpa" }] },
   };
 }
@@ -119,22 +118,7 @@ export function buildSaasData(): SaasState {
     return list;
   });
 
-  // Support tickets
-  const categories: SupportCategory[] = ["setup", "billing", "product", "technical", "training", "migration", "integration"];
-  const support: PlatformSupportTicket[] = [];
-  let tk = 2000;
-  tenants.forEach((t) => {
-    for (let k = 0; k < t.supportOpen + (helpers.bool(0.5) ? 1 : 0); k++) {
-      tk += 1;
-      const status = helpers.pick(["open", "in-progress", "waiting", "escalated", "resolved"] as const);
-      support.push({
-        id: `tkt-${tk}`, reference: `PS-${tk}`, tenantId: t.id, subject: helpers.pick(["Cannot import students", "Invoice discrepancy", "Feature request: bulk SMS", "Login issue for staff", "Data migration help", "GPS integration query", "Training session request"]),
-        category: helpers.pick(categories), priority: helpers.pick(["low", "normal", "high", "urgent"] as const), assignedTo: helpers.pick(["Ravi (Success)", "Nisha (Support)", "Tarun (Tech)", "Unassigned"]),
-        status, lastActivity: isoTime(helpers.int(1, 120)), createdAt: isoTime(helpers.int(24, 400)),
-        messages: [{ id: `m-${tk}-0`, author: t.ownerName, internal: false, at: isoTime(helpers.int(24, 100)), text: "We're facing an issue, please help." }, { id: `m-${tk}-1`, author: "Support", internal: false, at: isoTime(helpers.int(1, 20)), text: "Thanks for reaching out — looking into it." }],
-      });
-    }
-  });
+  // NOTE: mock support tickets removed in SA-4I (real SupportTicket model + API).
 
   // Customer success
   base.success = tenants.map((t) => ({ tenantId: t.id, onboardingPercent: t.setupPercent, adoptionPercent: helpers.int(30, 95), trainingCompleted: helpers.int(0, 5), upcomingReview: helpers.bool(0.4) ? daysFromNow(helpers.int(3, 30)) : undefined, expansionOpportunity: helpers.bool(0.35) ? helpers.pick(["Transport add-on", "Extra branch", "Upgrade to Professional", "White-label"]) : undefined }));
@@ -172,6 +156,5 @@ export function buildSaasData(): SaasState {
 
   base.tenants = tenants;
   base.domains = domains;
-  base.support = support;
   return base;
 }

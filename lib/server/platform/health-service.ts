@@ -165,6 +165,38 @@ async function computeAllHealth(): Promise<TenantHealthDto[]> {
   });
 }
 
+/**
+ * Health for a single school (SA-4I: reused by the Support ticket badge so there
+ * is no second tenant-health calculation). Same derivation as the list.
+ */
+export async function getSchoolHealth(schoolId: string): Promise<TenantHealthDto | null> {
+  const now = new Date();
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    include: {
+      tenant: { select: { id: true, name: true } },
+      onboarding: { select: { status: true } },
+      subscriptions: { where: { status: { in: [...CURRENT_SUB_STATUSES] } }, take: 1, select: { id: true, status: true, trialEnd: true, plan: { select: { name: true } } } },
+    },
+  });
+  if (!school || school.tenant == null) return null;
+
+  const [outstandingAgg, overdueCount, lastPay, usageReasonsBy] = await Promise.all([
+    prisma.invoice.aggregate({ where: { schoolId, status: "OPEN" }, _sum: { amountDue: true } }),
+    prisma.invoice.count({ where: { schoolId, status: "OPEN", dueAt: { lt: now }, amountDue: { gt: 0 } } }),
+    prisma.payment.aggregate({ where: { schoolId, status: "SUCCEEDED" }, _max: { receivedAt: true } }),
+    usageHealthReasons([schoolId]),
+  ]);
+
+  const dto = computeHealth(school, { overdue: overdueCount, outstanding: Number(outstandingAgg._sum.amountDue ?? 0), lastPaymentAt: lastPay._max.receivedAt ?? null }, now);
+  const usageReasons = usageReasonsBy.get(schoolId);
+  if (usageReasons && usageReasons.length) {
+    dto.reasons = [...dto.reasons.filter((r) => r !== "All indicators healthy"), ...usageReasons];
+    if (dto.healthState === "healthy") dto.healthState = "attention";
+  }
+  return dto;
+}
+
 // --- List -------------------------------------------------------------------
 
 export type HealthListParams = {

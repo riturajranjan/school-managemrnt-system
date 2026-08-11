@@ -477,6 +477,52 @@ export type HealthSummaryDto = {
   pulse: { score: number; factors: PlatformPulseFactorDto[] };
 };
 
+// --- Platform (Super Admin) support (SA-4I) ----------------------------------
+
+export type SupportTicketDto = {
+  id: string;
+  ticketNumber: string;
+  subject: string;
+  category: string;
+  priority: string; // low | medium | high | urgent
+  status: string; // open | in-progress | waiting-customer | resolved | closed
+  escalated: boolean; // derived
+  tenant: { id: string; name: string };
+  school: { id: string; name: string; code: string } | null;
+  assignedTo: { userId: string; name: string | null } | null;
+  openedAt: string;
+  firstResponseAt: string | null;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SupportMessageDto = {
+  id: string;
+  authorUserId: string | null;
+  authorName: string;
+  body: string;
+  createdAt: string;
+};
+
+export type SupportTicketDetailDto = SupportTicketDto & {
+  description: string;
+  messages: SupportMessageDto[];
+  internalNotes: SupportMessageDto[];
+  health: { state: string; reasons: string[] } | null; // real SA-4F tenant health
+};
+
+export type SupportAgentDto = { userId: string; name: string | null; email: string; role: string };
+
+export type SupportSummaryDto = {
+  openTickets: number;
+  urgentTickets: number;
+  escalatedTickets: number;
+  unassignedTickets: number;
+};
+
 // --- Platform (Super Admin) global search (SA-4H) ----------------------------
 
 export type SearchResultDto = {

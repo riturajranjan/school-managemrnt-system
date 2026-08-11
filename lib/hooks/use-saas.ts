@@ -29,14 +29,9 @@ export function useDomains(tenantId?: string) {
   const db = useSisStore();
   return useMemo(() => (tenantId ? db.saas.domains.filter((d) => d.tenantId === tenantId) : db.saas.domains), [db.saas.domains, tenantId]);
 }
-export function useSupportTickets(tenantId?: string) {
-  const db = useSisStore();
-  return useMemo(() => (tenantId ? db.saas.support.filter((t) => t.tenantId === tenantId) : db.saas.support), [db.saas.support, tenantId]);
-}
-export function useSupportTicket(id: string | undefined) {
-  const db = useSisStore();
-  return useMemo(() => db.saas.support.find((t) => t.id === id), [db.saas.support, id]);
-}
+// NOTE: mock support hooks (useSupportTickets/useSupportTicket) + `db.saas.support`
+// slice removed in SA-4I — platform support is real (SupportTicket model +
+// /api/super-admin/support).
 export function useSuccessRecords() { return useSisStore().saas.success; }
 export function useAnnouncements() { return useSisStore().saas.announcements; }
 export function usePlatformStatus() { return useSisStore().saas.status; }

@@ -195,33 +195,10 @@ export type TenantDomain = {
 // Support & customer success
 // ---------------------------------------------------------------------------
 
-export type SupportCategory = "setup" | "billing" | "product" | "technical" | "training" | "migration" | "integration" | "other";
-
-export const supportCategoryLabels: Record<SupportCategory, string> = {
-  setup: "Setup", billing: "Billing", product: "Product", technical: "Technical", training: "Training",
-  migration: "Migration", integration: "Integration", other: "Other",
-};
-
-export type SupportPriority = "low" | "normal" | "high" | "urgent";
-export type SupportTicketStatus = "open" | "in-progress" | "waiting" | "escalated" | "resolved" | "closed";
-
-export const supportStatusTone: Record<SupportTicketStatus, StatusTone> = {
-  open: "info", "in-progress": "warning", waiting: "neutral", escalated: "error", resolved: "success", closed: "neutral",
-};
-
-export type PlatformSupportTicket = {
-  id: ID;
-  reference: string;
-  tenantId: ID;
-  subject: string;
-  category: SupportCategory;
-  priority: SupportPriority;
-  assignedTo: string;
-  status: SupportTicketStatus;
-  lastActivity: string;
-  createdAt: string;
-  messages: { id: ID; author: string; internal: boolean; at: string; text: string }[];
-};
+// NOTE: the mock support types (SupportCategory/supportCategoryLabels/
+// SupportPriority/SupportTicketStatus/supportStatusTone/PlatformSupportTicket)
+// and the `db.saas.support` slice were removed in Super Admin Phase SA-4I —
+// support is real now (SupportTicket model + /api/super-admin/support).
 
 export type CustomerSuccessRecord = {
   tenantId: ID;
@@ -320,7 +297,6 @@ export type SaasState = {
   addons: SaasAddon[];
   marketplace: MarketplaceItem[];
   domains: TenantDomain[];
-  support: PlatformSupportTicket[];
   success: CustomerSuccessRecord[];
   announcements: PlatformAnnouncement[];
   status: PlatformStatusItem[];
