@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
-  changePlan, extendTrial, setEntitlementOverride, setInvoiceStatus, setTenantStatus,
+  extendTrial, setEntitlementOverride, setInvoiceStatus, setTenantStatus,
 } from "./saas-service";
 import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 
@@ -22,14 +22,9 @@ describe("tenant lifecycle", () => {
 describe("subscriptions", () => {
   beforeEach(() => resetDemoData());
 
-  it("changePlan updates subscription price and tenant plan", () => {
-    const sub = getSnapshot().saas.subscriptions.find((s) => s.planId !== "plan-enterprise")!;
-    changePlan(sub.id, "plan-enterprise");
-    const db = getSnapshot();
-    expect(db.saas.subscriptions.find((s) => s.id === sub.id)!.planId).toBe("plan-enterprise");
-    expect(db.saas.tenants.find((t) => t.id === sub.tenantId)!.planId).toBe("plan-enterprise");
-  });
-
+  // NOTE: mock `changePlan`/`setSubscriptionStatus` were removed in Super Admin
+  // Phase SA-4B (subscriptions are now real via /api/super-admin/subscriptions).
+  // `extendTrial` remains until Trials (SA-4C) migrates off the mock slice.
   it("extendTrial only works on trial subscriptions", () => {
     const active = getSnapshot().saas.subscriptions.find((s) => s.status === "active");
     if (active) expect(extendTrial(active.id, 7).ok).toBe(false);

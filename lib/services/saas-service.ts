@@ -1,7 +1,7 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type {
   EntitlementLevel, InvoiceStatus, PlatformAnnouncement, SaasState, SaasTenantStatus,
-  SubscriptionStatus, SupportTicketStatus,
+  SupportTicketStatus,
 } from "@/lib/types/saas";
 import { generateId } from "@/lib/utils";
 
@@ -41,25 +41,11 @@ export function addTenantNote(tenantId: string, text: string, by = "Super Admin"
 // ---------------------------------------------------------------------------
 // Subscriptions
 // ---------------------------------------------------------------------------
-
-export function changePlan(subscriptionId: string, newPlanId: string, admin = "Super Admin"): Result {
-  const db = getSnapshot();
-  const sub = db.saas.subscriptions.find((s) => s.id === subscriptionId);
-  const plan = db.saas.plans.find((p) => p.id === newPlanId);
-  if (!sub || !plan) return { ok: false, error: "Subscription or plan not found." };
-  patchSaas((s) => ({
-    ...s,
-    subscriptions: s.subscriptions.map((x) => (x.id === subscriptionId ? { ...x, planId: newPlanId, priceMinor: (x.billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice) * 100 } : x)),
-    tenants: s.tenants.map((t) => (t.id === sub.tenantId ? { ...t, planId: newPlanId } : t)),
-  }));
-  logAudit(admin, "Plan changed", tenantName(sub.tenantId), "Plans");
-  return { ok: true };
-}
-
-export function setSubscriptionStatus(subscriptionId: string, status: SubscriptionStatus): Result {
-  patchSaas((s) => ({ ...s, subscriptions: s.subscriptions.map((x) => (x.id === subscriptionId ? { ...x, status } : x)) }));
-  return { ok: true };
-}
+// NOTE: the mock subscription CRUD (`changePlan`, `setSubscriptionStatus`) was
+// removed in Super Admin Phase SA-4B — subscriptions are now real DB rows managed
+// via /api/super-admin/subscriptions. `extendTrial` remains because the Trials
+// page (SA-4C) still runs on the mock `db.saas.subscriptions` slice, which also
+// backs the not-yet-migrated Billing/Health/revenue selectors.
 
 export function extendTrial(subscriptionId: string, days: number, admin = "Super Admin"): Result {
   const db = getSnapshot();

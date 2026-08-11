@@ -15,6 +15,7 @@ import { hashPassword } from "../lib/server/password";
 import { PERMISSIONS, ROLE_PERMISSIONS } from "../lib/server/authz/catalog";
 import { seedPhase4 } from "./seed-phase4";
 import { seedPlans } from "./seed-plans";
+import { seedSubscriptions } from "./seed-subscriptions";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
@@ -241,6 +242,11 @@ async function main() {
   // Super Admin Phase SA-4A — plan catalog (platform-global)
   // =========================================================================
   await seedPlans(prisma);
+
+  // =========================================================================
+  // Super Admin Phase SA-4B — subscriptions on real schools + plans
+  // =========================================================================
+  await seedSubscriptions(prisma, { tenantId: tenant.id, schoolId: school.id });
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

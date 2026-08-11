@@ -12,6 +12,7 @@ import type {
   PlanStatus as DbPlanStatus,
   SchoolStatus as DbSchoolStatus,
   StudentStatus as DbStudentStatus,
+  SubscriptionStatus as DbSubscriptionStatus,
 } from "@/lib/generated/prisma/enums";
 
 function invert<K extends string, V extends string>(map: Record<K, V>): Record<V, K> {
@@ -106,3 +107,13 @@ export const billingIntervalToUi: Record<DbBillingInterval, string> = {
   YEARLY: "yearly",
 };
 export const billingIntervalFromUi = invert(billingIntervalToUi);
+
+/** Subscription lifecycle (Super Admin SA-4B). */
+export const subscriptionStatusToUi: Record<DbSubscriptionStatus, string> = {
+  TRIALING: "trialing",
+  ACTIVE: "active",
+  PAST_DUE: "past-due",
+  CANCELLED: "cancelled",
+  ENDED: "ended",
+};
+export const subscriptionStatusFromUi = invert(subscriptionStatusToUi);

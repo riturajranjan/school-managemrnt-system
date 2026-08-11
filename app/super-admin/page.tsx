@@ -9,6 +9,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { PlatformPulse } from "@/components/super-admin/platform-pulse";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useSchoolList } from "@/lib/hooks/api/use-platform-schools";
+import { useSubscriptionList } from "@/lib/hooks/api/use-subscriptions";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { platformPulse, saasSummary, tenantHealth } from "@/lib/selectors/saas-brief";
 import { tenantStatusLabels, tenantStatusTone } from "@/lib/types/saas";
@@ -21,6 +22,10 @@ export default function SaasDashboard() {
   // Real "Setup pending" count from PostgreSQL (SA-3, §12). Other dashboard
   // metrics remain mock until their own SA phases.
   const setupPendingQuery = useSchoolList({ status: "setup-pending", pageSize: 1 });
+  // Real subscription counts from PostgreSQL (SA-4B, §22). MRR/ARR/overdue/etc.
+  // stay mock until their own data foundations exist.
+  const activeSubsQuery = useSubscriptionList({ status: "active", pageSize: 1 });
+  const trialingSubsQuery = useSubscriptionList({ status: "trialing", pageSize: 1 });
   const summary = useMemo(() => saasSummary(db), [db]);
   const pulse = useMemo(() => platformPulse(db), [db]);
   const attention = useMemo(() => db.saas.tenants.map((t) => ({ t, h: tenantHealth(db.saas, t) })).filter((x) => x.h.state === "at-risk" || x.h.state === "needs-attention").slice(0, 6), [db.saas]);
@@ -40,7 +45,7 @@ export default function SaasDashboard() {
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label="Total schools" value={String(summary.totalSchools)} icon={Building2} tone="info" />
         <StatTile label="Active" value={String(summary.activeSchools)} tone="success" />
-        <StatTile label="Trials" value={String(summary.trialSchools)} icon={TrendingUp} tone="info" />
+        <StatTile label="Trialing subs" value={trialingSubsQuery.meta ? String(trialingSubsQuery.meta.total) : "…"} icon={TrendingUp} tone="info" hint="Real DB count" />
         <StatTile label="Setup pending" value={setupPendingQuery.meta ? String(setupPendingQuery.meta.total) : "…"} tone="warning" hint="Real DB count" />
         <StatTile label="Suspended" value={String(summary.suspended)} tone={summary.suspended > 0 ? "error" : "neutral"} />
         <StatTile label="Mock MRR" value={formatMinor(summary.mrrMinor, { compact: true })} icon={Wallet} tone="success" />
@@ -48,7 +53,7 @@ export default function SaasDashboard() {
         <StatTile label="Overdue invoices" value={String(summary.overdue)} icon={Receipt} tone={summary.overdue > 0 ? "error" : "success"} />
         <StatTile label="Escalations" value={String(summary.supportEscalations)} icon={LifeBuoy} tone={summary.supportEscalations > 0 ? "warning" : "success"} />
         <StatTile label="Limit warnings" value={String(summary.limitWarnings)} icon={AlertTriangle} tone={summary.limitWarnings > 0 ? "warning" : "success"} />
-        <StatTile label="Active subs" value={String(summary.activeSubscriptions)} icon={CreditCard} tone="info" />
+        <StatTile label="Active subs" value={activeSubsQuery.meta ? String(activeSubsQuery.meta.total) : "…"} icon={CreditCard} tone="info" hint="Real DB count" />
         <StatTile label="New this month" value={String(summary.newThisMonth)} tone="neutral" />
       </div>
 

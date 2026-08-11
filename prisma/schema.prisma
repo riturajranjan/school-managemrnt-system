@@ -79,6 +79,7 @@ model Tenant {
   schools     School[]
   memberships TenantMembership[]
   roles       Role[] // tenant-scoped custom roles (system roles have null tenantId)
+  subscriptions Subscription[] // Super Admin Phase SA-4B
 
   @@index([status])
   @@map("tenants")
@@ -119,6 +120,7 @@ model School {
   branches         Branch[]
   academicSessions AcademicSession[]
   onboarding       SchoolOnboarding? // Super Admin Phase SA-3
+  subscriptions    Subscription[] // Super Admin Phase SA-4B
 
   // School code is unique within its tenant.
   @@unique([tenantId, code])
@@ -966,7 +968,8 @@ model Plan {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  features PlanFeature[]
+  features      PlanFeature[]
+  subscriptions Subscription[] // Super Admin Phase SA-4B
 
   @@index([status])
   @@index([billingInterval])
@@ -986,4 +989,68 @@ model PlanFeature {
   @@unique([planId, key])
   @@index([planId])
   @@map("plan_features")
+}
+
+// ===========================================================================
+// Super Admin Phase SA-4B — Subscriptions. Connects a real School (and its
+// Tenant) to a real Plan. Plan pricing/features/limits remain the Plan's — the
+// source of truth. Only the minimal COMMERCIAL TERMS are snapshotted here
+// (priceAmount + currency + billingInterval) so a subscription's agreed price
+// stays historically stable even if the Plan's price later changes. No
+// payment-provider IDs and no proration in SA-4B.
+//
+// "Current subscription" invariant: a school has at most one CURRENT
+// subscription, where CURRENT = status in {TRIALING, ACTIVE, PAST_DUE}.
+// CANCELLED / ENDED are terminal and may accumulate as history. Enforced in the
+// service (transaction) AND by a partial unique index added in the migration:
+//   CREATE UNIQUE INDEX subscriptions_one_current_per_school
+//     ON subscriptions(school_id) WHERE status IN ('TRIALING','ACTIVE','PAST_DUE');
+// ===========================================================================
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  ENDED
+}
+
+model Subscription {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  planId   String
+
+  status SubscriptionStatus @default(ACTIVE)
+
+  // Lifecycle dates.
+  startDate          DateTime  @db.Timestamptz(6)
+  currentPeriodStart DateTime  @db.Timestamptz(6)
+  currentPeriodEnd   DateTime  @db.Timestamptz(6)
+  trialStart         DateTime? @db.Timestamptz(6)
+  trialEnd           DateTime? @db.Timestamptz(6)
+
+  // Cancellation. cancelAtPeriodEnd keeps the subscription CURRENT until the
+  // period ends; an immediate cancel sets status=CANCELLED + cancelledAt now.
+  cancelAtPeriodEnd Boolean   @default(false)
+  cancelledAt       DateTime? @db.Timestamptz(6)
+  endedAt           DateTime? @db.Timestamptz(6)
+
+  // Snapshotted commercial terms (NOT the live Plan fields).
+  priceAmount     Decimal         @db.Decimal(12, 2)
+  currency        String          @default("INR")
+  billingInterval BillingInterval @default(MONTHLY)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId])
+  @@index([tenantId])
+  @@index([planId])
+  @@index([status])
+  @@map("subscriptions")
 }

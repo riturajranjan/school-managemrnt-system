@@ -313,3 +313,38 @@ export type PlanDto = {
   updatedAt: string;
   archivedAt: string | null;
 };
+
+// --- Platform (Super Admin) subscriptions (SA-4B) ----------------------------
+
+export type SubscriptionDto = {
+  id: string;
+  status: string; // trialing | active | past-due | cancelled | ended
+  isCurrent: boolean;
+  school: { id: string; name: string; code: string; status: string };
+  tenant: { id: string; name: string; slug: string };
+  plan: {
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+    price: number; // live plan price
+    currency: string;
+    billingInterval: string;
+    limits: { maxStudents: number | null; maxStaff: number | null; maxBranches: number | null; storageGb: number | null };
+    features: string[];
+  };
+  // Snapshotted commercial terms (may differ from the live plan price).
+  price: number;
+  currency: string;
+  billingInterval: string;
+  startDate: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  trialStart: string | null;
+  trialEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
