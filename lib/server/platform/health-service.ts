@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/prisma";
 import type { ListMeta } from "@/lib/server/api/response";
 import { schoolStatusToUi, subscriptionStatusToUi } from "@/lib/server/api/enums";
 import { EXPIRING_THRESHOLD_DAYS } from "./trials-service";
+import { usageHealthReasons } from "./usage-service";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 const MS_PER_DAY = 86_400_000;
@@ -143,9 +144,22 @@ async function computeAllHealth(): Promise<TenantHealthDto[]> {
   const overdueBy = new Map(overdueRows.map((r) => [r.schoolId, r._count._all]));
   const lastPayBy = new Map(paymentRows.map((r) => [r.schoolId, r._max.receivedAt]));
 
-  return schools.map((s) =>
-    computeHealth(s, { overdue: overdueBy.get(s.id) ?? 0, outstanding: outstandingBy.get(s.id) ?? 0, lastPaymentAt: lastPayBy.get(s.id) ?? null }, now),
-  );
+  // Real usage warnings (SA-4G) — reuse the centralized usage derivation; health
+  // never recomputes usage itself. A tracked metric at WARNING/LIMIT_REACHED
+  // becomes an ATTENTION reason.
+  const usageReasonsBy = await usageHealthReasons(schoolIds);
+
+  return schools.map((s) => {
+    const dto = computeHealth(s, { overdue: overdueBy.get(s.id) ?? 0, outstanding: outstandingBy.get(s.id) ?? 0, lastPaymentAt: lastPayBy.get(s.id) ?? null }, now);
+    const usageReasons = usageReasonsBy.get(s.id);
+    if (usageReasons && usageReasons.length) {
+      // Drop the "all healthy" placeholder if it was the only reason.
+      const filtered = dto.reasons.filter((r) => r !== "All indicators healthy");
+      dto.reasons = [...filtered, ...usageReasons];
+      if (dto.healthState === "healthy") dto.healthState = "attention";
+    }
+    return dto;
+  });
 }
 
 // --- List -------------------------------------------------------------------

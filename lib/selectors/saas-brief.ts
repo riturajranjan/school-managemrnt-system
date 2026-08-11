@@ -9,9 +9,12 @@ import type { SaasState, SaasTenant } from "@/lib/types/saas";
 // Super Admin Phase SA-4D — those are now real, derived server-side from
 // PostgreSQL (GET /api/super-admin/billing/summary). The fields below back only
 // still-mock dashboard tiles (schools counts, support/usage) and the Health page.
+// NOTE: fake MRR/ARR/overdue removed in SA-4D, activeSubscriptions in SA-4F, and
+// `limitWarnings` in SA-4G — all real now (billing/usage services). The remaining
+// fields back still-mock dashboard tiles (school counts, support escalations).
 export type SaasSummary = {
   totalSchools: number; activeSchools: number; trialSchools: number; suspended: number; setupPending: number;
-  supportEscalations: number; limitWarnings: number; newThisMonth: number;
+  supportEscalations: number; newThisMonth: number;
 };
 
 export function saasSummary(db: Db): SaasSummary {
@@ -25,7 +28,6 @@ export function saasSummary(db: Db): SaasSummary {
     suspended: s.tenants.filter((t) => t.status === "suspended").length,
     setupPending: s.tenants.filter((t) => t.status === "setup-pending").length,
     supportEscalations: s.support.filter((t) => t.status === "escalated").length,
-    limitWarnings: s.usage.filter((u) => u.limit > 0 && u.used / u.limit >= 0.8).length,
     newThisMonth: s.tenants.filter((t) => t.createdAt >= monthAgo.toISOString().slice(0, 10)).length,
   };
 }
@@ -62,9 +64,8 @@ export function tenantHealth(saas: SaasState, tenant: SaasTenant): TenantHealth 
   // invoice health lives in the server-side health-service, SA-4F).
   if (tenant.status === "payment-due") { reasons.push("Invoice payment is overdue"); recommendations.push("Follow up on payment"); severity += 2; }
   if (tenant.status === "grace-period") { reasons.push("In grace period after failed payment"); recommendations.push("Contact billing owner"); severity += 2; }
-  const nearLimit = saas.usage.filter((u) => u.tenantId === tenant.id && u.limit > 0 && u.used / u.limit >= 0.9);
-  nearLimit.forEach((u) => { reasons.push(`${u.key} usage at ${Math.round((u.used / u.limit) * 100)}%`); severity += 1; });
-  if (nearLimit.length > 0) recommendations.push("Review plan or add capacity add-on");
+  // Usage-limit signals moved to the real usage-service (SA-4G); this mock
+  // selector no longer reads `db.saas.usage`.
   const openTickets = saas.support.filter((t) => t.tenantId === tenant.id && t.status !== "resolved" && t.status !== "closed").length;
   if (openTickets >= 2) { reasons.push(`${openTickets} unresolved support tickets`); recommendations.push("Resolve support issues"); severity += 1; }
   if (tenant.setupPercent < 60) { reasons.push(`Setup only ${tenant.setupPercent}% complete`); recommendations.push("Assist with onboarding"); severity += 1; }

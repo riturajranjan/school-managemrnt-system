@@ -12,6 +12,7 @@ import { useSchoolList } from "@/lib/hooks/api/use-platform-schools";
 import { useSubscriptionList } from "@/lib/hooks/api/use-subscriptions";
 import { useBillingSummary } from "@/lib/hooks/api/use-billing";
 import { useHealthSummary, useTenantHealthList } from "@/lib/hooks/api/use-health";
+import { useUsageSummary } from "@/lib/hooks/api/use-usage";
 import { formatPlanPrice } from "@/lib/hooks/api/use-plans";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { saasSummary } from "@/lib/selectors/saas-brief";
@@ -34,6 +35,7 @@ export default function SaasDashboard() {
   const billing = useBillingSummary();
   // Real Platform Pulse + tenant-health attention list from PostgreSQL (SA-4F).
   const health = useHealthSummary();
+  const usage = useUsageSummary(); // real limit warnings (SA-4G)
   const attentionQuery = useTenantHealthList({ pageSize: 20, sort: "healthState" });
   const attention = attentionQuery.data.filter((h) => h.healthState !== "healthy").slice(0, 6);
   const summary = useMemo(() => saasSummary(db), [db]);
@@ -60,7 +62,7 @@ export default function SaasDashboard() {
         <StatTile label="ARR" value={billing.data ? formatPlanPrice(billing.data.arr, billing.data.currency) : "…"} tone="success" hint="Real DB" />
         <StatTile label="Overdue invoices" value={billing.data ? String(billing.data.overdueInvoices) : "…"} icon={Receipt} tone={billing.data && billing.data.overdueInvoices > 0 ? "error" : "success"} hint="Real DB" />
         <StatTile label="Escalations" value={String(summary.supportEscalations)} icon={LifeBuoy} tone={summary.supportEscalations > 0 ? "warning" : "success"} />
-        <StatTile label="Limit warnings" value={String(summary.limitWarnings)} icon={AlertTriangle} tone={summary.limitWarnings > 0 ? "warning" : "success"} />
+        <StatTile label="Limit warnings" value={usage.data ? String(usage.data.limitWarnings) : "…"} icon={AlertTriangle} tone={usage.data && usage.data.limitWarnings > 0 ? "warning" : "success"} hint="Real DB" />
         <StatTile label="Active subs" value={activeSubsQuery.meta ? String(activeSubsQuery.meta.total) : "…"} icon={CreditCard} tone="info" hint="Real DB count" />
         <StatTile label="New this month" value={String(summary.newThisMonth)} tone="neutral" />
       </div>

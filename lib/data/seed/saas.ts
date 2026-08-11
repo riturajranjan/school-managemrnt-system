@@ -1,7 +1,7 @@
 import type {
   MarketplaceItem, PlanFeature, PlatformAdminUser, PlatformRole, SaasAddon, SaasInvoice,
   SaasPlan, SaasState, SaasTenant, SaasTenantStatus, TenantDomain, TenantLifecycleStage,
-  TenantUsageMetric, UsageKey, PlatformSupportTicket, SupportCategory,
+  PlatformSupportTicket, SupportCategory,
 } from "@/lib/types/saas";
 import { seededHelpers } from "./rng";
 
@@ -63,7 +63,7 @@ export function emptySaasState(): SaasState {
   ];
 
   return {
-    tenants: [], plans, usage: [], invoices: [], overrides: [], addons, marketplace,
+    tenants: [], plans, invoices: [], overrides: [], addons, marketplace,
     domains: [], support: [], success: [], announcements: [], status: [], auditLog: [], admins: [],
     settings: { platformName: "Novyra Campus OS", supportContact: "platform@novyra.io", defaultTrialDays: 21, defaultPlanId: "plan-growth", defaultBillingCycle: "monthly", gracePeriodDays: 7, maintenanceMessage: "We'll be back shortly.", legalLinks: [{ label: "Master Services Agreement", url: "/legal/msa" }, { label: "Data Processing Addendum", url: "/legal/dpa" }] },
   };
@@ -105,18 +105,7 @@ export function buildSaasData(): SaasState {
 
   // NOTE: mock subscriptions removed in SA-4F (real Subscription model + health).
 
-  // Usage per tenant (a few key metrics each)
-  const usage: TenantUsageMetric[] = [];
-  const usageKeys: UsageKey[] = ["students", "staff", "branches", "storage", "sms", "email", "documents"];
-  tenants.forEach((t) => {
-    const plan = base.plans.find((p) => p.id === t.planId)!;
-    const limits: Record<string, number> = { students: plan.studentLimit, staff: plan.staffLimit, branches: plan.branchLimit, storage: plan.storageGb, sms: 10000, email: 20000, documents: 5000 };
-    const used: Record<string, number> = { students: t.students, staff: t.staff, branches: t.branches, storage: Math.round(plan.storageGb * (t.usagePercent / 100)), sms: helpers.int(1000, 9800), email: helpers.int(2000, 19000), documents: helpers.int(200, 4800) };
-    usageKeys.forEach((k) => {
-      const u = used[k], lim = limits[k];
-      usage.push({ tenantId: t.id, key: k, used: u, limit: lim, trend: Array.from({ length: 6 }, (_, m) => Math.round(u * (0.6 + m * 0.07))) });
-    });
-  });
+  // NOTE: mock usage removed in SA-4G (real usage-service derives usage vs Plan limits).
 
   // Invoices (mock — still used by the global-search palette). Platform payments
   // are real (SA-4E), so no mock payment rows are generated here.
@@ -203,7 +192,6 @@ export function buildSaasData(): SaasState {
   base.admins = adminRoles.map((a, i) => ({ id: `padm-${i}`, name: a.name, email: `${a.name.toLowerCase().replace(/[^a-z]+/g, ".")}@novyra.io`, role: a.role, lastActive: a.status === "invited" ? "—" : isoTime(helpers.int(1, 120)), status: a.status, scope: a.role === "platform-owner" || a.role === "super-admin" ? "All tenants" : a.role === "billing-admin" ? "Billing & invoices" : a.role === "auditor" ? "Read-only" : "Assigned tenants", photoColor: `hsl(${(i * 61) % 360} 55% 55%)` }));
 
   base.tenants = tenants;
-  base.usage = usage;
   base.invoices = invoices;
   base.domains = domains;
   base.support = support;

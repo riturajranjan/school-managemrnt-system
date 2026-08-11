@@ -154,25 +154,10 @@ export type SaasInvoice = {
 // Usage
 // ---------------------------------------------------------------------------
 
-export type UsageKey = "students" | "staff" | "branches" | "storage" | "sms" | "whatsapp" | "email" | "documents" | "api" | "gps";
-
-export const usageKeyLabels: Record<UsageKey, string> = {
-  students: "Students", staff: "Staff", branches: "Branches", storage: "Storage", sms: "SMS",
-  whatsapp: "WhatsApp", email: "Email", documents: "Documents", api: "API calls", gps: "GPS devices",
-};
-
-export const usageKeyUnit: Record<UsageKey, string> = {
-  students: "", staff: "", branches: "", storage: "GB", sms: "", whatsapp: "", email: "", documents: "", api: "", gps: "",
-};
-
-export type TenantUsageMetric = {
-  tenantId: ID;
-  key: UsageKey;
-  used: number;
-  limit: number;
-  // Small mock history for the trend view.
-  trend: number[];
-};
+// NOTE: the mock usage types (UsageKey/usageKeyLabels/usageKeyUnit/
+// TenantUsageMetric) and the `db.saas.usage` slice were removed in Super Admin
+// Phase SA-4G — usage & limits are real now (derived live vs Plan limits,
+// usage-service + /api/super-admin/usage).
 
 // ---------------------------------------------------------------------------
 // Add-ons & marketplace
@@ -353,7 +338,6 @@ export type PlatformSettings = {
 export type SaasState = {
   tenants: SaasTenant[];
   plans: SaasPlan[];
-  usage: TenantUsageMetric[];
   invoices: SaasInvoice[];
   overrides: TenantFeatureOverride[];
   addons: SaasAddon[];

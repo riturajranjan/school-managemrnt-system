@@ -14,13 +14,9 @@ export function usePlan(id: string | undefined) {
   const db = useSisStore();
   return useMemo(() => db.saas.plans.find((p) => p.id === id), [db.saas.plans, id]);
 }
-// NOTE: mock subscription hooks (useSubscriptions/useSubscription/useTenantSubscription)
-// and the `db.saas.subscriptions` slice were removed in Super Admin Phase SA-4F —
-// subscriptions + tenant health are real now.
-export function useTenantUsage(tenantId?: string) {
-  const db = useSisStore();
-  return useMemo(() => (tenantId ? db.saas.usage.filter((u) => u.tenantId === tenantId) : db.saas.usage), [db.saas.usage, tenantId]);
-}
+// NOTE: mock subscription hooks + slice removed in SA-4F; mock usage hook
+// (useTenantUsage) + `db.saas.usage` slice removed in SA-4G — subscriptions,
+// tenant health and usage/limits are all real now.
 export function useInvoices(tenantId?: string) {
   const db = useSisStore();
   return useMemo(() => (tenantId ? db.saas.invoices.filter((i) => i.tenantId === tenantId) : db.saas.invoices), [db.saas.invoices, tenantId]);

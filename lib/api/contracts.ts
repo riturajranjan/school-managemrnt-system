@@ -477,6 +477,41 @@ export type HealthSummaryDto = {
   pulse: { score: number; factors: PlatformPulseFactorDto[] };
 };
 
+// --- Platform (Super Admin) usage & limits (SA-4G) ---------------------------
+// Usage is DERIVED live from real rows vs the current subscription's Plan limits.
+// Staff/storage are NOT_TRACKED (no real backend) — never fabricated.
+
+export type UsageMetricDto = {
+  key: string; // students | branches | staff | storage
+  label: string;
+  used: number | null; // null when NOT_TRACKED
+  limit: number | null; // null = unlimited / no plan
+  percent: number | null;
+  state: string; // NORMAL | WARNING | LIMIT_REACHED | UNLIMITED | NOT_TRACKED | NO_SUBSCRIPTION
+  unit: string | null;
+};
+
+export type SchoolUsageDto = {
+  schoolId: string;
+  schoolName: string;
+  schoolCode: string;
+  tenantId: string;
+  tenantName: string;
+  subscriptionId: string | null;
+  plan: { id: string; name: string } | null;
+  metrics: UsageMetricDto[];
+  warnings: string[];
+};
+
+export type UsageSummaryDto = {
+  schoolsTracked: number;
+  schoolsWarning: number;
+  schoolsAtLimit: number;
+  limitWarnings: number;
+  studentLimitWarnings: number;
+  branchLimitWarnings: number;
+};
+
 // --- Platform (Super Admin) payments (SA-4E) ---------------------------------
 
 export type PaymentDto = {
