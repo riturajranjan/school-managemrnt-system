@@ -44,13 +44,13 @@ export default function TenantHealthPage() {
       </div>
 
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
-        <input
+        {/* <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search school, code, tenant…"
           aria-label="Search tenant health"
-          className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary sm:max-w-xs"
-        />
+          className="w-full min-w-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary sm:max-w-xs"
+        /> */}
         <div className="flex flex-wrap gap-1">
           {FILTERS.map((f) => (
             <button key={f} type="button" onClick={() => setFilter(f)} className={cn("rounded-pill px-2.5 py-1 text-xs font-medium transition", filter === f ? "bg-primary text-primary-foreground" : "bg-surface-secondary text-muted-foreground hover:text-foreground")}>

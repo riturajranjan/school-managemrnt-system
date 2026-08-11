@@ -49,13 +49,13 @@ export default function UsagePage() {
       </p>
 
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
-        <input
+        {/* <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search school, code, tenant…"
           aria-label="Search usage"
           className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary sm:max-w-xs"
-        />
+        /> */}
         <select value={plan} onChange={(e) => setPlan(e.target.value)} aria-label="Filter by plan" className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-foreground">
           <option value="">All plans</option>
           {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

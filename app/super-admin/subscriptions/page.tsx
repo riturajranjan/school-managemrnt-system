@@ -48,13 +48,13 @@ export default function SubscriptionsPage() {
       </div>
 
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
-        <input
+        {/* <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search school, code, tenant…"
           aria-label="Search subscriptions"
           className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary sm:max-w-xs"
-        />
+        /> */}
         <div className="flex flex-wrap gap-1">
           {STATUSES.map((s) => (
             <button
