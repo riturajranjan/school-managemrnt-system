@@ -123,7 +123,7 @@ function computeHealth(
  * platform has a bounded number of schools, so we derive all then filter/paginate. */
 async function computeAllHealth(): Promise<TenantHealthDto[]> {
   const now = new Date();
-  const schools = await prisma.school.findMany({
+  const rawSchools = await prisma.school.findMany({
     include: {
       tenant: { select: { id: true, name: true } },
       onboarding: { select: { status: true } },
@@ -131,6 +131,9 @@ async function computeAllHealth(): Promise<TenantHealthDto[]> {
     },
     orderBy: { name: "asc" },
   });
+  // Skip schools whose tenant is mid-deletion (Prisma loads the relation in a
+  // second query, so a concurrent tenant cascade can leave `tenant` null).
+  const schools = rawSchools.filter((s) => s.tenant != null);
   const schoolIds = schools.map((s) => s.id);
   if (schoolIds.length === 0) return [];
 

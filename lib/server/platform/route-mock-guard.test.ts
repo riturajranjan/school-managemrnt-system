@@ -23,7 +23,13 @@ const MIGRATED_ROUTE_DIRS = [
 // Individual migrated files (not whole directories) that must stay mock-free.
 // The dashboard page still legitimately uses db.saas for not-yet-migrated tiles,
 // but its Platform Pulse widget + usage meter are real — guard those components.
-const MIGRATED_FILES = ["components/super-admin/platform-pulse.tsx", "components/super-admin/usage-meter.tsx"];
+// The Super Admin layout + global search are fully real (server-side search).
+const MIGRATED_FILES = [
+  "components/super-admin/platform-pulse.tsx",
+  "components/super-admin/usage-meter.tsx",
+  "components/super-admin/global-search.tsx",
+  "app/super-admin/layout.tsx",
+];
 
 // Forbidden mock-authority markers (substring match against source text).
 const FORBIDDEN: { marker: string; why: string }[] = [

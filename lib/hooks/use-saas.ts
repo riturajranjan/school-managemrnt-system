@@ -17,14 +17,8 @@ export function usePlan(id: string | undefined) {
 // NOTE: mock subscription hooks + slice removed in SA-4F; mock usage hook
 // (useTenantUsage) + `db.saas.usage` slice removed in SA-4G — subscriptions,
 // tenant health and usage/limits are all real now.
-export function useInvoices(tenantId?: string) {
-  const db = useSisStore();
-  return useMemo(() => (tenantId ? db.saas.invoices.filter((i) => i.tenantId === tenantId) : db.saas.invoices), [db.saas.invoices, tenantId]);
-}
-export function useInvoice(id: string | undefined) {
-  const db = useSisStore();
-  return useMemo(() => db.saas.invoices.find((i) => i.id === id), [db.saas.invoices, id]);
-}
+// NOTE: mock invoice hooks (useInvoices/useInvoice) + `db.saas.invoices` slice
+// removed in SA-4H — invoices are real and Global Search is server-side now.
 export function useOverrides(tenantId?: string) {
   const db = useSisStore();
   return useMemo(() => (tenantId ? db.saas.overrides.filter((o) => o.tenantId === tenantId) : db.saas.overrides), [db.saas.overrides, tenantId]);

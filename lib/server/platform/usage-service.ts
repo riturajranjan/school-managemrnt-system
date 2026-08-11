@@ -93,13 +93,15 @@ function buildSchoolUsage(school: SchoolRow, studentCount: number, branchCount: 
 
 /** Compute usage for every school (batched grouped counts — no N+1). */
 async function computeAllUsage(): Promise<SchoolUsageDto[]> {
-  const schools = await prisma.school.findMany({
+  const rawSchools = await prisma.school.findMany({
     include: {
       tenant: { select: { id: true, name: true } },
       subscriptions: { where: { status: { in: [...CURRENT_SUB_STATUSES] } }, take: 1, select: { id: true, plan: { select: { id: true, name: true, maxStudents: true, maxBranches: true, maxStaff: true, storageGb: true } } } },
     },
     orderBy: { name: "asc" },
   });
+  // Skip schools whose tenant is mid-deletion (concurrent cascade race).
+  const schools = rawSchools.filter((s) => s.tenant != null);
   const schoolIds = schools.map((s) => s.id);
   if (schoolIds.length === 0) return [];
 
@@ -222,6 +224,7 @@ export async function usageHealthReasons(schoolIds: string[]): Promise<Map<strin
 
   const out = new Map<string, string[]>();
   for (const s of schools) {
+    if (s.tenant == null) continue; // concurrent tenant cascade
     const u = buildSchoolUsage(s, studentBy.get(s.id) ?? 0, branchBy.get(s.id) ?? 0);
     const reasons: string[] = [];
     for (const m of u.metrics) {

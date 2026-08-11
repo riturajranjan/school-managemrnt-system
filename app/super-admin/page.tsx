@@ -17,7 +17,6 @@ import { formatPlanPrice } from "@/lib/hooks/api/use-plans";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { saasSummary } from "@/lib/selectors/saas-brief";
 import { healthStateTone, healthStateLabel } from "@/lib/plans/health-state";
-import { tenantStatusLabels, tenantStatusTone } from "@/lib/types/saas";
 import { formatDate } from "@/lib/utils";
 
 export default function SaasDashboard() {
@@ -39,7 +38,8 @@ export default function SaasDashboard() {
   const attentionQuery = useTenantHealthList({ pageSize: 20, sort: "healthState" });
   const attention = attentionQuery.data.filter((h) => h.healthState !== "healthy").slice(0, 6);
   const summary = useMemo(() => saasSummary(db), [db]);
-  const recent = useMemo(() => [...db.saas.tenants].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [db.saas.tenants]);
+  // Real recently-created schools (SA-4H) — ordered by createdAt desc.
+  const recentQuery = useSchoolList({ sort: "createdAt", order: "desc", pageSize: 5 });
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -85,12 +85,13 @@ export default function SaasDashboard() {
           <section className="rounded-lg border border-border bg-surface p-md">
             <div className="mb-sm flex items-center justify-between"><h2 className="text-sm font-semibold text-foreground">Recently added schools</h2><Link href="/super-admin/schools" className="text-xs text-primary">All schools →</Link></div>
             <div className="flex flex-col gap-xs">
-              {recent.map((t) => (
-                <Link key={t.id} href={`/super-admin/schools/${t.id}`} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm transition hover:border-primary/40">
-                  <div className="flex min-w-0 items-center gap-2"><span className="flex size-7 items-center justify-center rounded text-xs font-bold text-white" style={{ background: t.logoColor }}>{t.code.slice(0, 2)}</span><div className="min-w-0"><p className="truncate font-medium text-foreground">{t.name}</p><p className="truncate text-xs text-muted-foreground">{t.domain} · {formatDate(t.createdAt)}</p></div></div>
-                  <Badge tone={tenantStatusTone[t.status]}>{tenantStatusLabels[t.status]}</Badge>
+              {recentQuery.data.map((s) => (
+                <Link key={s.id} href={`/super-admin/schools/${s.id}`} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm transition hover:border-primary/40">
+                  <div className="flex min-w-0 items-center gap-2"><span className="flex size-7 items-center justify-center rounded bg-primary/10 text-xs font-bold text-primary">{s.code.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><p className="truncate font-medium text-foreground">{s.name}</p><p className="truncate text-xs text-muted-foreground">{s.tenantName} · {formatDate(s.createdAt)}</p></div></div>
+                  <Badge tone={s.status === "active" ? "success" : s.status === "setup-pending" ? "warning" : s.status === "suspended" ? "error" : "neutral"}>{s.status}</Badge>
                 </Link>
               ))}
+              {!recentQuery.loading && recentQuery.data.length === 0 && <p className="py-md text-center text-sm text-muted-foreground">No schools yet.</p>}
             </div>
           </section>
         </div>

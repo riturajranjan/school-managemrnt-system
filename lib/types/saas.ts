@@ -119,32 +119,10 @@ export type TenantFeatureOverride = {
 // were removed in Super Admin Phase SA-4F — subscriptions + tenant health are real
 // (Subscription model + /api/super-admin/subscriptions, health-service).
 
-export type InvoiceStatus = "draft" | "issued" | "paid" | "overdue" | "cancelled" | "refunded";
-
-export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
-  draft: "Draft", issued: "Issued", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled", refunded: "Refunded",
-};
-
-export const invoiceStatusTone: Record<InvoiceStatus, StatusTone> = {
-  draft: "neutral", issued: "info", paid: "success", overdue: "error", cancelled: "neutral", refunded: "warning",
-};
-
-export type SaasInvoiceItem = { label: string; amountMinor: number };
-
-export type SaasInvoice = {
-  id: ID;
-  number: string;
-  tenantId: ID;
-  planName: string;
-  periodStart: string;
-  periodEnd: string;
-  items: SaasInvoiceItem[];
-  subtotalMinor: number;
-  taxMinor: number;
-  totalMinor: number;
-  dueDate: string;
-  status: InvoiceStatus;
-};
+// NOTE: the mock invoice types (InvoiceStatus/invoiceStatusLabels/
+// invoiceStatusTone/SaasInvoiceItem/SaasInvoice) and the `db.saas.invoices` slice
+// were removed in Super Admin Phase SA-4H — invoices are real (Invoice model +
+// /api/super-admin/invoices) and Global Search is server-side.
 
 // NOTE: the mock platform-payment types (PaymentStatus/paymentStatusLabels/
 // paymentStatusTone/SaasPayment) and the `db.saas.payments` slice were removed in
@@ -338,7 +316,6 @@ export type PlatformSettings = {
 export type SaasState = {
   tenants: SaasTenant[];
   plans: SaasPlan[];
-  invoices: SaasInvoice[];
   overrides: TenantFeatureOverride[];
   addons: SaasAddon[];
   marketplace: MarketplaceItem[];

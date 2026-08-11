@@ -1,5 +1,5 @@
 import type {
-  MarketplaceItem, PlanFeature, PlatformAdminUser, PlatformRole, SaasAddon, SaasInvoice,
+  MarketplaceItem, PlanFeature, PlatformAdminUser, PlatformRole, SaasAddon,
   SaasPlan, SaasState, SaasTenant, SaasTenantStatus, TenantDomain, TenantLifecycleStage,
   PlatformSupportTicket, SupportCategory,
 } from "@/lib/types/saas";
@@ -63,7 +63,7 @@ export function emptySaasState(): SaasState {
   ];
 
   return {
-    tenants: [], plans, invoices: [], overrides: [], addons, marketplace,
+    tenants: [], plans, overrides: [], addons, marketplace,
     domains: [], support: [], success: [], announcements: [], status: [], auditLog: [], admins: [],
     settings: { platformName: "Novyra Campus OS", supportContact: "platform@novyra.io", defaultTrialDays: 21, defaultPlanId: "plan-growth", defaultBillingCycle: "monthly", gracePeriodDays: 7, maintenanceMessage: "We'll be back shortly.", legalLinks: [{ label: "Master Services Agreement", url: "/legal/msa" }, { label: "Data Processing Addendum", url: "/legal/dpa" }] },
   };
@@ -107,28 +107,7 @@ export function buildSaasData(): SaasState {
 
   // NOTE: mock usage removed in SA-4G (real usage-service derives usage vs Plan limits).
 
-  // Invoices (mock — still used by the global-search palette). Platform payments
-  // are real (SA-4E), so no mock payment rows are generated here.
-  const invoices: SaasInvoice[] = [];
-  let invSeq = 1000;
-  tenants.forEach((t) => {
-    const plan = base.plans.find((p) => p.id === t.planId)!;
-    const count = t.status === "setup-pending" ? 0 : helpers.int(1, 3);
-    for (let k = 0; k < count; k++) {
-      invSeq += 1;
-      const subtotal = plan.monthlyPrice * 100; // plan price (subscriptions are real now, not in this mock)
-      const tax = Math.round(subtotal * 0.18);
-      const total = subtotal + tax;
-      const overdue = k === 0 && (t.status === "payment-due" || t.status === "grace-period");
-      const status = overdue ? "overdue" : t.status === "suspended" && k === 0 ? "overdue" : k === 0 ? "issued" : "paid";
-      const inv: SaasInvoice = {
-        id: `inv-${invSeq}`, number: `NVX-INV-${invSeq}`, tenantId: t.id, planName: plan.name,
-        periodStart: daysAgo(30 * (k + 1)), periodEnd: daysAgo(30 * k), items: [{ label: `${plan.name} (monthly)`, amountMinor: subtotal }],
-        subtotalMinor: subtotal, taxMinor: tax, totalMinor: total, dueDate: daysAgo(30 * k - 7), status: status as SaasInvoice["status"],
-      };
-      invoices.push(inv);
-    }
-  });
+  // NOTE: mock invoices removed in SA-4H (real Invoice model + server-side Global Search).
 
   // Domains
   const domains: TenantDomain[] = tenants.flatMap((t, i) => {
@@ -192,7 +171,6 @@ export function buildSaasData(): SaasState {
   base.admins = adminRoles.map((a, i) => ({ id: `padm-${i}`, name: a.name, email: `${a.name.toLowerCase().replace(/[^a-z]+/g, ".")}@novyra.io`, role: a.role, lastActive: a.status === "invited" ? "—" : isoTime(helpers.int(1, 120)), status: a.status, scope: a.role === "platform-owner" || a.role === "super-admin" ? "All tenants" : a.role === "billing-admin" ? "Billing & invoices" : a.role === "auditor" ? "Read-only" : "Assigned tenants", photoColor: `hsl(${(i * 61) % 360} 55% 55%)` }));
 
   base.tenants = tenants;
-  base.invoices = invoices;
   base.domains = domains;
   base.support = support;
   return base;

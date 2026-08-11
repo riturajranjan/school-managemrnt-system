@@ -10,7 +10,7 @@ retained **only** while another unmigrated module still consumes them. No
 production code falls back to mock data on API failure — failures render real
 loading/error/empty states.
 
-_Last updated: SA-4G (Usage & Limits)._
+_Last updated: SA-4H (Global Search)._
 
 | Module | Status | Real source | Mock source (if any) | Remaining mock consumers |
 |---|---|---|---|---|
@@ -25,32 +25,36 @@ _Last updated: SA-4G (Usage & Limits)._
 | Tenant Health | **REAL** | `health-service` + `/api/super-admin/health` (incl. usage warnings) | — | — |
 | Platform Pulse | **REAL** | `health-service` + `/api/super-admin/health/summary` | — | — |
 | Usage & Limits | **REAL** | `usage-service` + `/api/super-admin/usage` (students/branches; staff/storage NOT_TRACKED) | — | — |
-| Dashboard | **MOSTLY REAL** | real: setup-pending, active/trialing subs, MRR/ARR, overdue, Pulse, attention list, **limit warnings** | `saas-brief.saasSummary` + `db.saas.tenants` | Suspended, New-this-month, Escalations tiles + "Recently added schools" list |
+| Global Search | **REAL** | `search-service` + `/api/super-admin/search` (schools/subscriptions/invoices/payments/plans, permission-filtered) | — | — |
+| Dashboard | **MOSTLY REAL** | real: setup-pending, active/trialing subs, MRR/ARR, overdue, Pulse, attention list, limit warnings, **Recently added schools** | `saas-brief.saasSummary` + `db.saas.tenants` | Suspended, New-this-month, Escalations tiles |
 | Features/Entitlements | MOCK | — | `db.saas` overrides | `/super-admin/features` |
 | Branding / Domains | MOCK | — | `db.saas` | `/super-admin/branding`, `/super-admin/domains` |
 | Support | MOCK | — | `db.saas.support` + `saas-brief.tenantHealth` (badge) | `/super-admin/support/*` |
 | Global search | MOCK | — | `db.saas` (tenants/invoices/support/domains/admins) | `/super-admin/layout.tsx` command palette |
 
-## Shared mock slices — exact remaining consumers (post SA-4G)
+## Shared mock slices — exact remaining consumers (post SA-4H)
 
-- **`db.saas.usage`** — **DELETED in SA-4G** (slice, `TenantUsageMetric`/`UsageKey`/
-  `usageKeyLabels`/`usageKeyUnit` types, `use-saas.useTenantUsage`, and the usage
-  dependency of `saasSummary.limitWarnings` + `saas-brief.tenantHealth`; zero
-  remaining consumers).
-- **`db.saas.subscriptions`** — DELETED in SA-4F.
-- **`db.saas.payments`** — DELETED in SA-4E.
-- **`db.saas.invoices`** — still read by the `layout.tsx` global-search command
-  palette + `use-saas.useInvoices`. **Retained** — needs a real search source.
-- **`db.saas.tenants`** — still read by the dashboard "Recently added schools"
-  list + `saasSummary` tiles + layout search. Retained (Tenants not yet a real
-  Super-Admin domain — real Schools live under `/api/super-admin/schools`).
+- **`db.saas.invoices`** — **DELETED in SA-4H** (slice, `SaasInvoice`/`SaasInvoiceItem`/
+  `InvoiceStatus`(mock)/`invoiceStatusLabels`/`invoiceStatusTone` types,
+  `use-saas.useInvoices`/`useInvoice`, and the seed invoice construction; zero
+  remaining consumers — global search is server-side now).
+- **`db.saas.usage`** — DELETED in SA-4G. **`db.saas.subscriptions`** — SA-4F.
+  **`db.saas.payments`** — SA-4E.
+- **`db.saas.tenants`** — still read by `saas-brief.saasSummary` (dashboard tiles:
+  totalSchools/activeSchools/trialSchools/suspended/setupPending/newThisMonth) +
+  the `impersonation` provider. **Retained** — cannot be deleted until saasSummary
+  is migrated. Global Search + dashboard "Recently added schools" NO LONGER read it.
 - **`db.saas.support`** — Support page (tickets) + `saasSummary.supportEscalations`.
+- **`db.saas` (overrides/domains/addons/marketplace/admins/settings/announcements/
+  success/status/auditLog)** — the still-mock Features/Domains/Branding/Add-ons/
+  Marketplace/System/Settings/Activity/Announcements pages.
 - **`saas-brief.tenantHealth`** — RETAINED (mock) for the Support ticket page badge
-  only; no longer reads `db.saas.subscriptions` or `db.saas.usage`.
+  only; no longer reads subscriptions or usage.
 - Note: `db.finance.payments` is a **separate** fees/finance slice — untouched.
 
-The Health/Usage pages + Platform Pulse & usage-meter widgets import no mock
-authority (guarded). Real API failures render loading/error/empty states.
+Migrated Super Admin pages (plans/subscriptions/trials/billing/invoices/payments/
+health/usage) + the layout, global-search, platform-pulse & usage-meter widgets
+import no mock authority (guarded). Real API failures render loading/error/empty.
 
 ## Removed as modules went real
 
@@ -61,10 +65,12 @@ authority (guarded). Real API failures render loading/error/empty states.
 - SA-4E: **`db.saas.payments` slice deleted** + `SaasPayment`/`PaymentStatus`/`paymentStatusLabels`/`paymentStatusTone` types + `usePayments` hook; invoice `markInvoicePaid` (service + endpoint + UI) removed — settlement flows only through real payments.
 - SA-4F: **`db.saas.subscriptions` slice deleted** + `TenantSubscription`/`SubscriptionStatus`(mock)/`subscriptionStatusLabels`/`subscriptionStatusTone` types + `use-saas` subscription hooks + `saasSummary.activeSubscriptions`; **`platformPulse` (saas-brief) removed**; `tenantHealth` decoupled from subscriptions (kept for Support page).
 - SA-4G: **`db.saas.usage` slice deleted** + `TenantUsageMetric`/`UsageKey`/`usageKeyLabels`/`usageKeyUnit` types + `use-saas.useTenantUsage` + `saasSummary.limitWarnings`; `tenantHealth` decoupled from usage; `UsageMeter` rewritten for the real DTO. Usage integrated into real health (usage warnings → ATTENTION).
+- SA-4H: **`db.saas.invoices` slice deleted** + `SaasInvoice`/`SaasInvoiceItem`/`InvoiceStatus`(mock)/`invoiceStatusLabels`/`invoiceStatusTone` types + `use-saas.useInvoices`/`useInvoice`; layout `useSaas` search removed (real server search); dashboard "Recently added schools" migrated to real Schools API.
 
 ## Guard
 
 `lib/server/platform/route-mock-guard.test.ts` fails if a migrated real route
 (`plans`, `subscriptions`, `trials`, `billing`, `invoices`, `payments`, `health`, `usage`)
-or the `platform-pulse.tsx` / `usage-meter.tsx` widgets reintroduce a mock
+or the `platform-pulse.tsx` / `usage-meter.tsx` / `global-search.tsx` widgets or
+`app/super-admin/layout.tsx` reintroduce a mock
 authority (`useSisStore`, `saas-service`, `saas-brief`, `db.saas`).

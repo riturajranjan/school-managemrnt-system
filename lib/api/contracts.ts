@@ -477,6 +477,22 @@ export type HealthSummaryDto = {
   pulse: { score: number; factors: PlatformPulseFactorDto[] };
 };
 
+// --- Platform (Super Admin) global search (SA-4H) ----------------------------
+
+export type SearchResultDto = {
+  type: string; // school | subscription | invoice | payment | plan
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  status: string | null;
+};
+
+export type GlobalSearchDto = {
+  query: string;
+  results: SearchResultDto[];
+};
+
 // --- Platform (Super Admin) usage & limits (SA-4G) ---------------------------
 // Usage is DERIVED live from real rows vs the current subscription's Plan limits.
 // Staff/storage are NOT_TRACKED (no real backend) — never fabricated.
