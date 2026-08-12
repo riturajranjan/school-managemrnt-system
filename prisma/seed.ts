@@ -16,6 +16,7 @@ import { PERMISSIONS, ROLE_PERMISSIONS } from "../lib/server/authz/catalog";
 import { seedPhase4 } from "./seed-phase4";
 import { seedPlans } from "./seed-plans";
 import { seedSubscriptions } from "./seed-subscriptions";
+import { seedAddonsMarketplace } from "./seed-addons-marketplace";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
 
@@ -259,6 +260,11 @@ async function main() {
   // Super Admin Phase SA-4E — a real payment settling a seeded invoice
   // =========================================================================
   await seedPayments(prisma);
+
+  // =========================================================================
+  // Super Admin Phase SA-4M — Add-on + Marketplace catalogs (platform-global)
+  // =========================================================================
+  await seedAddonsMarketplace(prisma);
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

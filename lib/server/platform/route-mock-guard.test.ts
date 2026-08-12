@@ -22,6 +22,8 @@ const MIGRATED_ROUTE_DIRS = [
   "app/super-admin/features",
   "app/super-admin/domains",
   "app/super-admin/branding",
+  "app/super-admin/addons",
+  "app/super-admin/marketplace",
 ];
 
 // Individual migrated files (not whole directories) that must stay mock-free.

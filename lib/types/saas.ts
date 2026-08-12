@@ -48,31 +48,11 @@ import type { ID, StatusTone } from "./common";
 // Add-ons & marketplace
 // ---------------------------------------------------------------------------
 
-export type SaasAddon = {
-  id: ID;
-  name: string;
-  description: string;
-  category: string;
-  priceMinor: number;
-  unit: string;
-  includedLimit: string;
-  glyph: string;
-};
-
-export type MarketplaceItem = {
-  id: ID;
-  name: string;
-  provider: string;
-  category: "communication" | "payments" | "gps" | "storage" | "ai" | "analytics" | "productivity" | "learning" | "other";
-  description: string;
-  compatibility: string;
-  status: "available" | "coming-soon" | "enabled";
-  glyph: string;
-};
-
-export const marketplaceStatusLabels: Record<MarketplaceItem["status"], string> = {
-  available: "Available", "coming-soon": "Coming soon", enabled: "Enabled",
-};
+// NOTE: the mock add-on/marketplace types (SaasAddon, MarketplaceItem,
+// marketplaceStatusLabels) and the `db.saas.addons`/`db.saas.marketplace` slices
+// were removed in Super Admin Phase SA-4M — add-ons & marketplace are REAL now
+// (AddOn / SchoolAddOn / MarketplaceApp / SchoolMarketplaceInstallation models +
+// addons-service / marketplace-service + /api/super-admin/{addons,marketplace}).
 
 // ---------------------------------------------------------------------------
 // Domains — now REAL (SchoolDomain model + /api/super-admin/domains, SA-4L). The
@@ -168,8 +148,6 @@ export type PlatformSettings = {
 // ---------------------------------------------------------------------------
 
 export type SaasState = {
-  addons: SaasAddon[];
-  marketplace: MarketplaceItem[];
   announcements: PlatformAnnouncement[];
   status: PlatformStatusItem[];
   auditLog: PlatformAuditEntry[];

@@ -130,6 +130,8 @@ model School {
   featureOverrides SchoolFeatureOverride[] // Super Admin Phase SA-4L
   domains          SchoolDomain[] // Super Admin Phase SA-4L
   branding         SchoolBranding? // Super Admin Phase SA-4L
+  addOns           SchoolAddOn[] // Super Admin Phase SA-4M
+  marketplaceInstalls SchoolMarketplaceInstallation[] // Super Admin Phase SA-4M
 
   // School code is unique within its tenant.
   @@unique([tenantId, code])
@@ -1424,4 +1426,141 @@ model SchoolBranding {
 
   @@index([tenantId])
   @@map("school_brandings")
+}
+
+// ===========================================================================
+// Super Admin Phase SA-4M — Add-ons & Marketplace.
+//
+// ADD-ON: an optional commercial/product extension assigned to a school
+// INDEPENDENTLY of its base Plan (distinct from a PlanFeature entitlement,
+// SA-4L). Assignment means "this school is entitled to use this add-on"; the
+// agreed commercial terms are SNAPSHOTTED on assignment. NO payment provider,
+// gateway subscription, invoice or charge is created here.
+//
+// MARKETPLACE APP: an optional/external integration a school can install. This
+// phase persists installation INTENT + enabled/disabled status + non-secret
+// configuration metadata only. It NEVER fakes OAuth/token exchange/webhook
+// registration/provider connectivity, and NEVER stores or returns secrets.
+// ===========================================================================
+
+enum AddOnStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum SchoolAddOnStatus {
+  ACTIVE
+  ENDED
+}
+
+model AddOn {
+  id              String           @id @default(cuid())
+  code            String           @unique
+  name            String
+  description     String?
+  category        String?
+  status          AddOnStatus      @default(ACTIVE)
+  // Optional commercial terms (Decimal money). No provider billing in this phase.
+  priceAmount     Decimal?         @db.Decimal(12, 2)
+  currency        String           @default("INR")
+  billingInterval BillingInterval?
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  assignments SchoolAddOn[]
+
+  @@index([status])
+  @@map("addons")
+}
+
+model SchoolAddOn {
+  id       String            @id @default(cuid())
+  tenantId String // derived from the school
+  schoolId String
+  addOnId  String
+  status   SchoolAddOnStatus @default(ACTIVE)
+
+  startedAt DateTime  @default(now()) @db.Timestamptz(6)
+  endedAt   DateTime? @db.Timestamptz(6)
+
+  // Commercial terms snapshotted at assignment (stable even if the catalog price
+  // later changes). Nullable when the add-on has no price.
+  priceAmount     Decimal?         @db.Decimal(12, 2)
+  currency        String?
+  billingInterval BillingInterval?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  addOn  AddOn  @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  // One assignment row per (school, add-on) — status toggles ACTIVE/ENDED, so a
+  // school can never hold two active assignments of the same add-on.
+  @@unique([schoolId, addOnId])
+  @@index([tenantId])
+  @@index([addOnId])
+  @@index([schoolId, status])
+  @@map("school_addons")
+}
+
+enum MarketplaceAppStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum MarketplaceInstallStatus {
+  INSTALLED
+  DISABLED
+}
+
+model MarketplaceApp {
+  id               String               @id @default(cuid())
+  code             String               @unique
+  name             String
+  description      String?
+  category         String
+  providerName     String?
+  status           MarketplaceAppStatus @default(ACTIVE)
+  documentationUrl String?
+
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
+  archivedAt DateTime? @db.Timestamptz(6)
+
+  installations SchoolMarketplaceInstallation[]
+
+  @@index([status])
+  @@index([category])
+  @@map("marketplace_apps")
+}
+
+model SchoolMarketplaceInstallation {
+  id       String                   @id @default(cuid())
+  tenantId String // derived from the school
+  schoolId String
+  appId    String
+  status   MarketplaceInstallStatus @default(INSTALLED)
+
+  installedAt DateTime  @default(now()) @db.Timestamptz(6)
+  disabledAt  DateTime? @db.Timestamptz(6)
+  // NON-SECRET configuration metadata only. Secrets (API keys / tokens / client
+  // secrets) are never stored here and never returned in DTOs.
+  configuration Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  school School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  app    MarketplaceApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  // One installation row per (school, app) — status toggles INSTALLED/DISABLED.
+  @@unique([schoolId, appId])
+  @@index([tenantId])
+  @@index([appId])
+  @@map("school_marketplace_installations")
 }

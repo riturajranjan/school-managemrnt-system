@@ -358,7 +358,11 @@ export type Permission =
   | "platform.domains.view"
   | "platform.domains.manage"
   | "platform.branding.view"
-  | "platform.branding.manage";
+  | "platform.branding.manage"
+  | "platform.addons.view"
+  | "platform.addons.manage"
+  | "platform.marketplace.view"
+  | "platform.marketplace.manage";
 
 // Named permission groups for the Phase 5 finance domain — several roles
 // share most of a group (e.g. every finance-facing role gets ALL_FEES_VIEW),

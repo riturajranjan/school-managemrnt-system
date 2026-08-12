@@ -1,12 +1,10 @@
-import type {
-  MarketplaceItem, PlatformAdminUser, PlatformRole, SaasAddon, SaasState,
-} from "@/lib/types/saas";
+import type { PlatformAdminUser, PlatformRole, SaasState } from "@/lib/types/saas";
 import { seededHelpers } from "./rng";
 
-// Mock SaaS seed — the SHRINKING remainder for the not-yet-migrated Add-ons /
-// Marketplace / System (Settings / Activity / Announcements / Status) pages.
-// The tenant/plan/override/domain/success slices were deleted in SA-4L (schools,
-// plans, feature entitlements, domains are all REAL now).
+// Mock SaaS seed — the SHRINKING remainder for the not-yet-migrated System
+// (Settings / Activity / Announcements / Status / Audit / Admins) pages. The
+// tenant/plan/override/domain/success slices were deleted in SA-4L; the
+// addons/marketplace slices were deleted in SA-4M (all REAL now).
 const helpers = seededHelpers(14142026);
 function daysAgo(n: number) { return helpers.daysAgoIso(n).slice(0, 10); }
 function daysFromNow(n: number) { return helpers.daysFromNowIso(n).slice(0, 10); }
@@ -19,32 +17,7 @@ const SCHOOL_NAMES = [
 ];
 
 export function emptySaasState(): SaasState {
-  const addons: SaasAddon[] = [
-    { id: "add-branch", name: "Additional branch", description: "Add another branch to your plan.", category: "Capacity", priceMinor: 300000, unit: "per branch/mo", includedLimit: "1 branch", glyph: "🏫" },
-    { id: "add-students", name: "Student capacity +500", description: "Increase your student seat limit.", category: "Capacity", priceMinor: 250000, unit: "per 500/mo", includedLimit: "+500 students", glyph: "🎓" },
-    { id: "add-storage", name: "Storage +50GB", description: "Extra document & media storage.", category: "Capacity", priceMinor: 100000, unit: "per 50GB/mo", includedLimit: "+50 GB", glyph: "☁" },
-    { id: "add-sms", name: "SMS package", description: "Transactional SMS credits.", category: "Communication", priceMinor: 150000, unit: "per 10k/mo", includedLimit: "10,000 SMS", glyph: "✉" },
-    { id: "add-whatsapp", name: "WhatsApp package", description: "WhatsApp template messages.", category: "Communication", priceMinor: 200000, unit: "per 10k/mo", includedLimit: "10,000 messages", glyph: "W" },
-    { id: "add-gps", name: "GPS devices", description: "Live vehicle tracking devices.", category: "Transport", priceMinor: 80000, unit: "per device/mo", includedLimit: "1 device", glyph: "G" },
-    { id: "add-analytics", name: "Advanced analytics", description: "Cross-module analytics builder.", category: "Analytics", priceMinor: 400000, unit: "per mo", includedLimit: "All dashboards", glyph: "▲" },
-    { id: "add-whitelabel", name: "White-label", description: "Remove platform branding.", category: "Branding", priceMinor: 500000, unit: "per mo", includedLimit: "Full white-label", glyph: "✦" },
-    { id: "add-support", name: "Premium support", description: "Priority response & success manager.", category: "Support", priceMinor: 600000, unit: "per mo", includedLimit: "24×7 priority", glyph: "★" },
-  ];
-
-  const marketplace: MarketplaceItem[] = [
-    { id: "mkt-razorpay", name: "Razorpay", provider: "Razorpay", category: "payments", description: "Collect fees via UPI, cards, netbanking.", compatibility: "Growth+", status: "available", glyph: "R" },
-    { id: "mkt-stripe", name: "Stripe", provider: "Stripe", category: "payments", description: "International card payments.", compatibility: "Professional+", status: "available", glyph: "S" },
-    { id: "mkt-whatsapp", name: "WhatsApp Business", provider: "Meta", category: "communication", description: "Template messaging to parents.", compatibility: "Growth+", status: "available", glyph: "W" },
-    { id: "mkt-sms", name: "SMS Gateway", provider: "MSG91", category: "communication", description: "Transactional SMS.", compatibility: "All plans", status: "available", glyph: "M" },
-    { id: "mkt-gps", name: "Fleet GPS", provider: "TrackPro", category: "gps", description: "Live bus tracking feed.", compatibility: "Professional+", status: "coming-soon", glyph: "G" },
-    { id: "mkt-s3", name: "Object Storage", provider: "S3-compatible", category: "storage", description: "Document & media storage.", compatibility: "All plans", status: "available", glyph: "☁" },
-    { id: "mkt-ai", name: "AI Assistant", provider: "Novyra AI", category: "ai", description: "Assistive drafting & summaries.", compatibility: "Enterprise", status: "coming-soon", glyph: "✦" },
-    { id: "mkt-analytics", name: "Analytics Cloud", provider: "Novyra", category: "analytics", description: "Aggregate dashboards.", compatibility: "Professional+", status: "enabled", glyph: "▲" },
-    { id: "mkt-zoom", name: "Video Classes", provider: "Zoom", category: "learning", description: "Online class scheduling.", compatibility: "Growth+", status: "coming-soon", glyph: "▶" },
-  ];
-
   return {
-    addons, marketplace,
     announcements: [], status: [], auditLog: [], admins: [],
     settings: { platformName: "Novyra Campus OS", supportContact: "platform@novyra.io", defaultTrialDays: 21, defaultPlanId: "plan-growth", defaultBillingCycle: "monthly", gracePeriodDays: 7, maintenanceMessage: "We'll be back shortly.", legalLinks: [{ label: "Master Services Agreement", url: "/legal/msa" }, { label: "Data Processing Addendum", url: "/legal/dpa" }] },
   };

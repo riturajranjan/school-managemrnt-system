@@ -54,17 +54,20 @@ function logAudit(admin: string, action: string, tenantName: string, module: str
 // rows managed via /api/super-admin/support (support-service).
 
 // ---------------------------------------------------------------------------
-// Announcements & marketplace
+// Add-ons & Marketplace — now REAL (no mock service methods)
+// ---------------------------------------------------------------------------
+// The mock `toggleMarketplaceItem` and the `db.saas.addons`/`db.saas.marketplace`
+// slices were removed in SA-4M — add-ons and marketplace apps are real (AddOn /
+// SchoolAddOn / MarketplaceApp / SchoolMarketplaceInstallation models +
+// addons-service / marketplace-service + /api/super-admin/{addons,marketplace}).
+
+// ---------------------------------------------------------------------------
+// Announcements
 // ---------------------------------------------------------------------------
 
 export function publishAnnouncement(input: { title: string; type: PlatformAnnouncement["type"]; audience: string; body: string }): Result {
   if (!input.title.trim()) return { ok: false, error: "Title is required." };
   patchSaas((s) => ({ ...s, announcements: [{ id: generateId("ann"), title: input.title.trim(), type: input.type, audience: input.audience, body: input.body, publishedAt: new Date().toISOString().slice(0, 10), status: "published" }, ...s.announcements] }));
   logAudit("Super Admin", "Announcement published", "All schools", "Announcements");
-  return { ok: true };
-}
-
-export function toggleMarketplaceItem(itemId: string): Result {
-  patchSaas((s) => ({ ...s, marketplace: s.marketplace.map((m) => (m.id === itemId && m.status !== "coming-soon" ? { ...m, status: m.status === "enabled" ? "available" : "enabled" } : m)) }));
   return { ok: true };
 }

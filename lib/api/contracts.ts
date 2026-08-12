@@ -653,3 +653,59 @@ export type SchoolBrandingDto = {
   footerText: string | null;
   updatedAt: string | null;
 };
+
+// --- Super Admin SA-4M: Add-ons / Marketplace ---
+
+export type AddOnDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  status: string; // draft | active | archived
+  priceAmount: number | null;
+  currency: string;
+  billingInterval: string | null; // monthly | yearly | null
+  assignedSchoolCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SchoolAddOnDto = {
+  id: string;
+  schoolId: string;
+  addOn: { id: string; code: string; name: string; category: string | null };
+  status: string; // active | ended
+  startedAt: string;
+  endedAt: string | null;
+  priceAmount: number | null; // snapshot
+  currency: string | null;
+  billingInterval: string | null;
+};
+
+export type MarketplaceAppDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string;
+  providerName: string | null;
+  status: string; // draft | active | archived
+  documentationUrl: string | null;
+  installedSchoolCount: number;
+  /** Honest external boundary — no live provider connection exists in this phase. */
+  connectionConfigured: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SchoolMarketplaceInstallationDto = {
+  id: string;
+  schoolId: string;
+  app: { id: string; code: string; name: string; category: string; providerName: string | null };
+  status: string; // installed | disabled
+  installedAt: string;
+  disabledAt: string | null;
+  configuration: Record<string, unknown> | null; // non-secret metadata only
+  connectionConfigured: boolean;
+};
