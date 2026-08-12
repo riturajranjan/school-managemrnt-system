@@ -60,6 +60,16 @@ describe.skipIf(!dbReady)("platform settings service (DB)", () => {
     await updateSettings(actor, { maintenanceMode: false, maintenanceMessage: null });
   });
 
+  it("missing singleton → getSettings safely creates/returns real defaults (no 500)", async () => {
+    // Regression: a missing settings row must not throw — getSettings upserts the
+    // real singleton with schema defaults (this is what the GET endpoint relies on).
+    await prisma.platformSetting.deleteMany({ where: { id: "singleton" } });
+    const created = await getSettings();
+    expect(created.platformName).toBe("Novyra Campus OS");
+    expect(created.defaultCurrency).toBe("INR");
+    expect(await prisma.platformSetting.count()).toBe(1);
+  });
+
   it("rejects invalid input (bad email / bad currency)", async () => {
     await expect(updateSettings(actor, { supportEmail: "not-an-email" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(updateSettings(actor, { defaultCurrency: "RUPEES" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });

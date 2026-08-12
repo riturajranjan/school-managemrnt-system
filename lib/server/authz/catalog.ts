@@ -247,6 +247,48 @@ export function platformPermissionsForRole(role: string | null | undefined): str
   return ["super_admin.access", ...granted];
 }
 
+// ---------------------------------------------------------------------------
+// Platform role → area access matrix, DERIVED from the REAL catalog above
+// (PERMISSIONS + PLATFORM_ROLE_PERMISSIONS). This is the truthful source for the
+// Super Admin "Permissions" reference page — no hardcoded/mock matrix. A cell is
+// "manage" when the role holds the module's `.manage` key, "view" when it holds
+// any of the module's keys, else null.
+// ---------------------------------------------------------------------------
+export const PLATFORM_MATRIX_ROLES = ["SUPER_ADMIN", "SUPPORT", "BILLING", "AUDITOR"] as const;
+
+const PLATFORM_ROLE_LABELS: Record<string, string> = { SUPER_ADMIN: "Super Admin", SUPPORT: "Support", BILLING: "Billing", AUDITOR: "Auditor" };
+
+/** Human label for a `platform.<module>` permission module. */
+function platformAreaLabel(module: string): string {
+  const seg = module.replace(/^platform\./, "").replace(/_/g, " ");
+  return seg.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export type PlatformMatrix = {
+  roles: { key: string; label: string }[];
+  areas: { key: string; label: string }[];
+  matrix: Record<string, Record<string, "manage" | "view" | null>>;
+};
+
+/** Build the real platform role → area capability matrix from the catalog. */
+export function buildPlatformPermissionMatrix(): PlatformMatrix {
+  const areaKeys = [...new Set(PERMISSIONS.filter((p) => p.key.startsWith("platform.")).map((p) => p.module))];
+  const areas = areaKeys.map((key) => ({ key, label: platformAreaLabel(key) }));
+  const matrix: Record<string, Record<string, "manage" | "view" | null>> = {};
+  for (const role of PLATFORM_MATRIX_ROLES) {
+    const granted = new Set(platformPermissionsForRole(role));
+    matrix[role] = {};
+    for (const area of areaKeys) {
+      matrix[role][area] = granted.has(`${area}.manage`)
+        ? "manage"
+        : [...granted].some((k) => k.startsWith(`${area}.`))
+          ? "view"
+          : null;
+    }
+  }
+  return { roles: PLATFORM_MATRIX_ROLES.map((key) => ({ key, label: PLATFORM_ROLE_LABELS[key] })), areas, matrix };
+}
+
 // Bridge: DB system-role key → the existing UI `UserRole` value, so the client
 // PermissionsProvider can render for the user's REAL active role (not a mock
 // default). Platform admins map to the UI "super-admin" role.

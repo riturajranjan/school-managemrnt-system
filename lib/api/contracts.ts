@@ -823,3 +823,11 @@ export type EnrollableStudentDto = {
   classLabel: string | null;
   sectionLabel: string | null;
 };
+
+// --- Super Admin: real platform permission matrix (reference page) ---
+
+export type PlatformPermissionMatrixDto = {
+  roles: { key: string; label: string }[];
+  areas: { key: string; label: string }[];
+  matrix: Record<string, Record<string, "manage" | "view" | null>>;
+};

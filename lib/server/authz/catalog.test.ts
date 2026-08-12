@@ -6,6 +6,7 @@ import {
   PLATFORM_PERMISSION_KEYS,
   PLATFORM_ROLE_PERMISSIONS,
   ROLE_PERMISSIONS,
+  buildPlatformPermissionMatrix,
   platformPermissionsForRole,
 } from "@/lib/server/authz/catalog";
 
@@ -106,5 +107,20 @@ describe("RBAC catalog", () => {
     expect(platformPermissionsForRole("AUDITOR").some((k) => /\.(manage|create|update|suspend)$/.test(k))).toBe(false);
     expect(platformPermissionsForRole(null)).toEqual(["super_admin.access"]);
     expect(platformPermissionsForRole("NOT_A_ROLE")).toEqual(["super_admin.access"]);
+  });
+
+  it("buildPlatformPermissionMatrix reflects the REAL catalog (drives the Permissions page)", () => {
+    const m = buildPlatformPermissionMatrix();
+    // The four real platform roles, not the old mock UI roles.
+    expect(m.roles.map((r) => r.key)).toEqual(["SUPER_ADMIN", "SUPPORT", "BILLING", "AUDITOR"]);
+    // Areas come from the real platform.* modules.
+    expect(m.areas.some((a) => a.key === "platform.settings")).toBe(true);
+    expect(m.areas.some((a) => a.key === "platform.announcements")).toBe(true);
+    // Cells derive from PLATFORM_ROLE_PERMISSIONS: SUPER_ADMIN manages settings;
+    // AUDITOR only views it; SUPPORT has neither settings key → null.
+    expect(m.matrix.SUPER_ADMIN["platform.settings"]).toBe("manage");
+    expect(m.matrix.AUDITOR["platform.settings"]).toBe("view");
+    expect(m.matrix.SUPPORT["platform.settings"]).toBeNull();
+    expect(m.matrix.SUPER_ADMIN["platform.announcements"]).toBe("manage");
   });
 });
