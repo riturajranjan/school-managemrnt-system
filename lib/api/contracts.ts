@@ -785,3 +785,41 @@ export type AuditEventDto = {
   meta: Record<string, unknown> | null;
   createdAt: string;
 };
+
+// --- Phase 6-pre: Academics foundation (Class / Section / Enrollment) ---
+
+export type ClassDto = {
+  id: string;
+  name: string;
+  order: number;
+  status: string; // active | archived
+  sectionCount: number;
+  capacity: number; // sum of section capacities
+  enrolledCount: number;
+};
+
+export type SectionDto = {
+  id: string;
+  classId: string;
+  className: string;
+  name: string;
+  capacity: number;
+  status: string; // active | archived
+  branchId: string;
+  enrolledCount: number;
+};
+
+export type RosterEntryDto = {
+  enrollmentId: string;
+  status: string; // enrolled | transferred | withdrawn
+  rollNumber: string | null;
+  student: { id: string; name: string; admissionNumber: string; status: string };
+};
+
+export type EnrollableStudentDto = {
+  id: string;
+  name: string;
+  admissionNumber: string;
+  classLabel: string | null;
+  sectionLabel: string | null;
+};

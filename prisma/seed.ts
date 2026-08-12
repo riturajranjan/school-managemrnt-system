@@ -17,6 +17,7 @@ import { seedPhase4 } from "./seed-phase4";
 import { seedPlans } from "./seed-plans";
 import { seedSubscriptions } from "./seed-subscriptions";
 import { seedAddonsMarketplace } from "./seed-addons-marketplace";
+import { seedAcademics } from "./seed-academics";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
 
@@ -265,6 +266,11 @@ async function main() {
   // Super Admin Phase SA-4M — Add-on + Marketplace catalogs (platform-global)
   // =========================================================================
   await seedAddonsMarketplace(prisma);
+
+  // =========================================================================
+  // Phase 6-pre — real Class/Section/Enrollment derived from seeded Students
+  // =========================================================================
+  await seedAcademics(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

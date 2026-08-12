@@ -41,6 +41,12 @@ const MIGRATED_FILES = [
   "components/super-admin/global-search.tsx",
   "app/super-admin/layout.tsx",
   "app/super-admin/page.tsx", // dashboard — fully real (SA-4J)
+  // Phase 6-pre — the migrated academics-foundation pages (real Class/Section/
+  // Enrollment). The class DETAIL page ([classId]) intentionally stays on the
+  // mock store (bound to still-mock Subjects/Teachers/Timetable/Homework/Exams),
+  // so only these two files are guarded — not the whole app/academics dir.
+  "app/academics/classes/page.tsx",
+  "app/academics/sections/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).

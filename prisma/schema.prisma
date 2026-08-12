@@ -679,9 +679,10 @@ model Student {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  guardians StudentGuardian[]
-  documents StudentDocument[]
-  timeline  StudentTimelineEvent[]
+  guardians   StudentGuardian[]
+  documents   StudentDocument[]
+  timeline    StudentTimelineEvent[]
+  enrollments Enrollment[] // Phase 6-pre — real class/section enrollment
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -1659,4 +1660,111 @@ model PlatformIncident {
 
   @@index([status])
   @@map("platform_incidents")
+}
+
+// ===========================================================================
+// Phase 6-pre — Academics FOUNDATION (Class / Section / Enrollment) ONLY.
+//
+// The minimum real academic grouping required to unblock Attendance (Phase 5).
+// NOT a broad Academics rewrite: no Subjects/Timetable/Exams/Marks/Homework here.
+// Class is school + academic-session scoped; a Section belongs to a Class AND a
+// Branch (attendance is branch-scoped); a student has at most one Enrollment per
+// academic session (→ their Section). Org columns mirror the Phase-4 convention
+// (plain indexed strings, re-validated in the service) EXCEPT the intra-domain
+// relations (Class↔Section↔Enrollment) and Enrollment→Student, which use real FKs.
+// ===========================================================================
+
+enum ClassStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum SectionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  TRANSFERRED
+  WITHDRAWN
+}
+
+model Class {
+  id                String      @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  name              String
+  order             Int         @default(0)
+  status            ClassStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  sections    Section[]
+  enrollments Enrollment[]
+
+  // One class name per school + academic session.
+  @@unique([schoolId, academicSessionId, name])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@map("classes")
+}
+
+model Section {
+  id                String        @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+  classId           String
+  name              String
+  capacity          Int           @default(40)
+  status            SectionStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+
+  // One section name per class.
+  @@unique([classId, name])
+  @@index([tenantId])
+  @@index([schoolId, branchId, academicSessionId])
+  @@index([classId])
+  @@map("sections")
+}
+
+model Enrollment {
+  id                String           @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+  classId           String
+  sectionId         String
+  studentId         String
+  rollNumber        String?
+  status            EnrollmentStatus @default(ENROLLED)
+  enrolledAt        DateTime         @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // One enrollment row per student per academic session; a student appears at
+  // most once in a given section.
+  @@unique([academicSessionId, studentId])
+  @@unique([sectionId, studentId])
+  @@index([tenantId])
+  @@index([schoolId, branchId, academicSessionId])
+  @@index([classId])
+  @@index([sectionId])
+  @@index([studentId])
+  @@map("enrollments")
 }
