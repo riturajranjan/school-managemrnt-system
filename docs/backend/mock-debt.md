@@ -1,16 +1,15 @@
 # Mock Debt Inventory — Super Admin (Platform) modules
 
-Tracks which Super Admin surfaces are backed by real PostgreSQL/API vs the legacy
-frontend mock (`db.saas` in `lib/data/seed/saas.ts`, mutated via
-`lib/services/saas-service.ts`, read via `lib/selectors/saas-brief.ts`).
+## ✅ SUPER ADMIN MOCK DEBT: NONE
 
-**Rule:** when a module goes real, its production reads/writes move to the real
-API, its obsolete mock service methods are deleted, and shared mock slices are
-retained **only** while another unmigrated module still consumes them. No
-production code falls back to mock data on API failure — failures render real
-loading/error/empty states.
+As of SA-4N, EVERY Super Admin surface is backed by real PostgreSQL + Prisma +
+services + REST APIs. The legacy `db.saas` frontend mock store, its `SaasState`,
+the `use-saas` hooks, the `saas-service` mutations, the `saas-brief` selectors and
+the `seed/saas.ts` seed have all been **DELETED**. No production Super Admin code
+falls back to mock data on API failure — failures render real loading/error/empty
+states.
 
-_Last updated: SA-4M (Add-ons / Marketplace)._
+_Last updated: SA-4N (System — final; db.saas removed)._
 
 | Module | Status | Real source | Mock source (if any) | Remaining mock consumers |
 |---|---|---|---|---|
@@ -34,7 +33,11 @@ _Last updated: SA-4M (Add-ons / Marketplace)._
 | Branding | **REAL** | `branding-service` + `/api/super-admin/branding/[schoolId]`; `SchoolBranding` model, URL/metadata only, `#RRGGBB`/URL validation | — | — |
 | Add-ons | **REAL** | `addons-service` + `/api/super-admin/addons` + `/schools/[id]/addons`; `AddOn`/`SchoolAddOn` models, commercial snapshot, `hasAddOn` resolver (no provider billing) | — | — |
 | Marketplace | **REAL** | `marketplace-service` + `/api/super-admin/marketplace` + `/schools/[id]/marketplace/[appId]/install|disable`; `MarketplaceApp`/`SchoolMarketplaceInstallation` models, honest external boundary (no OAuth/secrets), `isAppInstalled` resolver | — | — |
-| System / Settings / Activity / Announcements / Status / Admins | MOCK | — | `db.saas` | `/super-admin/{settings,activity,announcements,status,audit}` |
+| Settings | **REAL** | `settings-service` + `/api/super-admin/settings`; `PlatformSetting` singleton, safe non-secret config only | — | — |
+| Platform Admins | **REAL** | `platform-admins-service` + `/api/super-admin/admins[/[id][/status]]`; real `PlatformAdmin`/`User`, honest invite (no email), last-super-admin protection | — | — |
+| Announcements | **REAL** | `announcements-service` + `/api/super-admin/announcements[/[id]/publish|/archive]`; `PlatformAnnouncement`, DRAFT/PUBLISHED/ARCHIVED, in-app only (no delivery) | — | — |
+| Status | **REAL** | `status-service` + `/api/super-admin/status[/incidents…]`; honest signals (DB reachable + maintenance + `PlatformIncident`), unmonitored services labelled | — | — |
+| Audit / Activity | **REAL** | `audit-service` + `/api/super-admin/audit`; paginated/filtered READ view over the real `AuditEvent` table, safe DTO, immutable | — | — |
 
 ## Shared mock slices — exact remaining consumers (post SA-4M)
 
@@ -48,17 +51,19 @@ _Last updated: SA-4M (Add-ons / Marketplace)._
 - Deleted earlier: `db.saas.support` + mock `tenantHealth` (SA-4I),
   `db.saas.invoices` (SA-4H), `db.saas.usage` (SA-4G), `db.saas.subscriptions`
   (SA-4F), `db.saas.payments` (SA-4E).
-- **`db.saas` remaining slices** (the ONLY ones left) — `announcements`, `status`,
-  `auditLog`, `admins`, `settings` — back the still-mock System (Settings /
-  Activity / Announcements / Status / Audit / Admins) pages, via the trimmed
-  `lib/hooks/use-saas.ts` (5 hooks remain: announcements/status/audit/admins/settings).
-- Note: `db.finance.payments` is a **separate** fees/finance slice — untouched.
+- **The entire `db.saas` store slice — DELETED in SA-4N** (`announcements`,
+  `status`, `auditLog`, `admins`, `settings` — the last five). `lib/hooks/use-saas.ts`,
+  `lib/services/saas-service.ts` (+test) and `lib/data/seed/saas.ts` are DELETED;
+  `SaasState` and the `saas` field/hydration/persistence are removed from
+  `lib/data/store.ts`. `lib/types/saas.ts` is trimmed to only the static UI
+  vocabulary (`PlatformRole`/`platformRoleLabels`/`PlatformArea`) used by the
+  read-only Permissions matrix page.
+- Note: `db.finance.payments` and other **school-side** mock slices are a SEPARATE
+  concern (future school phases) — untouched by the Super Admin migration.
 
-All migrated Super Admin pages (dashboard + plans/subscriptions/trials/billing/
-invoices/payments/health/usage/support/features/domains/branding/**addons/
-marketplace**) + the layout, global-search, platform-pulse & usage-meter widgets
-import no mock authority (guarded). Real API failures render loading/error/empty
-states — never a mock fallback.
+EVERY Super Admin page imports no mock authority (guarded by
+`route-mock-guard.test.ts`, which now covers all migrated dirs). Real API failures
+render loading/error/empty states — never a mock fallback.
 
 ## Removed as modules went real
 
@@ -75,6 +80,7 @@ states — never a mock fallback.
 - SA-4K: **legacy mock `components/super-admin/impersonation.tsx` deleted**; real server-authoritative impersonation added (model + service + 3 APIs + authz/scope integration + app-wide banner + read-only launcher). The cosmetic `ImpersonationProvider` was removed from `app/super-admin/layout.tsx`.
 - SA-4L: **`db.saas.tenants` + `db.saas.plans` + `db.saas.overrides` + `db.saas.domains` + `db.saas.success` slices deleted** + mock types (`SaasTenant`/`SaasTenantStatus`/`tenantStatus*`/`TenantLifecycleStage`/`lifecycle*`/`WhiteLabelSettings`/`SaasPlan`/`PlanStatus`(mock)/`PlanFeature`(mock)/`EntitlementLevel`/`entitlement*`/`TenantFeatureOverride`/`TenantDomain`/`DomainStatus`(mock)/`domainStatus*`/`CustomerSuccessRecord`) + `saas-service` `setTenantStatus`/`addTenantNote`/`setEntitlementOverride`/`clearEntitlementOverride` + dead `use-saas` hooks (`useSaas`/`useTenants`/`useTenant`/`usePlans`/`usePlan`/`useOverrides`/`useDomains`/`useSuccessRecords`) + dead `components/super-admin/tenant-journey.tsx`. Features/Domains/Branding are now REAL (`SchoolFeatureOverride`/`SchoolDomain`/`SchoolBranding` models + services + APIs). New enforcement foundation `features-service.hasFeature/requireFeature` (feature entitlement + RBAC).
 - SA-4M: **`db.saas.addons` + `db.saas.marketplace` slices deleted** + mock types (`SaasAddon`, `MarketplaceItem`, `marketplaceStatusLabels`) + `saas-service.toggleMarketplaceItem` + dead `use-saas` hooks (`useAddons`/`useMarketplace`). Add-ons & Marketplace are now REAL (`AddOn`/`SchoolAddOn`/`MarketplaceApp`/`SchoolMarketplaceInstallation` models + `addons-service`/`marketplace-service` + APIs). Enforcement foundations `hasAddOn` / `isAppInstalled`. Real catalogs seeded (`seed-addons-marketplace.ts`). Honest external boundary: marketplace installs persist intent/status/non-secret config only — no OAuth/tokens/secrets.
+- SA-4N (FINAL): Settings/Admins/Announcements/Status/Audit/Activity are REAL (`PlatformSetting` singleton, `PlatformAnnouncement`, `PlatformIncident` models; `PlatformAdmin`/`User` reused; `AuditEvent` reused for Audit+Activity). New services `settings-service`/`platform-admins-service`/`announcements-service`/`status-service`/`audit-service` + APIs; catalog perms `platform.{admins,announcements,status}.{view,manage}`. **The entire `db.saas` store slice + `SaasState` + `use-saas.ts` + `saas-service.ts`(+test) + `seed/saas.ts` DELETED**; `lib/data/store.ts` no longer has a `saas` field; `lib/types/saas.ts` trimmed to the static Permissions-matrix vocabulary only. Honest boundaries: admin invite is "Invitation pending" (no email); announcements are in-app only (no delivery); status reports only measurable signals (DB reachable + maintenance + manual incidents), unmonitored services labelled; audit is read-only/immutable with a secret-stripping safe DTO. Last-super-admin protection enforced server-side. **SUPER ADMIN MOCK DEBT = NONE.**
 
 ## Impersonation security model (SA-4K)
 
@@ -98,10 +104,11 @@ states — never a mock fallback.
 ## Guard
 
 `lib/server/platform/route-mock-guard.test.ts` fails if a migrated real route
-(`plans`, `subscriptions`, `trials`, `billing`, `invoices`, `payments`, `health`, `usage`, `support`, `features`, `domains`, `branding`, `addons`, `marketplace`)
+(`plans`, `subscriptions`, `trials`, `billing`, `invoices`, `payments`, `health`, `usage`, `support`, `features`, `domains`, `branding`, `addons`, `marketplace`, `settings`, `announcements`, `status`, `audit`, `activity`)
 or the `platform-pulse.tsx` / `usage-meter.tsx` / `global-search.tsx` widgets or
 `app/super-admin/layout.tsx` / `app/super-admin/page.tsx` reintroduce a mock
-authority (`useSisStore`, `saas-service`, `saas-brief`, `db.saas`).
+authority (`useSisStore`, `saas-service`, `saas-brief`, `db.saas`). (`/super-admin/
+permissions` is a static read-only reference matrix — no data layer.)
 `lib/server/platform/impersonation-mock-guard.test.ts` additionally fails if any
 impersonation source file imports a mock authority or reads localStorage/
 sessionStorage.

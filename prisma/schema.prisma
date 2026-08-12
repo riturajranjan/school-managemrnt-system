@@ -1564,3 +1564,99 @@ model SchoolMarketplaceInstallation {
   @@index([appId])
   @@map("school_marketplace_installations")
 }
+
+// ===========================================================================
+// Super Admin Phase SA-4N — System (final): Settings, Announcements, Incidents.
+//
+// Platform Admins reuse the existing PlatformAdmin/User models (no new identity
+// model). Audit/Activity are a read view over the existing AuditEvent table (no
+// second event store). Only these three genuinely-new pieces of state are added.
+// ===========================================================================
+
+// One-row singleton (fixed id "singleton"): platform-wide configuration. Holds
+// only SAFE, non-secret DB configuration — never SMTP/API/OAuth/payment secrets
+// or infrastructure/runtime credentials.
+model PlatformSetting {
+  id               String  @id @default("singleton")
+  platformName     String  @default("Novyra Campus OS")
+  supportEmail     String?
+  defaultLocale    String  @default("en-IN")
+  defaultTimezone  String  @default("Asia/Kolkata")
+  defaultCurrency  String  @default("INR")
+  maintenanceMode  Boolean @default(false)
+  maintenanceMessage String?
+  signupEnabled    Boolean @default(true)
+  defaultTrialDays Int     @default(14)
+  updatedByUserId  String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("platform_settings")
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AnnouncementAudience {
+  ALL_PLATFORM_USERS
+  PLATFORM_ADMINS
+  ALL_SCHOOLS
+}
+
+model PlatformAnnouncement {
+  id        String               @id @default(cuid())
+  title     String
+  body      String
+  category  String? // e.g. product-update | maintenance | security | billing | policy
+  status    AnnouncementStatus   @default(DRAFT)
+  audience  AnnouncementAudience @default(ALL_SCHOOLS)
+  // Optional display window; NOT a delivery mechanism (announcements are shown
+  // in-app only — no email/SMS/push is sent).
+  startsAt        DateTime? @db.Timestamptz(6)
+  endsAt          DateTime? @db.Timestamptz(6)
+  publishedAt     DateTime? @db.Timestamptz(6)
+  createdByUserId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("platform_announcements")
+}
+
+enum IncidentSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum IncidentStatus {
+  INVESTIGATING
+  IDENTIFIED
+  MONITORING
+  RESOLVED
+}
+
+// A manually-recorded platform incident/maintenance notice. There is NO external
+// uptime/telemetry monitoring — the status page reports only real, measurable
+// internal signals (maintenance mode, DB reachability) plus these manual records.
+model PlatformIncident {
+  id          String           @id @default(cuid())
+  title       String
+  description String?
+  severity    IncidentSeverity @default(MINOR)
+  status      IncidentStatus   @default(INVESTIGATING)
+  startedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  resolvedAt      DateTime? @db.Timestamptz(6)
+  createdByUserId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("platform_incidents")
+}

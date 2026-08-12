@@ -105,6 +105,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "platform.tenant_health.view", module: "platform.tenant_health", action: "view", description: "View tenant health" },
   { key: "platform.settings.view", module: "platform.settings", action: "view", description: "View platform settings" },
   { key: "platform.settings.manage", module: "platform.settings", action: "manage", description: "Manage platform settings" },
+  { key: "platform.admins.view", module: "platform.admins", action: "view", description: "View platform administrators" },
+  { key: "platform.admins.manage", module: "platform.admins", action: "manage", description: "Manage platform administrators" },
+  { key: "platform.announcements.view", module: "platform.announcements", action: "view", description: "View platform announcements" },
+  { key: "platform.announcements.manage", module: "platform.announcements", action: "manage", description: "Manage platform announcements" },
+  { key: "platform.status.view", module: "platform.status", action: "view", description: "View platform status" },
+  { key: "platform.status.manage", module: "platform.status", action: "manage", description: "Manage platform status/incidents" },
   { key: "platform.audit.view", module: "platform.audit", action: "view", description: "View the platform audit log" },
   // High-trust: start/stop server-authoritative read-only impersonation of a
   // school. Deliberately `.manage` (never `.view`) so the read-only AUDITOR role

@@ -709,3 +709,79 @@ export type SchoolMarketplaceInstallationDto = {
   configuration: Record<string, unknown> | null; // non-secret metadata only
   connectionConfigured: boolean;
 };
+
+// --- Super Admin SA-4N: System (Settings / Admins / Announcements / Status / Audit) ---
+
+export type PlatformSettingsDto = {
+  platformName: string;
+  supportEmail: string | null;
+  defaultLocale: string;
+  defaultTimezone: string;
+  defaultCurrency: string;
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  signupEnabled: boolean;
+  defaultTrialDays: number;
+  updatedAt: string;
+};
+
+export type PlatformAdminDto = {
+  id: string; // PlatformAdmin id
+  userId: string;
+  name: string | null;
+  email: string;
+  role: string; // SUPER_ADMIN | SUPPORT | BILLING | AUDITOR
+  status: string; // active | invited | suspended | ... (UserStatus, lowercased)
+  invitePending: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformAnnouncementDto = {
+  id: string;
+  title: string;
+  body: string;
+  category: string | null;
+  status: string; // draft | published | archived
+  audience: string; // all-platform-users | platform-admins | all-schools
+  startsAt: string | null;
+  endsAt: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformIncidentDto = {
+  id: string;
+  title: string;
+  description: string | null;
+  severity: string; // minor | major | critical
+  status: string; // investigating | identified | monitoring | resolved
+  startedAt: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformStatusDto = {
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  databaseReachable: boolean;
+  openIncidentCount: number;
+  activeIncidents: PlatformIncidentDto[];
+  // Services with no real telemetry — honestly reported as not monitored.
+  unmonitoredServices: string[];
+  checkedAt: string;
+};
+
+export type AuditEventDto = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actor: { userId: string | null; name: string | null };
+  tenantId: string | null;
+  schoolId: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+};
