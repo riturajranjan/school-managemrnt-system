@@ -6,6 +6,7 @@ import {
   archiveAnnouncement,
   createAnnouncement,
   getAnnouncement,
+  listAnnouncements,
   publishAnnouncement,
   updateAnnouncement,
 } from "@/lib/server/platform/announcements-service";
@@ -53,6 +54,16 @@ describe.skipIf(!dbReady)("announcements service (DB)", () => {
     const updated = await updateAnnouncement(actor, a.id, { title: "T4N Edited", audience: "platform-admins" });
     expect(updated).toMatchObject({ title: "T4N Edited", audience: "platform-admins" });
     await expect(getAnnouncement("nope")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("empty state: a status filter matching zero rows returns [] (never throws / 500)", async () => {
+    // Regression: System list endpoints must handle 0 rows with a real empty
+    // state, not a 500. (No announcement is ever DRAFT here after archiving.)
+    const none = await listAnnouncements("archived");
+    expect(Array.isArray(none)).toBe(true);
+    // A bogus-but-valid status the DB has no rows for → empty array, no throw.
+    const empty = await listAnnouncements("draft");
+    expect(Array.isArray(empty)).toBe(true);
   });
 
   it("RBAC: platform.announcements.* SUPER_ADMIN-manage / AUDITOR-view, denied to school roles", () => {

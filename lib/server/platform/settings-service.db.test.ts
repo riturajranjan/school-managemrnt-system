@@ -1,6 +1,11 @@
 // Platform settings DB-integration tests (Super Admin SA-4N). Singleton get
 // (auto-creates defaults), update + persistence, and RBAC.
-import { describe, expect, it } from "vitest";
+//
+// NOTE: PlatformSetting is a shared SINGLETON row (id "singleton"). These tests
+// mutate it, so they SNAPSHOT it in beforeAll and RESTORE it in afterAll — a
+// prior version left it polluted (platformName "Novyra T4N") in the dev DB, which
+// surfaced on the real Settings page. Never leave shared-singleton test writes.
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db/prisma";
 import { getSettings, updateSettings } from "@/lib/server/platform/settings-service";
 import { platformPermissionsForRole, ROLE_PERMISSIONS } from "@/lib/server/authz/catalog";
@@ -13,6 +18,25 @@ try {
 }
 
 const actor = { id: "t4n-settings-actor", name: "T4N Settings" };
+let snapshot: Record<string, unknown> | null = null;
+
+beforeAll(async () => {
+  if (!dbReady) return;
+  snapshot = await prisma.platformSetting.findUnique({ where: { id: "singleton" } });
+});
+
+afterAll(async () => {
+  if (!dbReady) return;
+  // Restore the singleton to exactly its pre-test state (or remove it if it did
+  // not exist before), so the shared dev DB is never left polluted by the tests.
+  if (snapshot) {
+    const { id, createdAt, updatedAt, ...rest } = snapshot as { id: string; createdAt: unknown; updatedAt: unknown };
+    void id; void createdAt; void updatedAt;
+    await prisma.platformSetting.update({ where: { id: "singleton" }, data: rest as never });
+  } else {
+    await prisma.platformSetting.deleteMany({ where: { id: "singleton" } });
+  }
+});
 
 describe.skipIf(!dbReady)("platform settings service (DB)", () => {
   it("reads the singleton (auto-creating defaults) and persists an update", async () => {
