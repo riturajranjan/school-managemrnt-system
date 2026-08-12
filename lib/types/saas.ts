@@ -7,108 +7,15 @@ import type { ID, StatusTone } from "./common";
 // is typed mock state grouped under a single SaasState object on the store.
 // ===========================================================================
 
-export type SaasTenantStatus = "trial" | "active" | "payment-due" | "grace-period" | "suspended" | "setup-pending" | "inactive" | "archived";
-
-export const tenantStatusLabels: Record<SaasTenantStatus, string> = {
-  trial: "Trial", active: "Active", "payment-due": "Payment due", "grace-period": "Grace period",
-  suspended: "Suspended", "setup-pending": "Setup pending", inactive: "Inactive", archived: "Archived",
-};
-
-export const tenantStatusTone: Record<SaasTenantStatus, StatusTone> = {
-  trial: "info", active: "success", "payment-due": "warning", "grace-period": "warning",
-  suspended: "error", "setup-pending": "warning", inactive: "neutral", archived: "neutral",
-};
-
-export type TenantLifecycleStage = "lead" | "trial" | "setup" | "activated" | "growth" | "renewal" | "expansion" | "payment-issue" | "suspended" | "churned";
-
-export const lifecycleLabels: Record<TenantLifecycleStage, string> = {
-  lead: "Lead", trial: "Trial", setup: "Setup", activated: "Activated", growth: "Growth", renewal: "Renewal",
-  expansion: "Expansion", "payment-issue": "Payment issue", suspended: "Suspended", churned: "Churned",
-};
-
-export const lifecycleOrder: TenantLifecycleStage[] = ["lead", "trial", "setup", "activated", "growth", "renewal", "expansion"];
-
-export type WhiteLabelSettings = {
-  enabled: boolean;
-  hidePlatformLogo: boolean;
-  loginBranding: boolean;
-  accentColor: string;
-  emailBranding: boolean;
-  documentBranding: boolean;
-};
-
-export type SaasTenant = {
-  id: ID;
-  name: string;
-  code: string;
-  domain: string;
-  logoColor: string;
-  planId: ID;
-  status: SaasTenantStatus;
-  stage: TenantLifecycleStage;
-  ownerName: string;
-  ownerEmail: string;
-  region: string;
-  students: number;
-  staff: number;
-  branches: number;
-  setupPercent: number;
-  usagePercent: number;
-  supportOpen: number;
-  createdAt: string;
-  lastActive: string;
-  whiteLabel: WhiteLabelSettings;
-  notes: { id: ID; at: string; by: string; text: string }[];
-};
-
-// ---------------------------------------------------------------------------
-// Plans & entitlements
-// ---------------------------------------------------------------------------
-
-export type PlanStatus = "draft" | "active" | "hidden" | "archived";
-
-export type EntitlementLevel = "included" | "limited" | "add-on" | "not-available";
-
-export const entitlementLabels: Record<EntitlementLevel, string> = {
-  included: "Included", limited: "Limited", "add-on": "Add-on", "not-available": "Not available",
-};
-
-export const entitlementTone: Record<EntitlementLevel, StatusTone> = {
-  included: "success", limited: "info", "add-on": "warning", "not-available": "neutral",
-};
-
-export type PlanFeature = { key: string; label: string; level: EntitlementLevel };
-
-export type SaasPlan = {
-  id: ID;
-  name: string;
-  description: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  studentLimit: number;
-  staffLimit: number;
-  branchLimit: number;
-  storageGb: number;
-  supportLevel: "community" | "standard" | "priority" | "dedicated";
-  trialDays: number;
-  whiteLabel: boolean;
-  customDomain: boolean;
-  features: PlanFeature[];
-  status: PlanStatus;
-  tenantCount: number;
-  popular?: boolean;
-};
-
-// Per-tenant override of a feature entitlement.
-export type TenantFeatureOverride = {
-  id: ID;
-  tenantId: ID;
-  featureKey: string;
-  level: EntitlementLevel;
-  reason: string;
-  setBy: string;
-  at: string;
-};
+// NOTE: the mock tenant types (SaasTenantStatus/tenantStatusLabels/tone,
+// TenantLifecycleStage/lifecycleLabels/lifecycleOrder, WhiteLabelSettings,
+// SaasTenant), the mock plan/entitlement types (PlanStatus, EntitlementLevel/
+// entitlementLabels/tone, PlanFeature, SaasPlan, TenantFeatureOverride) and the
+// CustomerSuccessRecord type — plus the `db.saas.tenants/plans/overrides/domains/
+// success` slices — were removed in Super Admin Phase SA-4L. Schools, plans,
+// feature entitlements, custom domains and branding are all REAL now (School /
+// Plan / PlanFeature / SchoolFeatureOverride / SchoolDomain / SchoolBranding
+// models + /api/super-admin/{schools,plans,features,domains,branding}).
 
 // ---------------------------------------------------------------------------
 // Subscriptions, invoices, payments
@@ -168,46 +75,16 @@ export const marketplaceStatusLabels: Record<MarketplaceItem["status"], string> 
 };
 
 // ---------------------------------------------------------------------------
-// Domains
+// Domains — now REAL (SchoolDomain model + /api/super-admin/domains, SA-4L). The
+// mock domain types (DomainStatus/domainStatusLabels/tone, TenantDomain) and the
+// `db.saas.domains` slice were removed in SA-4L.
 // ---------------------------------------------------------------------------
 
-export type DomainStatus = "setup-required" | "verification-pending" | "active" | "error";
-
-export const domainStatusLabels: Record<DomainStatus, string> = {
-  "setup-required": "Setup required", "verification-pending": "Verification pending", active: "Active", error: "Error",
-};
-
-export const domainStatusTone: Record<DomainStatus, StatusTone> = {
-  "setup-required": "neutral", "verification-pending": "warning", active: "success", error: "error",
-};
-
-export type TenantDomain = {
-  id: ID;
-  tenantId: ID;
-  domain: string;
-  type: "subdomain" | "custom";
-  status: DomainStatus;
-  sslStatus: "none" | "pending" | "active";
-  lastChecked: string;
-};
-
 // ---------------------------------------------------------------------------
-// Support & customer success
+// Support & customer success — support is REAL (SupportTicket model +
+// /api/super-admin/support, SA-4I). The mock CustomerSuccessRecord type + the
+// `db.saas.success` slice were removed in SA-4L.
 // ---------------------------------------------------------------------------
-
-// NOTE: the mock support types (SupportCategory/supportCategoryLabels/
-// SupportPriority/SupportTicketStatus/supportStatusTone/PlatformSupportTicket)
-// and the `db.saas.support` slice were removed in Super Admin Phase SA-4I —
-// support is real now (SupportTicket model + /api/super-admin/support).
-
-export type CustomerSuccessRecord = {
-  tenantId: ID;
-  onboardingPercent: number;
-  adoptionPercent: number;
-  trainingCompleted: number;
-  upcomingReview?: string;
-  expansionOpportunity?: string;
-};
 
 // ---------------------------------------------------------------------------
 // Announcements, status, audit, admins, settings
@@ -291,13 +168,8 @@ export type PlatformSettings = {
 // ---------------------------------------------------------------------------
 
 export type SaasState = {
-  tenants: SaasTenant[];
-  plans: SaasPlan[];
-  overrides: TenantFeatureOverride[];
   addons: SaasAddon[];
   marketplace: MarketplaceItem[];
-  domains: TenantDomain[];
-  success: CustomerSuccessRecord[];
   announcements: PlatformAnnouncement[];
   status: PlatformStatusItem[];
   auditLog: PlatformAuditEntry[];

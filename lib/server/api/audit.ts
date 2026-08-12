@@ -43,7 +43,13 @@ export type AuditAction =
   | "SUPPORT_MESSAGE_ADDED"
   | "SUPPORT_NOTE_ADDED"
   | "IMPERSONATION_STARTED"
-  | "IMPERSONATION_ENDED";
+  | "IMPERSONATION_ENDED"
+  | "FEATURE_OVERRIDE_SET"
+  | "FEATURE_OVERRIDE_CLEARED"
+  | "DOMAIN_ADDED"
+  | "DOMAIN_STATUS_CHANGED"
+  | "DOMAIN_REMOVED"
+  | "BRANDING_UPDATED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

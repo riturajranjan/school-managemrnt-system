@@ -1,7 +1,5 @@
-import { getSnapshot, setState } from "@/lib/data/store";
-import type {
-  EntitlementLevel, PlatformAnnouncement, SaasState, SaasTenantStatus,
-} from "@/lib/types/saas";
+import { setState } from "@/lib/data/store";
+import type { PlatformAnnouncement, SaasState } from "@/lib/types/saas";
 import { generateId } from "@/lib/utils";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -14,28 +12,14 @@ function logAudit(admin: string, action: string, tenantName: string, module: str
   patchSaas((s) => ({ ...s, auditLog: [{ id: generateId("pa"), admin, action, tenantName, module, timestamp: new Date().toISOString(), result }, ...s.auditLog] }));
 }
 
-const tenantName = (id: string) => getSnapshot().saas.tenants.find((t) => t.id === id)?.name ?? id;
-
 // ---------------------------------------------------------------------------
-// Tenants
+// Tenants / Schools — now REAL (no mock service methods)
 // ---------------------------------------------------------------------------
-
-export function setTenantStatus(tenantId: string, status: SaasTenantStatus, admin = "Super Admin"): Result {
-  patchSaas((s) => ({ ...s, tenants: s.tenants.map((t) => (t.id === tenantId ? { ...t, status } : t)) }));
-  logAudit(admin, status === "suspended" ? "School suspended" : status === "active" ? "School reactivated" : `Status → ${status}`, tenantName(tenantId), "Schools");
-  return { ok: true };
-}
-
-// NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 — school
-// creation is now real (POST /api/super-admin/schools) and onboarding is real
-// (SchoolOnboarding). The rest of this mock service still backs the not-yet-
-// migrated Revenue/Platform/System pages.
-
-export function addTenantNote(tenantId: string, text: string, by = "Super Admin"): Result {
-  if (!text.trim()) return { ok: false, error: "Note cannot be empty." };
-  patchSaas((s) => ({ ...s, tenants: s.tenants.map((t) => (t.id === tenantId ? { ...t, notes: [{ id: generateId("note"), at: new Date().toISOString(), by, text: text.trim() }, ...t.notes] } : t)) }));
-  return { ok: true };
-}
+// Mock `createTenant` was removed in SA-3 (real POST /api/super-admin/schools +
+// onboarding). Mock tenant status/notes (`setTenantStatus`, `addTenantNote`) and
+// the `db.saas.tenants` slice were removed in SA-4L — school records are real
+// (School model + schools-service), and the platform tenant picker uses the real
+// Schools API.
 
 // ---------------------------------------------------------------------------
 // Subscriptions & Trials — now REAL (no mock service methods)
@@ -43,30 +27,15 @@ export function addTenantNote(tenantId: string, text: string, by = "Super Admin"
 // The mock subscription CRUD (`changePlan`, `setSubscriptionStatus`) was removed
 // in SA-4B, and the mock `extendTrial` was removed in SA-4C. Subscriptions and
 // trials are real DB rows managed via /api/super-admin/subscriptions and
-// /api/super-admin/trials. The `db.saas.subscriptions` slice is retained only as
-// read-only backing for the not-yet-migrated Billing/Health/revenue selectors.
+// /api/super-admin/trials.
 
 // ---------------------------------------------------------------------------
-// Entitlement overrides
+// Feature entitlements — now REAL (no mock service methods)
 // ---------------------------------------------------------------------------
-
-export function setEntitlementOverride(tenantId: string, featureKey: string, level: EntitlementLevel, reason: string, admin = "Super Admin"): Result {
-  const db = getSnapshot();
-  const existing = db.saas.overrides.find((o) => o.tenantId === tenantId && o.featureKey === featureKey);
-  patchSaas((s) => {
-    const next = existing
-      ? s.overrides.map((o) => (o.id === existing.id ? { ...o, level, reason, at: new Date().toISOString() } : o))
-      : [{ id: generateId("ovr"), tenantId, featureKey, level, reason, setBy: admin, at: new Date().toISOString() }, ...s.overrides];
-    return { ...s, overrides: next };
-  });
-  logAudit(admin, "Entitlement overridden", tenantName(tenantId), "Plans");
-  return { ok: true };
-}
-
-export function clearEntitlementOverride(overrideId: string): Result {
-  patchSaas((s) => ({ ...s, overrides: s.overrides.filter((o) => o.id !== overrideId) }));
-  return { ok: true };
-}
+// Mock entitlement overrides (`setEntitlementOverride`, `clearEntitlementOverride`)
+// and the `db.saas.overrides` slice were removed in SA-4L — feature entitlements
+// are real (SchoolFeatureOverride + features-service, effective = override ??
+// plan default from PlanFeature).
 
 // ---------------------------------------------------------------------------
 // Billing & Invoices — now REAL (no mock service methods)

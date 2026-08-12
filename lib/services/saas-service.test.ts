@@ -1,48 +1,50 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
-import {
-  setEntitlementOverride, setTenantStatus,
-} from "./saas-service";
+import { publishAnnouncement, toggleMarketplaceItem } from "./saas-service";
 
-// NOTE: mock `createTenant` was removed in Super Admin Phase SA-3 (school creation
-// is now real via POST /api/super-admin/schools). Its tests were removed with it.
-describe("tenant lifecycle", () => {
+// This mock-store suite now covers only the SHRINKING remainder that still backs
+// the not-yet-migrated Announcements / Marketplace pages. Everything else went
+// real and is covered by DB-integration tests:
+//   • createTenant → SA-3 (schools-service)
+//   • changePlan/setSubscriptionStatus → SA-4B, extendTrial → SA-4C
+//   • setInvoiceStatus → SA-4D, payments → SA-4E
+//   • setTenantStatus/addTenantNote (tenants) + setEntitlementOverride/
+//     clearEntitlementOverride (feature overrides) → SA-4L (schools-service +
+//     features-service). Their `db.saas.tenants/overrides` slices were deleted.
+
+describe("announcements", () => {
   beforeEach(() => resetDemoData());
 
-  it("suspend then reactivate updates status", () => {
-    const t = getSnapshot().saas.tenants.find((x) => x.status === "active")!;
-    setTenantStatus(t.id, "suspended");
-    expect(getSnapshot().saas.tenants.find((x) => x.id === t.id)!.status).toBe("suspended");
-    setTenantStatus(t.id, "active");
-    expect(getSnapshot().saas.tenants.find((x) => x.id === t.id)!.status).toBe("active");
+  it("publishes a new announcement to the top of the list", () => {
+    const before = getSnapshot().saas.announcements.length;
+    const res = publishAnnouncement({ title: "Term 2 opens", type: "product-update", audience: "All schools", body: "Details soon." });
+    expect(res.ok).toBe(true);
+    const list = getSnapshot().saas.announcements;
+    expect(list.length).toBe(before + 1);
+    expect(list[0].title).toBe("Term 2 opens");
+    expect(list[0].status).toBe("published");
+  });
+
+  it("rejects an empty title", () => {
+    const res = publishAnnouncement({ title: "   ", type: "policy", audience: "All", body: "x" });
+    expect(res.ok).toBe(false);
   });
 });
 
-// NOTE: subscription + trial mock CRUD were removed as those modules went real —
-// `changePlan`/`setSubscriptionStatus` in SA-4B, `extendTrial` in SA-4C. They are
-// now exercised by the DB-integration tests for subscriptions-service /
-// trials-service, not this mock-store suite.
-
-// NOTE: mock `setInvoiceStatus` was removed in Super Admin Phase SA-4D — billing
-// + invoices are now real (/api/super-admin/invoices), covered by
-// invoices-service DB integration tests.
-
-describe("entitlement overrides", () => {
+describe("marketplace", () => {
   beforeEach(() => resetDemoData());
 
-  it("sets and updates a tenant feature override", () => {
-    const t = getSnapshot().saas.tenants[0];
-    setEntitlementOverride(t.id, "analytics", "included", "Pilot access");
-    let ov = getSnapshot().saas.overrides.find((o) => o.tenantId === t.id && o.featureKey === "analytics")!;
-    expect(ov.level).toBe("included");
-    setEntitlementOverride(t.id, "analytics", "not-available", "Pilot ended");
-    ov = getSnapshot().saas.overrides.find((o) => o.tenantId === t.id && o.featureKey === "analytics")!;
-    expect(ov.level).toBe("not-available");
-    expect(getSnapshot().saas.overrides.filter((o) => o.tenantId === t.id && o.featureKey === "analytics")).toHaveLength(1);
+  it("toggles an available integration on and off (never a coming-soon one)", () => {
+    const available = getSnapshot().saas.marketplace.find((m) => m.status === "available")!;
+    toggleMarketplaceItem(available.id);
+    expect(getSnapshot().saas.marketplace.find((m) => m.id === available.id)!.status).toBe("enabled");
+    toggleMarketplaceItem(available.id);
+    expect(getSnapshot().saas.marketplace.find((m) => m.id === available.id)!.status).toBe("available");
+
+    const comingSoon = getSnapshot().saas.marketplace.find((m) => m.status === "coming-soon");
+    if (comingSoon) {
+      toggleMarketplaceItem(comingSoon.id);
+      expect(getSnapshot().saas.marketplace.find((m) => m.id === comingSoon.id)!.status).toBe("coming-soon");
+    }
   });
 });
-
-// NOTE: the `saas-brief` selectors were removed as the dashboard went real —
-// `platformPulse` (SA-4F), mock `tenantHealth` (SA-4I) and `saasSummary` +
-// dead analytics selectors (SA-4J). Dashboard metrics are real now (dashboard/
-// health/billing/usage/support services + DB integration tests).

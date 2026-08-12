@@ -605,3 +605,51 @@ export type PaymentDto = {
   createdAt: string;
   updatedAt: string;
 };
+
+// --- Super Admin SA-4L: Features / Domains / Branding ---
+
+export type EffectiveFeatureDto = {
+  key: string;
+  label: string;
+  planDefault: boolean;
+  override: boolean | null;
+  effective: boolean;
+  reason: string | null;
+};
+
+export type SchoolFeaturesDto = {
+  school: { id: string; name: string };
+  tenant: { id: string };
+  plan: { id: string; name: string } | null;
+  hasSubscription: boolean;
+  features: EffectiveFeatureDto[];
+};
+
+export type SchoolDomainDto = {
+  id: string;
+  hostname: string;
+  type: string; // subdomain | custom
+  status: string; // pending | verified | failed | disabled
+  isPrimary: boolean;
+  verificationToken: string | null;
+  verifiedAt: string | null;
+  school: { id: string; name: string };
+  tenant: { id: string };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SchoolBrandingDto = {
+  school: { id: string; name: string };
+  tenant: { id: string };
+  displayName: string | null;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  loginHeadline: string | null;
+  loginSubheadline: string | null;
+  footerText: string | null;
+  updatedAt: string | null;
+};

@@ -127,6 +127,9 @@ model School {
   invoices         Invoice[] // Super Admin Phase SA-4D
   payments         Payment[] // Super Admin Phase SA-4E
   supportTickets   SupportTicket[] // Super Admin Phase SA-4I
+  featureOverrides SchoolFeatureOverride[] // Super Admin Phase SA-4L
+  domains          SchoolDomain[] // Super Admin Phase SA-4L
+  branding         SchoolBranding? // Super Admin Phase SA-4L
 
   // School code is unique within its tenant.
   @@unique([tenantId, code])
@@ -1326,4 +1329,99 @@ model SupportTicketMessage {
 
   @@index([ticketId])
   @@map("support_ticket_messages")
+}
+
+// ===========================================================================
+// Super Admin Phase SA-4L — Features, Domains & Branding.
+//
+// Feature ENTITLEMENT (does a SCHOOL/PLAN have a module?) is distinct from RBAC
+// (can a USER perform an action?). Plan defaults come from PlanFeature (a key is
+// "included" when a PlanFeature row exists for the school's current plan). A
+// SchoolFeatureOverride flips a single key on/off for one school on top of that
+// default. Effective = override ?? plan-default. Enforcement (feature + RBAC)
+// is resolved server-side (lib/server/platform/features-service).
+//
+// Domains & Branding are per-school platform configuration. NO external DNS/SSL
+// provider or file-storage integration in this phase — status is honest
+// (PENDING until a clearly-labelled manual admin action), branding is
+// URL/metadata only (no uploads, no client-storage persistence).
+// ===========================================================================
+
+model SchoolFeatureOverride {
+  id         String  @id @default(cuid())
+  schoolId   String
+  tenantId   String // derived from the school; denormalised for tenant-scoped queries
+  featureKey String // one of lib/plans/features FEATURE_KEYS
+  enabled    Boolean // explicit on/off applied over the plan default
+  reason     String?
+  createdBy  String? // platform admin userId
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, featureKey]) // at most one override per (school, feature)
+  @@index([schoolId])
+  @@index([tenantId])
+  @@map("school_feature_overrides")
+}
+
+enum DomainType {
+  SUBDOMAIN
+  CUSTOM
+}
+
+enum DomainStatus {
+  PENDING // awaiting (manual) verification — the honest default
+  VERIFIED
+  FAILED
+  DISABLED
+}
+
+model SchoolDomain {
+  id                String       @id @default(cuid())
+  tenantId          String // derived from the school
+  schoolId          String
+  hostname          String       @unique // bare host only (no protocol/path), lowercased
+  type              DomainType   @default(CUSTOM)
+  status            DomainStatus @default(PENDING)
+  isPrimary         Boolean      @default(false)
+  verificationToken String? // opaque token for the DNS TXT instructions (no DNS lookups here)
+  verifiedAt        DateTime?    @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("school_domains")
+}
+
+model SchoolBranding {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  tenantId String // derived from the school
+
+  displayName      String?
+  logoUrl          String? // URL only — no file uploads in this phase
+  faviconUrl       String?
+  primaryColor     String? // validated #RRGGBB server-side
+  secondaryColor   String?
+  accentColor      String?
+  loginHeadline    String?
+  loginSubheadline String?
+  footerText       String?
+  updatedBy        String? // platform admin userId
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("school_brandings")
 }
