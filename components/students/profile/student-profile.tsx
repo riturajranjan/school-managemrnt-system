@@ -1,10 +1,11 @@
 "use client";
 
-// Student 360 — Phase 4 real-data profile. Reads GET /api/students/[id]; the
-// tabs shown here (Overview, Guardians, Documents, Timeline) are the sections
-// Phase 4 actually owns. Attendance / Fees / Academics / Transport / Health /
-// Library etc. are intentionally NOT shown as real here — they arrive with their
-// own module migrations, and are never faked against this real record (§8).
+// Student 360 — real-data profile. Reads GET /api/students/[id]; the tabs shown
+// here (Overview, Guardians, Documents, Timeline) are the sections Phase 4 owns,
+// plus a real Attendance tab (Phase 5) backed by GET /api/students/[id]/attendance.
+// Fees / Academics / Transport / Health / Library etc. are intentionally NOT shown
+// as real here — they arrive with their own module migrations, and are never faked
+// against this real record (§8).
 import Link from "next/link";
 import { useState } from "react";
 import { Archive, Mail, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
@@ -24,11 +25,13 @@ import {
   unlinkGuardianRequest,
   useStudentDetail,
 } from "@/lib/hooks/api/use-students";
+import { useStudentAttendance } from "@/lib/hooks/api/use-attendance";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
+import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can } = usePermissions();
@@ -63,6 +66,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="guardians">Guardians</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -74,6 +78,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="documents" className="mt-md">
           <DocumentsSection student={student} />
+        </TabsContent>
+        <TabsContent value="attendance" className="mt-md">
+          <AttendanceSection studentId={student.id} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -90,10 +97,10 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         onConfirm={() => void onArchive()}
       />
 
-      {/* Deliberately no fees / attendance / academics sections — those are owned
-          by future module phases and are not faked against this real record. */}
+      {/* Deliberately no fees / academics sections — those are owned by future
+          module phases and are not faked against this real record. */}
       <p className="text-xs text-muted-foreground">
-        Attendance, fees, academics, transport and health for this student appear once those modules are migrated.
+        Fees, academics, transport and health for this student appear once those modules are migrated.
       </p>
     </div>
   );
@@ -344,6 +351,60 @@ function DocumentsSection({ student }: { student: StudentDetailDto }) {
         ))}
         {student.documents.length === 0 && <p className="text-sm text-muted-foreground">No documents on file.</p>}
       </ul>
+    </div>
+  );
+}
+
+function AttendanceSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentAttendance(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading attendance…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  const s = data.summary;
+  const pct = s.attendancePercentage;
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Attendance</p>
+          <p className="text-lg font-semibold text-foreground">{pct === null ? "—" : `${pct}%`}</p>
+        </div>
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Days marked</p>
+          <p className="text-lg font-semibold text-foreground">{s.records}</p>
+        </div>
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Present</p>
+          <p className="text-lg font-semibold text-success">{s.present + s.late}</p>
+        </div>
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Absent</p>
+          <p className="text-lg font-semibold text-error">{s.absent}</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Recent attendance</h2>
+        <ul className="flex flex-col gap-sm">
+          {data.recent.map((r, i) => (
+            <li key={`${r.date}-${i}`} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+              <div className="min-w-0">
+                <p className="text-foreground">{new Date(r.date).toLocaleDateString("en-IN")}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {r.className} · Section {r.section.name}
+                  {r.remarks ? ` · ${r.remarks}` : ""}
+                </p>
+              </div>
+              <Badge tone={attendanceStatusTone[r.status as AttendanceStatus] ?? "neutral"}>
+                {attendanceStatusLabels[r.status as AttendanceStatus] ?? r.status}
+              </Badge>
+            </li>
+          ))}
+          {data.recent.length === 0 && <p className="text-sm text-muted-foreground">No attendance recorded yet.</p>}
+        </ul>
+      </div>
     </div>
   );
 }

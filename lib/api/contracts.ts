@@ -824,6 +824,66 @@ export type EnrollableStudentDto = {
   sectionLabel: string | null;
 };
 
+// --- Phase 5: Attendance ---
+
+export type AttendanceSummaryDto = {
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  halfDay: number;
+  medicalLeave: number;
+  officialDuty: number;
+  attendancePercentage: number | null; // null when total = 0
+};
+
+export type AttendanceRosterEntryDto = {
+  studentId: string;
+  enrollmentId: string;
+  name: string;
+  admissionNumber: string;
+  rollNumber: string | null;
+  status: string | null; // present|absent|late|excused|half-day|medical-leave|official-duty, or null (unmarked)
+  remarks: string | null;
+};
+
+export type AttendanceSessionDto = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  status: string; // draft | submitted | locked
+  class: { id: string; name: string };
+  section: { id: string; name: string };
+  markedByName: string | null;
+  submittedAt: string | null;
+  lockedAt: string | null;
+  summary: AttendanceSummaryDto;
+};
+
+export type AttendanceSessionViewDto = {
+  session: AttendanceSessionDto | null; // null when no session exists yet for section+date
+  date: string;
+  class: { id: string; name: string };
+  section: { id: string; name: string };
+  roster: AttendanceRosterEntryDto[];
+  summary: AttendanceSummaryDto;
+};
+
+export type AttendanceHistoryItemDto = AttendanceSessionDto;
+
+export type StudentAttendanceEntryDto = {
+  date: string;
+  status: string;
+  remarks: string | null;
+  section: { id: string; name: string };
+  className: string;
+};
+
+export type StudentAttendanceSummaryDto = {
+  summary: AttendanceSummaryDto & { records: number };
+  recent: StudentAttendanceEntryDto[];
+};
+
 // --- Super Admin: real platform permission matrix (reference page) ---
 
 export type PlatformPermissionMatrixDto = {

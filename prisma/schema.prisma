@@ -683,6 +683,7 @@ model Student {
   documents   StudentDocument[]
   timeline    StudentTimelineEvent[]
   enrollments Enrollment[] // Phase 6-pre — real class/section enrollment
+  attendanceRecords AttendanceRecord[] // Phase 5 — attendance
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -1726,8 +1727,9 @@ model Section {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
-  enrollments Enrollment[]
+  class              Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollments        Enrollment[]
+  attendanceSessions AttendanceSession[] // Phase 5 — attendance
 
   // One section name per class.
   @@unique([classId, name])
@@ -1756,6 +1758,7 @@ model Enrollment {
   class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[] // Phase 5 — attendance
 
   // One enrollment row per student per academic session; a student appears at
   // most once in a given section.
@@ -1767,4 +1770,89 @@ model Enrollment {
   @@index([sectionId])
   @@index([studentId])
   @@map("enrollments")
+}
+
+// ===========================================================================
+// Phase 5 — Attendance. Real, PostgreSQL-backed student attendance keyed on the
+// Academics Foundation (Section + Enrollment), NOT label strings.
+//
+// AttendanceSession = one register per (section, calendar day). AttendanceRecord
+// = one per enrolled student per session — the HISTORICAL snapshot (never
+// silently rewritten when enrollment later changes). Date is a date-only column
+// (school-local calendar day, supplied as YYYY-MM-DD, normalized to UTC-midnight
+// at the service boundary so browser timezones can't shift the day).
+// ===========================================================================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  HALF_DAY
+  MEDICAL_LEAVE
+  OFFICIAL_DUTY
+}
+
+enum AttendanceSessionStatus {
+  DRAFT
+  SUBMITTED
+  LOCKED
+}
+
+model AttendanceSession {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+  sectionId         String
+  date              DateTime                @db.Date
+  status            AttendanceSessionStatus @default(DRAFT)
+
+  markedByUserId String?
+  markedByName   String?
+  submittedAt    DateTime? @db.Timestamptz(6)
+  lockedAt       DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  section Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  records AttendanceRecord[]
+
+  // At most one register per section per calendar day (race-safe).
+  @@unique([sectionId, date])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId, date])
+  @@index([branchId, academicSessionId, date])
+  @@index([sectionId, date])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id                  String           @id @default(cuid())
+  attendanceSessionId String
+  studentId           String
+  // The enrollment the record was marked against (captured at marking time). Kept
+  // for provenance; nullable + SetNull so unenrolling a student later does NOT
+  // delete/alter the historical attendance record (§22 historical correctness).
+  enrollmentId        String?
+  status              AttendanceStatus @default(PRESENT)
+  remarks             String?
+  markedAt            DateTime?        @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  session    AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+  // Student rows are archived, never hard-deleted, so Restrict guards history.
+  student    Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment?       @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  // One record per student per session.
+  @@unique([attendanceSessionId, studentId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([attendanceSessionId])
+  @@map("attendance_records")
 }

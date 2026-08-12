@@ -4,24 +4,31 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useInView } from "@/lib/hooks/use-in-view";
 import type { AttendanceStatus } from "@/lib/types/attendance";
 import { attendanceStatusTone } from "@/lib/types/attendance";
-import type { Student } from "@/lib/types/students";
-import { cn, initialsOf } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { toneClasses } from "@/components/dashboard/tone";
 
 const SEATS_PER_ROW = 5;
+
+// Minimal seat shape — a real attendance roster entry (id + display name).
+export type SeatEntry = { id: string; name: string };
+function seatInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+const firstToken = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 export function SeatingView({
   students,
   statusFor,
   onToggle,
 }: {
-  students: Student[];
+  students: SeatEntry[];
   statusFor: (studentId: string) => AttendanceStatus;
   onToggle: (studentId: string) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const { ref, inView } = useInView<HTMLDivElement>();
-  const rows: Student[][] = [];
+  const rows: SeatEntry[][] = [];
   for (let i = 0; i < students.length; i += SEATS_PER_ROW)
     rows.push(students.slice(i, i + SEATS_PER_ROW));
 
@@ -63,19 +70,16 @@ export function SeatingView({
                     toneClasses[tone].ring,
                     status !== "not-marked" && "ring-2",
                   )}
-                  aria-label={`${student.profile.firstName} ${student.profile.lastName}: ${status}`}>
+                  aria-label={`${student.name}: ${status}`}>
                   <span
                     className={cn(
                       "flex size-6 items-center justify-center rounded-pill text-[10px] font-bold sm:size-7",
                       toneClasses[tone].soft,
                     )}>
-                    {initialsOf(
-                      student.profile.firstName,
-                      student.profile.lastName,
-                    )}
+                    {seatInitials(student.name)}
                   </span>
                   <span className="max-w-full truncate px-0.5 text-[9px] text-muted-foreground">
-                    {student.profile.firstName}
+                    {firstToken(student.name)}
                   </span>
                 </motion.button>
               );

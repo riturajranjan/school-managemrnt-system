@@ -76,7 +76,11 @@ export type AuditAction =
   | "SECTION_CREATED"
   | "SECTION_UPDATED"
   | "STUDENT_ENROLLED"
-  | "STUDENT_UNENROLLED";
+  | "STUDENT_UNENROLLED"
+  | "ATTENDANCE_SESSION_CREATED"
+  | "ATTENDANCE_UPDATED"
+  | "ATTENDANCE_SUBMITTED"
+  | "ATTENDANCE_LOCKED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,
