@@ -60,6 +60,14 @@ const MIGRATED_FILES = [
   "app/academics/timetable/page.tsx",
   "app/academics/timetable/create/page.tsx",
   "components/academics/timetable/real-timetable-grid.tsx",
+  // Phase 8A — the real Exams foundation (term/exam/class/schedule), fully
+  // backed by /api/exams/* (PostgreSQL). No mock exam store/service/selectors/
+  // seed. Students/Attendance/Marks/Results/Publish pages stay mock (Phase 8B+).
+  "app/exams/page.tsx",
+  "app/exams/new/page.tsx",
+  "app/exams/[examId]/page.tsx",
+  "app/exams/[examId]/subjects/page.tsx",
+  "app/exams/[examId]/schedule/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -97,6 +105,15 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: 'hooks/use-timetable"', why: "mock timetable hooks" },
   { marker: "services/timetable-service", why: "mock timetable service" },
   { marker: "data/seed/timetable", why: "mock timetable seed" },
+  // Phase 8A — exam mock authority (real surfaces must use hooks/api/use-exams-api).
+  { marker: 'hooks/use-exams"', why: "mock exam hooks" },
+  { marker: "services/exam-service", why: "mock exam service" },
+  { marker: "services/exam-subject-service", why: "mock exam subject service (deleted — dead import)" },
+  { marker: "services/exam-schedule-service", why: "mock exam schedule service (deleted — dead import)" },
+  { marker: "selectors/exams-insights", why: "mock exam Pulse/exception-feed selectors (deleted — dead import)" },
+  { marker: "selectors/exam-conflicts", why: "mock exam conflict engine (deleted — dead import)" },
+  { marker: "schemas/exam-form", why: "mock exam form schema (deleted — dead import)" },
+  { marker: "data/seed/exams", why: "mock exam seed" },
 ];
 
 function collectSources(dir: string): string[] {

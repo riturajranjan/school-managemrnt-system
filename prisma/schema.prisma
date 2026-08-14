@@ -1707,6 +1707,7 @@ model Class {
   sections      Section[]
   enrollments   Enrollment[]
   classSubjects ClassSubject[] // Phase 6 — subjects taught in this class
+  examClasses   ExamClass[] // Phase 8A — exam applicability
 
   // One class name per school + academic session.
   @@unique([schoolId, academicSessionId, name])
@@ -1734,6 +1735,7 @@ model Section {
   attendanceSessions  AttendanceSession[] // Phase 5 — attendance
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
+  examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
 
   // One section name per class.
   @@unique([classId, name])
@@ -1938,6 +1940,7 @@ model Subject {
   classSubjects       ClassSubject[]
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
+  examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
 
   // One subject code per school (catalogue is school-wide, reused across sessions).
   @@unique([schoolId, code])
@@ -2021,6 +2024,7 @@ model Staff {
   user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   teachingAssignments TeachingAssignment[]
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
+  examInvigilations   ExamScheduleEntry[] // Phase 8A — optional invigilator
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2161,4 +2165,186 @@ model TimetableEntry {
   @@index([periodId])
   @@index([teachingAssignmentId])
   @@map("timetable_entries")
+}
+
+// ===========================================================================
+// Phase 8A — Exams foundation (term / exam / class applicability / subject
+// schedule). Marks, results, grading and report cards are DELIBERATELY not
+// modelled here (Phase 8B+). Three concepts, kept separate:
+//   ExamTerm            — a term/cycle within an academic session ("Term 1").
+//   Exam                — a named exam event under a term.
+//   ExamClass           — which real Classes an Exam applies to (join).
+//   ExamScheduleEntry   — when a Subject's paper happens: real Section + real
+//                         Subject + date/time, SECTION-scoped (matches the
+//                         Section-anchored convention used by Attendance,
+//                         Timetable and Enrollment throughout this codebase).
+//
+// Marks limits (maxMarks/passingMarks/theoryMarks/practicalMarks) are
+// SNAPSHOTTED onto the schedule entry at creation from the Subject's current
+// defaults — never read live from Subject — so a later Subject edit can never
+// rewrite a historical exam's marks configuration (Phase 8B stability).
+//
+// Conflict prevention: at most one scheduled paper per Section per calendar
+// day (@@unique[sectionId,examDate]) — the standard "one paper per day" school
+// policy, DB-enforced and concurrency-safe. The optional invigilator similarly
+// gets at most one assignment per calendar day (@@unique[invigilatorStaffId,
+// examDate] — Postgres unique constraints permit unlimited NULLs, so this is
+// safe with no invigilator selected). No Room/Hall model exists yet, so room
+// scheduling is deliberately NOT represented here (plan §15).
+// ===========================================================================
+
+enum ExamTermStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ExamStatus {
+  DRAFT
+  SCHEDULED
+  COMPLETED
+  ARCHIVED
+}
+
+enum ExamType {
+  UNIT_TEST
+  WEEKLY_TEST
+  MONTHLY_TEST
+  MIDTERM
+  HALF_YEARLY
+  ANNUAL
+  PRE_BOARD
+  BOARD
+  PRACTICAL
+  ORAL
+  ASSIGNMENT
+  PROJECT
+  INTERNAL_ASSESSMENT
+  CUSTOM
+}
+
+enum ExamScope {
+  INTERNAL
+  EXTERNAL
+}
+
+enum ExamMode {
+  ONLINE
+  OFFLINE
+}
+
+model ExamTerm {
+  id                String         @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  name              String
+  code              String
+  order             Int            @default(0)
+  status            ExamTermStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  exams Exam[]
+
+  // One term code per school + academic session.
+  @@unique([schoolId, academicSessionId, code])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@map("exam_terms")
+}
+
+model Exam {
+  id                String     @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  examTermId        String
+  name              String
+  code              String
+  type              ExamType   @default(CUSTOM)
+  description       String?
+  startsOn          DateTime   @db.Date
+  endsOn            DateTime   @db.Date
+  scope             ExamScope  @default(INTERNAL)
+  mode              ExamMode   @default(OFFLINE)
+  status            ExamStatus @default(DRAFT)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  term     ExamTerm            @relation(fields: [examTermId], references: [id], onDelete: Restrict)
+  classes  ExamClass[]
+  schedule ExamScheduleEntry[]
+
+  // One exam code per school + academic session.
+  @@unique([schoolId, academicSessionId, code])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId, status])
+  @@index([examTermId])
+  @@map("exams")
+}
+
+/** Which real Classes an Exam applies to; Sections inherit through their Class. */
+model ExamClass {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  examId            String
+  classId           String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  exam  Exam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, classId])
+  @@index([tenantId])
+  @@index([examId])
+  @@index([classId])
+  @@map("exam_classes")
+}
+
+model ExamScheduleEntry {
+  id                String   @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+  examId            String
+  sectionId         String
+  subjectId         String
+  examDate          DateTime @db.Date
+  startMinutes      Int // minutes from midnight — same deterministic convention as TimetablePeriod
+  endMinutes        Int
+
+  // Snapshotted from Subject at creation — NEVER re-read live (Phase 8B stability).
+  maxMarks       Int
+  passingMarks   Int
+  theoryMarks    Int
+  practicalMarks Int
+
+  invigilatorStaffId String? // optional; NOT the subject's TeachingAssignment teacher
+  notes              String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  exam        Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  section     Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject     Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  invigilator Staff?  @relation(fields: [invigilatorStaffId], references: [id], onDelete: SetNull)
+
+  // No duplicate subject paper for the same exam+section.
+  @@unique([examId, sectionId, subjectId])
+  // At most one paper per Section per calendar day (DB-enforced, concurrency-safe).
+  @@unique([sectionId, examDate])
+  // At most one assignment per invigilator per calendar day (NULLs are unlimited).
+  @@unique([invigilatorStaffId, examDate])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([examId])
+  @@index([subjectId])
+  @@map("exam_schedule_entries")
 }

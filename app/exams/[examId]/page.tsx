@@ -1,86 +1,62 @@
 "use client";
 
+// Exam detail (Phase 8A) — real PostgreSQL/API cutover. Same stage-card shell as
+// before; Subjects/Schedule are real (from /api/exams). Students/Attendance/
+// Marks/Results/Publish depend on modules not built yet (Phase 8B/8C) and show
+// an honest "not available yet" state instead of a fabricated readiness %.
+// Grading scheme / Result rule / Report card template / audit-log UI are removed
+// (no real models / no bespoke entity-audit reader in this phase — real AuditEvent
+// rows are still written server-side). "Delete" is replaced by Archive, matching
+// this codebase's status-based convention elsewhere (Subjects, Staff, …).
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  AlertTriangle,
-  CalendarClock,
-  CheckCircle2,
-  ChevronRight,
-  ClipboardCheck,
-  FileBadge,
-  FileText,
-  History,
-  Pencil,
-  Trash2,
-  UploadCloud,
-  Users,
-} from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, ClipboardCheck, FileBadge, FileText, Pencil, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
+import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
+import { reconcileExamClassesRequest, setExamStatusRequest, updateExamRequest, useExam, useExamSchedule } from "@/lib/hooks/api/use-exams-api";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useManagedClasses } from "@/lib/hooks/use-academics";
-import { useExam, useExamAuditLog, useExamClasses, useExamSubjects, useGradingSchemes, useReportCardTemplates, useResultRules } from "@/lib/hooks/use-exams";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { computeExamReadiness, type ExamStageStatus } from "@/lib/selectors/exam-insights";
-import { deleteExam, updateExam } from "@/lib/services/exam-service";
-import { examAuditActionLabels, examStatusLabels, examStatusTone, examTypeLabels } from "@/lib/types/exams";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
-const stageToneOf: Record<ExamStageStatus, "success" | "warning" | "neutral"> = { complete: "success", "in-progress": "warning", "not-started": "neutral" };
-const stageLabelOf: Record<ExamStageStatus, string> = { complete: "Complete", "in-progress": "In progress", "not-started": "Not started" };
+const examTypeLabels: Record<string, string> = {
+  "unit-test": "Unit test", "weekly-test": "Weekly test", "monthly-test": "Monthly test", midterm: "Midterm", "half-yearly": "Half-yearly",
+  annual: "Annual", "pre-board": "Pre-board", board: "Board examination", practical: "Practical", oral: "Oral", assignment: "Assignment",
+  project: "Project", "internal-assessment": "Internal assessment", custom: "Custom",
+};
+const examStatusLabels: Record<string, string> = { draft: "Draft", scheduled: "Scheduled", completed: "Completed", archived: "Archived" };
+const examStatusTone: Record<string, "neutral" | "info" | "success"> = { draft: "neutral", scheduled: "info", completed: "success", archived: "neutral" };
 
 export default function ExamDetailPage() {
   const params = useParams<{ examId: string }>();
   const router = useRouter();
-  const db = useSisStore();
-  const exam = useExam(params.examId);
-  const examClasses = useExamClasses(params.examId);
-  const examSubjects = useExamSubjects(params.examId);
-  const classes = useManagedClasses();
-  const gradingSchemes = useGradingSchemes();
-  const resultRules = useResultRules();
-  const reportCardTemplates = useReportCardTemplates();
-  const auditLog = useExamAuditLog(params.examId);
+  const { data: exam, loading, error, reload } = useExam(params.examId);
+  const { data: schedule } = useExamSchedule(params.examId);
+  const { data: classes } = useClasses();
   const { can } = usePermissions();
   const canManage = can("exams.manageSchedule");
 
   const [editOpen, setEditOpen] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [edit, setEdit] = useState({ name: "", code: "", term: "", description: "", startDate: "", endDate: "", resultDate: "" });
-  const [auditVisible, setAuditVisible] = useState(10);
+  const [classesOpen, setClassesOpen] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  if (!exam) {
-    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Exam not found.</p>;
+  if (loading) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading exam…</p>;
+  if (error || !exam) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error ?? "Exam not found."}</p>;
   }
 
-  const readiness = computeExamReadiness(db, exam.id);
-  const className = (id: string) => classes.find((c) => c.id === id)?.name ?? id;
-  const studentCount = examClasses.reduce((sum, ec) => {
-    const section = classes.find((c) => c.id === ec.classId)?.sections.find((s) => s.id === ec.sectionId);
-    return sum + Math.max(0, (section?.enrolledCount ?? 0) - ec.excludedStudentIds.length);
-  }, 0);
-
-  function openEdit() {
-    if (!exam) return;
-    setEdit({ name: exam.name, code: exam.code, term: exam.term, description: exam.description ?? "", startDate: exam.startDate, endDate: exam.endDate, resultDate: exam.resultDate ?? "" });
-    setEditOpen(true);
-  }
-
+  const scheduleCount = schedule?.length ?? exam.scheduleCount;
   const stageCards = [
-    { key: "subjects", label: "Subjects", href: `/exams/${exam.id}/subjects`, icon: FileText, status: readiness.subjectsConfigured, detail: `${readiness.subjectCount} configured` },
-    { key: "schedule", label: "Schedule", href: `/exams/${exam.id}/schedule`, icon: CalendarClock, status: readiness.scheduleComplete, detail: `${readiness.scheduledSubjectCount}/${readiness.subjectCount} scheduled` },
-    { key: "students", label: "Students", href: `/exams/${exam.id}/students`, icon: Users, status: examClasses.length > 0 ? "complete" : "not-started", detail: `${studentCount} eligible` },
-    { key: "attendance", label: "Attendance", href: `/exams/${exam.id}/attendance`, icon: ClipboardCheck, status: readiness.attendanceComplete, detail: `${readiness.attendanceCompletionPercent}% marked` },
-    { key: "marks", label: "Marks entry", href: `/exams/${exam.id}/marks`, icon: FileBadge, status: readiness.marksEntryComplete, detail: `${readiness.marksEntryPercent}% entered` },
-    { key: "results", label: "Results", href: `/exams/${exam.id}/results`, icon: CheckCircle2, status: readiness.resultsCalculated ? "complete" : "not-started", detail: readiness.resultsCalculated ? "Calculated" : "Not calculated" },
-    { key: "publish", label: "Publish", href: `/exams/${exam.id}/publish`, icon: UploadCloud, status: readiness.published ? "complete" : "not-started", detail: readiness.published ? "Published" : "Not published" },
+    { key: "subjects", label: "Subjects & schedule", href: `/exams/${exam.id}/subjects`, icon: FileText, real: true, detail: `${scheduleCount} paper${scheduleCount === 1 ? "" : "s"} scheduled` },
+    { key: "schedule", label: "Schedule view", href: `/exams/${exam.id}/schedule`, icon: CalendarClock, real: true, detail: "By date" },
+    { key: "students", label: "Students", href: `/exams/${exam.id}/students`, icon: Users, real: false, detail: "Not available yet" },
+    { key: "attendance", label: "Attendance", href: `/exams/${exam.id}/attendance`, icon: ClipboardCheck, real: false, detail: "Not available yet" },
+    { key: "marks", label: "Marks entry", href: `/exams/${exam.id}/marks`, icon: FileBadge, real: false, detail: "Available in a future phase" },
   ] as const;
 
   return (
@@ -92,19 +68,18 @@ export default function ExamDetailPage() {
             <Badge tone={examStatusTone[exam.status]}>{examStatusLabels[exam.status]}</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            {exam.code} · {examTypeLabels[exam.type]} · {exam.term} · {formatDate(exam.startDate)} – {formatDate(exam.endDate)}
+            {exam.code} · {examTypeLabels[exam.type]} · {exam.term.name} · {formatDate(exam.startsOn)} – {formatDate(exam.endsOn)}
           </p>
         </div>
         {canManage && (
           <div className="flex items-center gap-xs">
-            <Button size="sm" variant="outline" onClick={openEdit}>
+            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil className="size-3.5" />
               Edit
             </Button>
-            {exam.status === "draft" && (
-              <Button size="sm" variant="outline" className="text-error" onClick={() => setConfirmDelete(true)}>
-                <Trash2 className="size-3.5" />
-                Delete
+            {exam.status !== "archived" && (
+              <Button size="sm" variant="outline" className="text-error" onClick={() => setConfirmArchive(true)}>
+                Archive
               </Button>
             )}
           </div>
@@ -112,18 +87,16 @@ export default function ExamDetailPage() {
       </div>
 
       {exam.description && <p className="rounded-lg border border-border bg-surface-secondary/40 p-sm text-sm text-muted-foreground">{exam.description}</p>}
-
-      {deleteError && (
+      {actionError && (
         <div className="flex items-center gap-sm rounded-lg border border-error/30 bg-error/8 px-sm py-sm text-sm text-error">
           <AlertTriangle className="size-4 shrink-0" />
-          {deleteError}
+          {actionError}
         </div>
       )}
-
-      {examSubjects.length === 0 && (
+      {scheduleCount === 0 && (
         <div className="flex items-center gap-sm rounded-lg border border-warning/30 bg-warning/8 px-sm py-sm text-sm text-warning">
           <AlertTriangle className="size-4 shrink-0" />
-          No subjects configured yet — start with Subjects below to build the schedule.
+          No papers scheduled yet — start with Subjects &amp; schedule below.
         </div>
       )}
 
@@ -144,129 +117,135 @@ export default function ExamDetailPage() {
               <p className="text-sm font-semibold text-foreground">{card.label}</p>
               <p className="text-xs text-muted-foreground">{card.detail}</p>
             </div>
-            <Badge tone={stageToneOf[card.status]}>{stageLabelOf[card.status]}</Badge>
+            <Badge tone={card.real ? "success" : "neutral"}>{card.real ? "Real" : "Deferred"}</Badge>
           </Link>
         ))}
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-md">
-        <h2 className="mb-sm text-sm font-semibold text-foreground">Configuration</h2>
+        <div className="mb-sm flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">Configuration</h2>
+          {canManage && <Button size="sm" variant="outline" onClick={() => setClassesOpen(true)}>Manage classes</Button>}
+        </div>
         <div className="grid grid-cols-1 gap-sm text-sm sm:grid-cols-2">
           <div>
             <p className="text-xs text-muted-foreground">Classes</p>
-            <p className="text-foreground">{exam.classIds.map(className).join(", ") || "None selected"}</p>
+            <p className="text-foreground">{exam.classes.map((c) => c.name).join(", ") || "None selected"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Grading scheme</p>
-            <p className="text-foreground">{gradingSchemes.find((s) => s.id === exam.gradingSchemeId)?.name ?? "Not set"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Result rule</p>
-            <p className="text-foreground">{resultRules.find((r) => r.id === exam.resultRuleId)?.name ?? "Not set"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Report card template</p>
-            <p className="text-foreground">{reportCardTemplates.find((t) => t.id === exam.reportCardTemplateId)?.name ?? "Not set"}</p>
+            <p className="text-xs text-muted-foreground">Scope / Mode</p>
+            <p className="text-foreground capitalize">{exam.scope} · {exam.mode}</p>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-lg border border-border bg-surface p-md">
-        <div className="mb-sm flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Activity</h2>
-          <Badge tone="neutral">{auditLog.length} event{auditLog.length === 1 ? "" : "s"}</Badge>
-        </div>
-        {auditLog.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-sm">
-            {auditLog.slice(0, auditVisible).map((entry) => (
-              <li key={entry.id} className="flex items-start gap-sm border-b border-border pb-sm last:border-0 last:pb-0">
-                <History className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-foreground">
-                    <span className="font-medium">{examAuditActionLabels[entry.action]}</span> — {entry.summary}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {entry.actorName} ({entry.actorRole}) · {formatDateTime(entry.createdAt)}
-                    {entry.reason ? ` · Reason: ${entry.reason}` : ""}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        {auditLog.length > auditVisible && (
-          <Button variant="ghost" size="sm" className="mt-sm" onClick={() => setAuditVisible((v) => v + 10)}>
-            Show more
-          </Button>
-        )}
+        <p className="mt-sm text-xs text-muted-foreground">Grading scheme, result rules and report card templates arrive with the Marks &amp; Results module.</p>
       </div>
 
       <DetailDrawer open={editOpen} onOpenChange={setEditOpen} title="Edit exam details" description={exam.code}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!edit.name.trim() || !edit.code.trim()) return;
-            updateExam(exam.id, { name: edit.name.trim(), code: edit.code.trim(), term: edit.term.trim(), description: edit.description || undefined, startDate: edit.startDate, endDate: edit.endDate, resultDate: edit.resultDate || undefined });
-            setEditOpen(false);
-          }}
-          className="flex flex-col gap-sm"
-        >
-          <div>
-            <Label htmlFor="edit-name">Exam name</Label>
-            <Input id="edit-name" value={edit.name} onChange={(e) => setEdit((prev) => ({ ...prev, name: e.target.value }))} />
-            <FieldError>{!edit.name.trim() ? "Required" : undefined}</FieldError>
-          </div>
-          <div className="grid grid-cols-2 gap-sm">
-            <div>
-              <Label htmlFor="edit-code">Code</Label>
-              <Input id="edit-code" value={edit.code} onChange={(e) => setEdit((prev) => ({ ...prev, code: e.target.value }))} />
-            </div>
-            <div>
-              <Label htmlFor="edit-term">Term</Label>
-              <Input id="edit-term" value={edit.term} onChange={(e) => setEdit((prev) => ({ ...prev, term: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="edit-desc">Description</Label>
-            <Textarea id="edit-desc" rows={2} value={edit.description} onChange={(e) => setEdit((prev) => ({ ...prev, description: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-3 gap-sm">
-            <div>
-              <Label htmlFor="edit-start">Start</Label>
-              <Input id="edit-start" type="date" value={edit.startDate} onChange={(e) => setEdit((prev) => ({ ...prev, startDate: e.target.value }))} />
-            </div>
-            <div>
-              <Label htmlFor="edit-end">End</Label>
-              <Input id="edit-end" type="date" value={edit.endDate} onChange={(e) => setEdit((prev) => ({ ...prev, endDate: e.target.value }))} />
-            </div>
-            <div>
-              <Label htmlFor="edit-result">Result date</Label>
-              <Input id="edit-result" type="date" value={edit.resultDate} onChange={(e) => setEdit((prev) => ({ ...prev, resultDate: e.target.value }))} />
-            </div>
-          </div>
-          <Button type="submit">Save changes</Button>
-        </form>
+        <ExamEditForm exam={exam} onSaved={() => { setEditOpen(false); reload(); }} onError={setActionError} />
+      </DetailDrawer>
+
+      <DetailDrawer open={classesOpen} onOpenChange={setClassesOpen} title="Assign classes" description="Which real classes this exam applies to">
+        <ClassAssignForm examId={exam.id} classes={classes} assigned={exam.classes} onSaved={() => { setClassesOpen(false); reload(); }} onError={setActionError} />
       </DetailDrawer>
 
       <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title="Delete this exam?"
-        description="This permanently removes the draft exam. This can't be undone."
-        confirmLabel="Delete exam"
+        open={confirmArchive}
+        onOpenChange={setConfirmArchive}
+        title="Archive this exam?"
+        description="Archived exams stay in history but are no longer editable in the active list."
+        confirmLabel="Archive exam"
         destructive
-        onConfirm={() => {
-          const result = deleteExam(exam.id);
-          if (!result.ok) {
-            setDeleteError(result.error);
-            return;
-          }
-          setDeleteError(null);
+        onConfirm={async () => {
+          setConfirmArchive(false);
+          const res = await setExamStatusRequest(exam.id, "archived");
+          if (!res.success) { setActionError(res.error.message); return; }
           router.push("/exams");
         }}
       />
+    </div>
+  );
+}
+
+function ExamEditForm({ exam, onSaved, onError }: { exam: { id: string; name: string; code: string; description: string | null; startsOn: string; endsOn: string }; onSaved: () => void; onError: (e: string | null) => void }) {
+  const [name, setName] = useState(exam.name);
+  const [code, setCode] = useState(exam.code);
+  const [description, setDescription] = useState(exam.description ?? "");
+  const [startsOn, setStartsOn] = useState(exam.startsOn);
+  const [endsOn, setEndsOn] = useState(exam.endsOn);
+  const [busy, setBusy] = useState(false);
+  const invalid = !name.trim() || !code.trim();
+
+  async function save() {
+    if (invalid) return;
+    setBusy(true); onError(null);
+    const res = await updateExamRequest(exam.id, { name: name.trim(), code: code.trim(), description: description || null, startsOn, endsOn });
+    setBusy(false);
+    if (!res.success) { onError(res.error.message); return; }
+    onSaved();
+  }
+
+  return (
+    <div className="flex flex-col gap-sm">
+      <div>
+        <Label htmlFor="edit-name">Exam name</Label>
+        <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} />
+        <FieldError>{!name.trim() ? "Required" : undefined}</FieldError>
+      </div>
+      <div>
+        <Label htmlFor="edit-code">Code</Label>
+        <Input id="edit-code" value={code} onChange={(e) => setCode(e.target.value)} />
+      </div>
+      <div>
+        <Label htmlFor="edit-desc">Description</Label>
+        <Textarea id="edit-desc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-2 gap-sm">
+        <div>
+          <Label htmlFor="edit-start">Start</Label>
+          <Input id="edit-start" type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor="edit-end">End</Label>
+          <Input id="edit-end" type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+        </div>
+      </div>
+      <Button disabled={busy || invalid} onClick={() => void save()}>Save changes</Button>
+    </div>
+  );
+}
+
+function ClassAssignForm({ examId, classes, assigned, onSaved, onError }: { examId: string; classes: { id: string; name: string }[]; assigned: { id: string; name: string }[]; onSaved: () => void; onError: (e: string | null) => void }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(assigned.map((c) => c.id)));
+  const [busy, setBusy] = useState(false);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  async function save() {
+    setBusy(true); onError(null);
+    const res = await reconcileExamClassesRequest(examId, [...selected]);
+    setBusy(false);
+    if (!res.success) { onError(res.error.message); return; }
+    onSaved();
+  }
+
+  return (
+    <div className="flex flex-col gap-sm">
+      <ul className="flex flex-col gap-1">
+        {classes.map((c) => (
+          <li key={c.id}>
+            <label className="flex items-center gap-sm rounded-md border border-border p-sm text-sm">
+              <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} className="size-4" />
+              <span className="text-foreground">{c.name}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <Button disabled={busy} onClick={() => void save()}>Save classes</Button>
     </div>
   );
 }

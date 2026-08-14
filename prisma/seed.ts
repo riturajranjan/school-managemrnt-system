@@ -21,6 +21,7 @@ import { seedAcademics } from "./seed-academics";
 import { seedSubjects } from "./seed-subjects";
 import { seedStaff } from "./seed-staff";
 import { seedTimetable } from "./seed-timetable";
+import { seedExams } from "./seed-exams";
 import { seedAttendance } from "./seed-attendance";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
@@ -290,6 +291,11 @@ async function main() {
   // Phase 7 — real bell schedule + timetable entries
   // =========================================================================
   await seedTimetable(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
+
+  // =========================================================================
+  // Phase 8A — real Exam term/exam/class/schedule foundation
+  // =========================================================================
+  await seedExams(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // =========================================================================
   // Phase 5 — real attendance on the seeded sections/enrollments

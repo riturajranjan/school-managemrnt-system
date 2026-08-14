@@ -913,6 +913,59 @@ export type TeachingAssignmentDto = {
   isPrimary: boolean;
 };
 
+// --- Phase 8A: Exams foundation (term / exam / class / schedule) ---
+
+export type ExamTermStatus = "active" | "archived";
+export type ExamType = "unit-test" | "weekly-test" | "monthly-test" | "midterm" | "half-yearly" | "annual" | "pre-board" | "board" | "practical" | "oral" | "assignment" | "project" | "internal-assessment" | "custom";
+export type ExamStatus = "draft" | "scheduled" | "completed" | "archived";
+export type ExamScope = "internal" | "external";
+export type ExamMode = "online" | "offline";
+
+export type ExamTermDto = {
+  id: string;
+  name: string;
+  code: string;
+  order: number;
+  status: ExamTermStatus;
+  examCount: number;
+};
+
+export type ExamListItemDto = {
+  id: string;
+  name: string;
+  code: string;
+  type: ExamType;
+  term: { id: string; name: string };
+  startsOn: string; // YYYY-MM-DD
+  endsOn: string;
+  scope: ExamScope;
+  mode: ExamMode;
+  status: ExamStatus;
+  classCount: number;
+  scheduleCount: number;
+};
+
+export type ExamDetailDto = ExamListItemDto & {
+  description: string | null;
+  classes: { id: string; name: string }[];
+};
+
+export type ExamScheduleEntryDto = {
+  id: string;
+  examId: string;
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  examDate: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string;
+  maxMarks: number;
+  passingMarks: number;
+  theoryMarks: number;
+  practicalMarks: number;
+  invigilator: { id: string; employeeCode: string; name: string } | null;
+  notes: string | null;
+};
+
 // --- Phase 7: Timetable ---
 
 export type Weekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
