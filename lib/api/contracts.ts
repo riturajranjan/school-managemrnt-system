@@ -824,6 +824,45 @@ export type EnrollableStudentDto = {
   sectionLabel: string | null;
 };
 
+// --- Phase 6: Academics Core — Subjects ---
+
+/** Subject UI vocabulary: type is kebab-case, status is active | inactive. */
+export type SubjectType = "core" | "elective" | "optional" | "practical" | "language" | "co-curricular";
+
+export type SubjectDto = {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+  department: string;
+  type: SubjectType;
+  gradeRangeStart: number;
+  gradeRangeEnd: number;
+  credit: number;
+  passingMarks: number;
+  maxMarks: number;
+  theoryMarks: number;
+  practicalMarks: number;
+  color: string;
+  order: number;
+  status: string; // active | inactive
+  /** Number of classes this subject is currently assigned to (real ClassSubject rows). */
+  classCount: number;
+};
+
+/** One class→subject assignment (session-scoped). */
+export type ClassSubjectDto = {
+  id: string;
+  classId: string;
+  className: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  subjectColor: string;
+  isCore: boolean;
+  order: number;
+};
+
 // --- Phase 5: Attendance ---
 
 export type AttendanceSummaryDto = {

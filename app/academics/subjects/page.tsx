@@ -1,13 +1,18 @@
 "use client";
 
+// Subjects (Phase 6) — same visual design as before (DataTable + create/edit/
+// assign/detail drawers) now fully PostgreSQL/API-backed via /api/academics/
+// subjects + /api/academics/classes/[id]/subjects. No mock store, no localStorage.
+// Subject assignment is CLASS-level (sections inherit); teacher assignment,
+// curriculum tracking and lesson-plan/homework activity depend on future modules
+// (Staff, Curriculum, Timetable) and show honest deferred states rather than mock.
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, type UseFormReturn } from "react-hook-form";
-import { Archive, ArchiveRestore, Copy, Eye, FlaskConical, MoreHorizontal, PencilLine, Plus, UserPlus } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Eye, FlaskConical, MoreHorizontal, PencilLine, Plus, Trash2, UserPlus } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef, RowAction } from "@/components/data-table/types";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
-import { TimelineList } from "@/components/timeline/timeline-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,16 +21,21 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { subjectTypeLabels, subjectTypeTone } from "@/components/academics/subjects/subject-meta";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { findClass } from "@/lib/data/seed/reference";
-import { teacherById } from "@/lib/data/seed/academics";
-import { useManagedClasses, useTeachers } from "@/lib/hooks/use-academics";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { curriculumCompletionPercent } from "@/lib/selectors/academics-insights";
+import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
+import {
+  assignClassSubjectRequest,
+  createSubjectRequest,
+  duplicateSubjectRequest,
+  removeClassSubjectRequest,
+  setSubjectStatusRequest,
+  updateSubjectRequest,
+  useSubjectClasses,
+  useSubjects,
+} from "@/lib/hooks/api/use-academics-subjects";
 import { subjectFormSchema, type SubjectFormValues } from "@/lib/schemas/academics-form";
-import { createAssignment, createSubject, duplicateSubject, setSubjectStatus, updateSubject } from "@/lib/services/subjects-service";
-import { progressStatusTone, type Subject } from "@/lib/types/academics";
+import type { SubjectDto, SubjectType } from "@/lib/api/contracts";
 
-const subjectTypeOptions: Subject["type"][] = ["core", "elective", "optional", "practical", "language", "co-curricular"];
+const subjectTypeOptions: SubjectType[] = ["core", "elective", "optional", "practical", "language", "co-curricular"];
 
 function SubjectFormFields({ form }: { form: UseFormReturn<SubjectFormValues> }) {
   return (
@@ -39,6 +49,7 @@ function SubjectFormFields({ form }: { form: UseFormReturn<SubjectFormValues> })
         <div>
           <Label htmlFor="subject-code">Code</Label>
           <Input id="subject-code" {...form.register("code")} />
+          <FieldError>{form.formState.errors.code?.message}</FieldError>
         </div>
         <div>
           <Label htmlFor="subject-short">Short name</Label>
@@ -99,20 +110,14 @@ function SubjectFormFields({ form }: { form: UseFormReturn<SubjectFormValues> })
 }
 
 export default function SubjectsPage() {
-  const db = useSisStore();
-  const classes = useManagedClasses();
-  const teachers = useTeachers();
+  const { data: subjects, loading, error, reload } = useSubjects();
   const { can } = usePermissions();
   const canManage = can("academics.manageSubjects");
   const [createOpen, setCreateOpen] = useState(false);
-  const [detailSubject, setDetailSubject] = useState<Subject | null>(null);
-  const [editSubject, setEditSubject] = useState<Subject | null>(null);
-  const [assignSubject, setAssignSubject] = useState<Subject | null>(null);
-  const [assignClassId, setAssignClassId] = useState("");
-  const [assignSectionId, setAssignSectionId] = useState("");
-  const [assignTeacherId, setAssignTeacherId] = useState("");
-  const [assignWeeklyPeriods, setAssignWeeklyPeriods] = useState(4);
-  const [assignError, setAssignError] = useState("");
+  const [detailSubject, setDetailSubject] = useState<SubjectDto | null>(null);
+  const [editSubject, setEditSubject] = useState<SubjectDto | null>(null);
+  const [assignSubject, setAssignSubject] = useState<SubjectDto | null>(null);
+  const [formError, setFormError] = useState("");
 
   const form = useForm<SubjectFormValues>({
     resolver: zodResolver(subjectFormSchema),
@@ -120,23 +125,20 @@ export default function SubjectsPage() {
   });
   const editForm = useForm<SubjectFormValues>({ resolver: zodResolver(subjectFormSchema) });
 
-  const assignClass = classes.find((c) => c.id === assignClassId);
-
-  function openAssign(subject: Subject) {
-    setAssignSubject(subject);
-    setAssignClassId("");
-    setAssignSectionId("");
-    setAssignTeacherId("");
-    setAssignWeeklyPeriods(4);
-    setAssignError("");
-  }
-
-  function openEdit(subject: Subject) {
+  function openEdit(subject: SubjectDto) {
     setEditSubject(subject);
     editForm.reset(subject);
   }
+  async function archive(subject: SubjectDto, status: "active" | "inactive") {
+    const res = await setSubjectStatusRequest(subject.id, status);
+    if (res.success) reload();
+  }
+  async function duplicate(subject: SubjectDto) {
+    const res = await duplicateSubjectRequest(subject.id);
+    if (res.success) reload();
+  }
 
-  const columns: ColumnDef<Subject>[] = [
+  const columns: ColumnDef<SubjectDto>[] = [
     {
       id: "name",
       header: "Subject",
@@ -158,25 +160,7 @@ export default function SubjectsPage() {
     {
       id: "classes",
       header: "Classes",
-      cell: (s) => <span className="text-sm text-foreground">{new Set(db.subjectAssignments.filter((a) => a.subjectId === s.id).map((a) => a.classId)).size}</span>,
-      defaultVisible: false,
-    },
-    {
-      id: "teachers",
-      header: "Teachers",
-      cell: (s) => <span className="text-sm text-foreground">{new Set(db.subjectAssignments.filter((a) => a.subjectId === s.id).map((a) => a.primaryTeacherId)).size}</span>,
-      defaultVisible: false,
-    },
-    {
-      id: "weeklyPeriods",
-      header: "Weekly periods",
-      cell: (s) => <span className="text-sm text-foreground">{db.subjectAssignments.filter((a) => a.subjectId === s.id).reduce((sum, a) => sum + a.weeklyPeriods, 0)}</span>,
-      defaultVisible: false,
-    },
-    {
-      id: "curriculum",
-      header: "Curriculum completion",
-      cell: (s) => <span className="text-sm text-foreground">{curriculumCompletionPercent(db.curriculumUnits.filter((u) => u.subjectId === s.id))}%</span>,
+      cell: (s) => <span className="text-sm text-foreground">{s.classCount}</span>,
       defaultVisible: false,
     },
     {
@@ -189,28 +173,27 @@ export default function SubjectsPage() {
     { id: "status", header: "Status", align: "right", cell: (s) => <Badge tone={s.status === "active" ? "success" : "neutral"}>{s.status}</Badge> },
   ];
 
-  const rowActions: RowAction<Subject>[] = [
+  const rowActions: RowAction<SubjectDto>[] = [
     { key: "view", label: "View", icon: <Eye className="size-3.5" />, onSelect: setDetailSubject },
     ...(canManage
       ? [
           { key: "edit", label: "Edit", icon: <PencilLine className="size-3.5" />, onSelect: openEdit },
-          { key: "assign-teacher", label: "Assign teacher", icon: <UserPlus className="size-3.5" />, onSelect: openAssign },
-          { key: "assign-classes", label: "Assign classes", icon: <UserPlus className="size-3.5" />, onSelect: openAssign },
-          { key: "duplicate", label: "Duplicate", icon: <Copy className="size-3.5" />, onSelect: (s: Subject) => duplicateSubject(s.id) },
+          { key: "assign-classes", label: "Assign to class", icon: <UserPlus className="size-3.5" />, onSelect: (s: SubjectDto) => setAssignSubject(s) },
+          { key: "duplicate", label: "Duplicate", icon: <Copy className="size-3.5" />, onSelect: (s: SubjectDto) => void duplicate(s) },
           {
             key: "archive",
             label: "Archive",
             icon: <Archive className="size-3.5" />,
-            hidden: (s: Subject) => s.status !== "active",
+            hidden: (s: SubjectDto) => s.status !== "active",
             destructive: true,
-            onSelect: (s: Subject) => setSubjectStatus(s.id, "inactive"),
+            onSelect: (s: SubjectDto) => void archive(s, "inactive"),
           },
           {
             key: "restore",
             label: "Restore",
             icon: <ArchiveRestore className="size-3.5" />,
-            hidden: (s: Subject) => s.status !== "inactive",
-            onSelect: (s: Subject) => setSubjectStatus(s.id, "active"),
+            hidden: (s: SubjectDto) => s.status !== "inactive",
+            onSelect: (s: SubjectDto) => void archive(s, "active"),
           },
         ]
       : []),
@@ -223,68 +206,77 @@ export default function SubjectsPage() {
           <h1 className="text-lg font-semibold text-foreground">Subjects</h1>
           <p className="text-xs text-muted-foreground">Subject catalogue and class assignments</p>
         </div>
-        {can("academics.manageSubjects") && (
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+        {canManage && (
+          <Button size="sm" onClick={() => { setFormError(""); form.reset({ type: "core", gradeRangeStart: 1, gradeRangeEnd: 10, credit: 4, passingMarks: 33, maxMarks: 100, theoryMarks: 100, practicalMarks: 0, color: "#18b0c8" }); setCreateOpen(true); }}>
             <Plus className="size-3.5" />
             Add subject
           </Button>
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={db.subjects}
-        getRowId={(s) => s.id}
-        caption="Subjects"
-        onRowClick={setDetailSubject}
-        rowActions={rowActions}
-        renderMobileCard={(s) => (
-          <div className="surface-3d flex w-full items-center gap-sm rounded-lg border border-border bg-surface p-sm active:scale-[0.99]">
-            <button type="button" onClick={() => setDetailSubject(s)} className="flex min-w-0 flex-1 items-center gap-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <span className="size-3 shrink-0 rounded-pill" style={{ backgroundColor: s.color }} aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-xs">
-                  <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
-                  <Badge tone={subjectTypeTone[s.type]}>{subjectTypeLabels[s.type]}</Badge>
+      {error && !loading && <p className="rounded-lg border border-dashed border-error/40 p-md text-center text-sm text-error">Could not load subjects: {error}</p>}
+      {loading && <p className="py-2xl text-center text-sm text-muted-foreground">Loading subjects…</p>}
+
+      {!loading && !error && (
+        <DataTable
+          columns={columns}
+          rows={subjects}
+          getRowId={(s) => s.id}
+          caption="Subjects"
+          onRowClick={setDetailSubject}
+          rowActions={rowActions}
+          renderMobileCard={(s) => (
+            <div className="surface-3d flex w-full items-center gap-sm rounded-lg border border-border bg-surface p-sm active:scale-[0.99]">
+              <button type="button" onClick={() => setDetailSubject(s)} className="flex min-w-0 flex-1 items-center gap-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <span className="size-3 shrink-0 rounded-pill" style={{ backgroundColor: s.color }} aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-xs">
+                    <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
+                    <Badge tone={subjectTypeTone[s.type]}>{subjectTypeLabels[s.type]}</Badge>
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {s.code} · Grades {s.gradeRangeStart}–{s.gradeRangeEnd}
+                  </p>
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {s.code} · Grades {s.gradeRangeStart}–{s.gradeRangeEnd}
-                </p>
-              </div>
-            </button>
-            {rowActions.length > 1 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button type="button" className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Actions for ${s.name}`}>
-                    <MoreHorizontal className="size-4" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {rowActions
-                    .filter((action) => !action.hidden?.(s))
-                    .map((action) => (
-                      <DropdownMenuItem key={action.key} onSelect={() => action.onSelect(s)} className={action.destructive ? "text-error" : undefined}>
-                        {action.icon}
-                        {action.label}
-                      </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        )}
-        emptyTitle="No subjects yet"
-      />
+              </button>
+              {rowActions.length > 1 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Actions for ${s.name}`}>
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {rowActions
+                      .filter((action) => !action.hidden?.(s))
+                      .map((action) => (
+                        <DropdownMenuItem key={action.key} onSelect={() => action.onSelect(s)} className={action.destructive ? "text-error" : undefined}>
+                          {action.icon}
+                          {action.label}
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )}
+          emptyTitle="No subjects yet"
+        />
+      )}
 
       <DetailDrawer open={createOpen} onOpenChange={setCreateOpen} title="Add subject" description="Define a new subject in the catalogue">
         <form
-          onSubmit={form.handleSubmit((values) => {
-            createSubject(values);
+          onSubmit={form.handleSubmit(async (values) => {
+            setFormError("");
+            const res = await createSubjectRequest(values);
+            if (!res.success) { setFormError(res.error.message); return; }
             setCreateOpen(false);
             form.reset();
+            reload();
           })}
           className="flex flex-col gap-sm"
         >
+          {formError && <p className="text-xs text-error">{formError}</p>}
           <SubjectFormFields form={form} />
           <Button type="submit">Create subject</Button>
         </form>
@@ -292,196 +284,164 @@ export default function SubjectsPage() {
 
       <DetailDrawer open={editSubject !== null} onOpenChange={(open) => !open && setEditSubject(null)} title={`Edit ${editSubject?.name ?? ""}`} description="Update this subject's details">
         <form
-          onSubmit={editForm.handleSubmit((values) => {
+          onSubmit={editForm.handleSubmit(async (values) => {
             if (!editSubject) return;
-            updateSubject(editSubject.id, values);
+            setFormError("");
+            const res = await updateSubjectRequest(editSubject.id, values);
+            if (!res.success) { setFormError(res.error.message); return; }
             setEditSubject(null);
+            reload();
           })}
           className="flex flex-col gap-sm"
         >
+          {formError && <p className="text-xs text-error">{formError}</p>}
           <SubjectFormFields form={editForm} />
           <Button type="submit">Save changes</Button>
         </form>
       </DetailDrawer>
 
-      <DetailDrawer open={assignSubject !== null} onOpenChange={(open) => !open && setAssignSubject(null)} title={`Assign — ${assignSubject?.name ?? ""}`} description="Add this subject to a class section with a teacher">
-        <div className="flex flex-col gap-sm">
-          {assignError && (
-            <p className="text-xs text-error">{assignError}</p>
-          )}
-          <div>
-            <Label>Class</Label>
-            <Select value={assignClassId} onValueChange={(v) => { setAssignClassId(v); setAssignSectionId(""); }}>
-              <SelectTrigger aria-label="Class">
-                <SelectValue placeholder="Select class" />
-              </SelectTrigger>
-              <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Section</Label>
-            <Select value={assignSectionId} onValueChange={setAssignSectionId} disabled={!assignClass}>
-              <SelectTrigger aria-label="Section">
-                <SelectValue placeholder="Select section" />
-              </SelectTrigger>
-              <SelectContent>
-                {assignClass?.sections.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    Section {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Teacher</Label>
-            <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
-              <SelectTrigger aria-label="Teacher">
-                <SelectValue placeholder="Select teacher" />
-              </SelectTrigger>
-              <SelectContent>
-                {teachers.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="assign-weekly-periods">Weekly periods</Label>
-            <Input id="assign-weekly-periods" type="number" min={1} max={10} value={assignWeeklyPeriods} onChange={(e) => setAssignWeeklyPeriods(Number(e.target.value))} />
-          </div>
-          <Button
-            onClick={() => {
-              if (!assignSubject || !assignClass || !assignSectionId || !assignTeacherId) {
-                setAssignError("Select a class, section, and teacher.");
-                return;
-              }
-              const result = createAssignment(
-                { classId: assignClass.id, sectionId: assignSectionId, subjectId: assignSubject.id, primaryTeacherId: assignTeacherId, weeklyPeriods: assignWeeklyPeriods, session: db.students[0]?.session ?? "2026-2027" },
-                assignClass.order,
-              );
-              if ("errors" in result) {
-                setAssignError(result.errors.join(" "));
-                return;
-              }
-              setAssignError("");
-              setAssignSubject(null);
-            }}
-          >
-            Assign
-          </Button>
+      <AssignClassDrawer subject={assignSubject} onClose={() => setAssignSubject(null)} onAssigned={reload} />
+
+      <SubjectDetailDrawer
+        subject={detailSubject}
+        canManage={canManage}
+        onClose={() => setDetailSubject(null)}
+        onAssign={(s) => { setDetailSubject(null); setAssignSubject(s); }}
+        onChanged={reload}
+      />
+    </div>
+  );
+}
+
+/** Assign a subject to a class (class-level; sections inherit). Real ClassSubject. */
+function AssignClassDrawer({ subject, onClose, onAssigned }: { subject: SubjectDto | null; onClose: () => void; onAssigned: () => void }) {
+  const { data: classes } = useClasses();
+  const [classId, setClassId] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function assign() {
+    if (!subject || !classId) { setError("Select a class."); return; }
+    setBusy(true); setError("");
+    const res = await assignClassSubjectRequest(classId, subject.id);
+    setBusy(false);
+    if (!res.success) { setError(res.error.message); return; }
+    setClassId(""); onAssigned(); onClose();
+  }
+
+  return (
+    <DetailDrawer open={subject !== null} onOpenChange={(open) => { if (!open) { setClassId(""); setError(""); onClose(); } }} title={`Assign — ${subject?.name ?? ""}`} description="Add this subject to a class. All sections of the class inherit it.">
+      <div className="flex flex-col gap-sm">
+        {error && <p className="text-xs text-error">{error}</p>}
+        <div>
+          <Label>Class</Label>
+          <Select value={classId} onValueChange={setClassId}>
+            <SelectTrigger aria-label="Class">
+              <SelectValue placeholder="Select class" />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </DetailDrawer>
+        <p className="text-xs text-muted-foreground">
+          Teacher assignment and weekly periods arrive with the Staff and Timetable modules.
+        </p>
+        <Button disabled={busy || !classId} onClick={() => void assign()}>
+          Assign
+        </Button>
+      </div>
+    </DetailDrawer>
+  );
+}
 
-      <DetailDrawer
-        open={detailSubject !== null}
-        onOpenChange={(open) => !open && setDetailSubject(null)}
-        title={detailSubject?.name ?? ""}
-        description={detailSubject ? `${detailSubject.code} · ${subjectTypeLabels[detailSubject.type]}` : ""}
-      >
-        {detailSubject && (
-          <div className="flex flex-col gap-md">
-            <div className="grid grid-cols-2 gap-sm text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Grade range</p>
-                <p className="text-foreground">{detailSubject.gradeRangeStart}–{detailSubject.gradeRangeEnd}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Max / passing marks</p>
-                <p className="text-foreground">{detailSubject.maxMarks} / {detailSubject.passingMarks}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Weekly periods</p>
-                <p className="text-foreground">{db.subjectAssignments.filter((a) => a.subjectId === detailSubject.id).reduce((sum, a) => sum + a.weeklyPeriods, 0)} total across all sections</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Lab requirement</p>
-                <p className="text-foreground">
-                  {detailSubject.type === "practical" ? (
-                    <span className="flex items-center gap-1 text-warning">
-                      <FlaskConical className="size-3.5" /> Requires a laboratory
-                    </span>
-                  ) : (
-                    "Not required"
-                  )}
-                </p>
-              </div>
-            </div>
+function SubjectDetailDrawer({ subject, canManage, onClose, onAssign, onChanged }: { subject: SubjectDto | null; canManage: boolean; onClose: () => void; onAssign: (s: SubjectDto) => void; onChanged: () => void }) {
+  const { data: assignedClasses, loading, reload } = useSubjectClasses(subject?.id);
+  const rows = assignedClasses ?? [];
 
+  async function remove(assignmentId: string, classId: string) {
+    const res = await removeClassSubjectRequest(classId, assignmentId);
+    if (res.success) { reload(); onChanged(); }
+  }
+
+  return (
+    <DetailDrawer
+      open={subject !== null}
+      onOpenChange={(open) => !open && onClose()}
+      title={subject?.name ?? ""}
+      description={subject ? `${subject.code} · ${subjectTypeLabels[subject.type]}` : ""}
+    >
+      {subject && (
+        <div className="flex flex-col gap-md">
+          <div className="grid grid-cols-2 gap-sm text-sm">
             <div>
-              <div className="mb-xs flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">Classes &amp; teachers</h3>
-                {canManage && (
-                  <Button size="sm" variant="outline" onClick={() => { openAssign(detailSubject); setDetailSubject(null); }}>
-                    <UserPlus className="size-3.5" />
-                    Assign
-                  </Button>
-                )}
-              </div>
-              <ul className="flex flex-col gap-1">
-                {db.subjectAssignments
-                  .filter((a) => a.subjectId === detailSubject.id)
-                  .map((a) => (
-                    <li key={a.id} className="flex items-center justify-between text-sm">
-                      <span className="text-foreground">
-                        {findClass(a.classId)?.name} · {a.weeklyPeriods} periods/wk
-                      </span>
-                      <span className="text-xs text-muted-foreground">{teacherById(a.primaryTeacherId)?.name}</span>
-                    </li>
-                  ))}
-                {db.subjectAssignments.filter((a) => a.subjectId === detailSubject.id).length === 0 && (
-                  <p className="text-sm text-muted-foreground">Not assigned to any class yet.</p>
-                )}
-              </ul>
+              <p className="text-xs text-muted-foreground">Grade range</p>
+              <p className="text-foreground">{subject.gradeRangeStart}–{subject.gradeRangeEnd}</p>
             </div>
-
             <div>
-              <h3 className="mb-xs text-sm font-semibold text-foreground">Curriculum progress</h3>
-              {db.curriculumUnits.filter((u) => u.subjectId === detailSubject.id).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No curriculum tracked for this subject yet.</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {db.curriculumUnits
-                    .filter((u) => u.subjectId === detailSubject.id)
-                    .map((u) => (
-                      <li key={u.id} className="flex items-center justify-between text-sm">
-                        <span className="text-foreground">
-                          {findClass(u.classId)?.name} — {u.title}
-                        </span>
-                        <Badge tone={progressStatusTone[u.status]}>{u.status.replace("-", " ")}</Badge>
-                      </li>
-                    ))}
-                </ul>
+              <p className="text-xs text-muted-foreground">Max / passing marks</p>
+              <p className="text-foreground">{subject.maxMarks} / {subject.passingMarks}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Department</p>
+              <p className="text-foreground">{subject.department}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Lab requirement</p>
+              <p className="text-foreground">
+                {subject.type === "practical" ? (
+                  <span className="flex items-center gap-1 text-warning">
+                    <FlaskConical className="size-3.5" /> Requires a laboratory
+                  </span>
+                ) : (
+                  "Not required"
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-xs flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Classes</h3>
+              {canManage && (
+                <Button size="sm" variant="outline" onClick={() => onAssign(subject)}>
+                  <UserPlus className="size-3.5" />
+                  Assign
+                </Button>
               )}
             </div>
-
-            <div>
-              <h3 className="mb-xs text-sm font-semibold text-foreground">Recent activity</h3>
-              <TimelineList
-                events={[
-                  ...db.lessonPlans
-                    .filter((p) => p.subjectId === detailSubject.id)
-                    .slice(0, 5)
-                    .map((p) => ({ id: p.id, subjectId: p.id, category: "academic" as const, title: `Lesson plan ${p.status}`, actorName: teacherById(p.teacherId)?.name ?? "Teacher", createdAt: p.updatedAt })),
-                  ...db.homework
-                    .filter((h) => h.subjectId === detailSubject.id)
-                    .slice(0, 5)
-                    .map((h) => ({ id: h.id, subjectId: h.id, category: "academic" as const, title: `Homework "${h.title}" ${h.status}`, actorName: teacherById(h.teacherId)?.name ?? "Teacher", createdAt: h.updatedAt })),
-                ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())}
-                emptyMessage="No recent activity for this subject."
-              />
-            </div>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Not assigned to any class yet.</p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {rows.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between text-sm">
+                    <span className="text-foreground">{a.className}</span>
+                    {canManage && (
+                      <Button size="sm" variant="ghost" className="text-error" onClick={() => void remove(a.id, a.classId)} aria-label={`Remove from ${a.className}`}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        )}
-      </DetailDrawer>
-    </div>
+
+          <div>
+            <h3 className="mb-xs text-sm font-semibold text-foreground">Curriculum &amp; activity</h3>
+            <p className="rounded-lg border border-dashed border-border p-sm text-center text-xs text-muted-foreground">
+              Curriculum tracking, lesson plans and homework activity arrive with their respective modules.
+            </p>
+          </div>
+        </div>
+      )}
+    </DetailDrawer>
   );
 }

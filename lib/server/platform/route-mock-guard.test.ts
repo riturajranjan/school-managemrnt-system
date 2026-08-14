@@ -48,6 +48,12 @@ const MIGRATED_FILES = [
   // so only these two files are guarded — not the whole app/academics dir.
   "app/academics/classes/page.tsx",
   "app/academics/sections/page.tsx",
+  // Phase 6 — the real Subjects catalogue + Class↔Subject assignment surface,
+  // fully backed by /api/academics/subjects + /api/academics/classes/[id]/
+  // subjects (PostgreSQL). It must never reintroduce the mock subjects store/
+  // service/hooks/seed. The class DETAIL page ([classId]) still composes the
+  // mock Subjects/Teachers/Timetable/Homework/Exams tabs and is NOT migrated.
+  "app/academics/subjects/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -72,6 +78,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/attendance-service", why: "mock attendance service" },
   { marker: "data/seed/attendance", why: "mock attendance seed" },
   { marker: "data/seed/reference", why: "mock reference seed (schoolClasses/classLabel)" },
+  // Phase 6 — academics-subjects mock authority (real surfaces must not import).
+  { marker: 'hooks/use-academics"', why: "mock academics hooks (use hooks/api/use-academics-subjects)" },
+  { marker: "services/subjects-service", why: "mock subjects service" },
+  { marker: "data/seed/academics", why: "mock academics seed" },
 ];
 
 function collectSources(dir: string): string[] {

@@ -1703,8 +1703,9 @@ model Class {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  sections    Section[]
-  enrollments Enrollment[]
+  sections      Section[]
+  enrollments   Enrollment[]
+  classSubjects ClassSubject[] // Phase 6 — subjects taught in this class
 
   // One class name per school + academic session.
   @@unique([schoolId, academicSessionId, name])
@@ -1855,4 +1856,86 @@ model AttendanceRecord {
   @@index([enrollmentId])
   @@index([attendanceSessionId])
   @@map("attendance_records")
+}
+
+// ===========================================================================
+// Phase 6 — Academics Core: Subjects. Real, PostgreSQL-backed subject catalog +
+// class-level subject assignment. The Subject catalog is SCHOOL-scoped (a stable
+// catalogue reused across academic sessions); which subjects a Class teaches is
+// the session-scoped ClassSubject join (real FK to Class + Subject). Sections
+// INHERIT their Class's subjects — there is no SectionSubject table. Teacher /
+// timetable / marks assignment is deliberately NOT modelled here (no real Staff
+// entity yet). Org columns are plain indexed strings re-validated in the service
+// (Phase-4 convention); the intra-domain Class↔ClassSubject↔Subject links are FKs.
+// ===========================================================================
+
+enum SubjectType {
+  CORE
+  ELECTIVE
+  OPTIONAL
+  PRACTICAL
+  LANGUAGE
+  CO_CURRICULAR
+}
+
+enum SubjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Subject {
+  id              String        @id @default(cuid())
+  tenantId        String
+  schoolId        String
+  code            String
+  name            String
+  shortName       String
+  department      String
+  type            SubjectType   @default(CORE)
+  gradeRangeStart Int           @default(0)
+  gradeRangeEnd   Int           @default(13)
+  credit          Int           @default(4)
+  passingMarks    Int           @default(33)
+  maxMarks        Int           @default(100)
+  theoryMarks     Int           @default(100)
+  practicalMarks  Int           @default(0)
+  color           String        @default("#18b0c8")
+  order           Int           @default(0)
+  status          SubjectStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  classSubjects ClassSubject[]
+
+  // One subject code per school (catalogue is school-wide, reused across sessions).
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("subjects")
+}
+
+model ClassSubject {
+  id                String  @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  classId           String
+  subjectId         String
+  isCore            Boolean @default(true)
+  order             Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  // A subject is assigned to a class at most once.
+  @@unique([classId, subjectId])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([classId])
+  @@index([subjectId])
+  @@map("class_subjects")
 }
