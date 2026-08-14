@@ -1733,6 +1733,7 @@ model Section {
   enrollments         Enrollment[]
   attendanceSessions  AttendanceSession[] // Phase 5 — attendance
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
+  timetableEntries    TimetableEntry[] // Phase 7 — timetable
 
   // One section name per class.
   @@unique([classId, name])
@@ -1910,6 +1911,7 @@ model Subject {
 
   classSubjects       ClassSubject[]
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
+  timetableEntries    TimetableEntry[] // Phase 7 — timetable
 
   // One subject code per school (catalogue is school-wide, reused across sessions).
   @@unique([schoolId, code])
@@ -1992,6 +1994,7 @@ model Staff {
 
   user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   teachingAssignments TeachingAssignment[]
+  timetableEntries    TimetableEntry[] // Phase 7 — timetable
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2021,9 +2024,10 @@ model TeachingAssignment {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  staff   Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  section          Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject          Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staff            Staff            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  timetableEntries TimetableEntry[] // Phase 7 — timetable (Restrict: can't remove a scheduled assignment)
 
   @@unique([sectionId, subjectId, staffId])
   @@index([tenantId])
@@ -2032,4 +2036,102 @@ model TeachingAssignment {
   @@index([subjectId])
   @@index([staffId])
   @@map("teaching_assignments")
+}
+
+// ===========================================================================
+// Phase 7 — Timetable. Two concepts: the daily PERIOD STRUCTURE (bell schedule)
+// and the actual TEACHING SCHEDULE (weekly recurring entries).
+//
+// TimetablePeriod = one column of the school day (branch + session scoped).
+// Times are stored as MINUTES FROM MIDNIGHT (deterministic, timezone-free).
+// Type TEACHING columns hold lessons; BREAK columns (short break / lunch /
+// assembly) cannot hold a teaching entry.
+//
+// TimetableEntry = a lesson: this Staff teaches this Subject to this Section in
+// this Period on this Weekday. teachingAssignmentId is the AUTHORITATIVE relation
+// ("Staff Z may teach Subject Y to Section X") — the denormalized sectionId /
+// subjectId / staffId columns are validated to match it on every write and exist
+// so the two conflict constraints can be enforced by the DATABASE (concurrency-
+// safe, not findFirst→create):
+//   • Section conflict  → @@unique([sectionId, weekday, periodId])
+//   • Teacher conflict  → @@unique([staffId,  weekday, periodId])
+// teachingAssignmentId uses onDelete: Restrict so a scheduled assignment cannot be
+// silently removed (timetable history stays consistent — plan §41). No Room model
+// exists yet, so room scheduling is deferred (no roomId). No draft/publish
+// lifecycle container: entries are live (plan §15/§16 — not overbuilt).
+// ===========================================================================
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum PeriodType {
+  TEACHING
+  BREAK
+}
+
+model TimetablePeriod {
+  id                String     @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+  name              String
+  periodNumber      Int
+  startMinutes      Int // minutes from midnight (e.g. 08:00 → 480)
+  endMinutes        Int
+  type              PeriodType @default(TEACHING)
+  order             Int        @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  entries TimetableEntry[]
+
+  // One period number per branch/session bell schedule.
+  @@unique([schoolId, branchId, academicSessionId, periodNumber])
+  @@index([tenantId])
+  @@index([schoolId, branchId, academicSessionId])
+  @@map("timetable_periods")
+}
+
+model TimetableEntry {
+  id                   String  @id @default(cuid())
+  tenantId             String
+  schoolId             String
+  branchId             String
+  academicSessionId    String
+  sectionId            String
+  subjectId            String
+  staffId              String
+  teachingAssignmentId String
+  periodId             String
+  weekday              Weekday
+  notes                String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  section            Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject            Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staff              Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+  period             TimetablePeriod    @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  // DB-enforced conflict prevention (concurrency-safe).
+  @@unique([sectionId, weekday, periodId]) // a section: one lesson per weekday+period
+  @@unique([staffId, weekday, periodId]) // a teacher: one place per weekday+period
+  @@index([tenantId])
+  @@index([schoolId, branchId, academicSessionId])
+  @@index([sectionId])
+  @@index([staffId])
+  @@index([periodId])
+  @@index([teachingAssignmentId])
+  @@map("timetable_entries")
 }

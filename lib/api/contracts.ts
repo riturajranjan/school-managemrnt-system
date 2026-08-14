@@ -913,6 +913,49 @@ export type TeachingAssignmentDto = {
   isPrimary: boolean;
 };
 
+// --- Phase 7: Timetable ---
+
+export type Weekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+export type PeriodType = "teaching" | "break";
+
+export type TimetablePeriodDto = {
+  id: string;
+  name: string;
+  periodNumber: number;
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  startMinutes: number;
+  endMinutes: number;
+  type: PeriodType;
+  order: number;
+};
+
+export type TimetableEntryDto = {
+  id: string;
+  weekday: Weekday;
+  periodId: string;
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  staff: { id: string; employeeCode: string; name: string };
+  teachingAssignmentId: string;
+  notes: string | null;
+};
+
+/** Grid-friendly section timetable: the bell columns, the weekdays, and entries. */
+export type SectionTimetableDto = {
+  section: { id: string; name: string; classId: string; className: string };
+  weekdays: Weekday[];
+  periods: TimetablePeriodDto[];
+  entries: TimetableEntryDto[];
+};
+
+export type TeacherTimetableDto = {
+  staff: { id: string; employeeCode: string; name: string };
+  weekdays: Weekday[];
+  periods: TimetablePeriodDto[];
+  entries: TimetableEntryDto[];
+};
+
 // --- Phase 5: Attendance ---
 
 export type AttendanceSummaryDto = {

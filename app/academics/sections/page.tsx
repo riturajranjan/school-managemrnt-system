@@ -25,7 +25,8 @@ import {
 } from "@/lib/hooks/api/use-academics-foundation";
 import { useSectionSubjects } from "@/lib/hooks/api/use-academics-subjects";
 import { assignTeacherRequest, removeTeacherRequest, useTeachingAssignments, useTeachingStaff } from "@/lib/hooks/api/use-staff";
-import type { SectionDto } from "@/lib/api/contracts";
+import { createEntryRequest, deleteEntryRequest, useSectionTimetable } from "@/lib/hooks/api/use-timetable-api";
+import type { SectionDto, Weekday } from "@/lib/api/contracts";
 
 function SectionsInner() {
   const classIdFilter = useSearchParams().get("classId") ?? undefined;
@@ -39,6 +40,7 @@ function SectionsInner() {
   const [capacity, setCapacity] = useState("40");
   const [rosterSection, setRosterSection] = useState<SectionDto | null>(null);
   const [teachSection, setTeachSection] = useState<SectionDto | null>(null);
+  const [ttSection, setTtSection] = useState<SectionDto | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function addSection() {
@@ -79,6 +81,7 @@ function SectionsInner() {
               <div className="flex items-center gap-sm">
                 <Badge tone={s.status === "active" ? "success" : "neutral"}>{s.status}</Badge>
                 <Button size="sm" variant="outline" onClick={() => setTeachSection(s)}>Teachers</Button>
+                <Button size="sm" variant="outline" onClick={() => setTtSection(s)}>Timetable</Button>
                 <Button size="sm" variant="outline" onClick={() => setRosterSection(s)}>Manage roster</Button>
               </div>
             </div>
@@ -109,7 +112,112 @@ function SectionsInner() {
 
       <RosterDrawer section={rosterSection} onClose={() => { setRosterSection(null); reload(); }} canManage={canManage} />
       <TeachersDrawer section={teachSection} onClose={() => setTeachSection(null)} canManage={canManage} />
+      <TimetableDrawer section={ttSection} onClose={() => setTtSection(null)} canManage={can("timetable.manage")} />
     </div>
+  );
+}
+
+const WEEKDAY_LABEL: Record<Weekday, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+
+/** Real section timetable: real bell periods, real ClassSubject-derived subjects,
+ *  teachers constrained by real TeachingAssignments; server prevents conflicts. */
+function TimetableDrawer({ section, onClose, canManage }: { section: SectionDto | null; onClose: () => void; canManage: boolean }) {
+  const { data: timetable, loading, reload } = useSectionTimetable(section?.id);
+  const { data: assignments } = useTeachingAssignments(section?.id);
+  const [weekday, setWeekday] = useState<Weekday>("monday");
+  const [periodId, setPeriodId] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const teachingPeriods = (timetable?.periods ?? []).filter((p) => p.type === "teaching");
+  const subjects = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const a of assignments ?? []) seen.set(a.subjectId, a.subjectName);
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [assignments]);
+  const teachersForSubject = (assignments ?? []).filter((a) => a.subjectId === subjectId);
+  const entries = timetable?.entries ?? [];
+
+  async function add() {
+    if (!section || !periodId || !subjectId || !staffId) { setErr("Select a period, subject and teacher."); return; }
+    setBusy(true); setErr(null);
+    const res = await createEntryRequest({ sectionId: section.id, subjectId, staffId, periodId, weekday });
+    setBusy(false);
+    if (!res.success) { setErr(res.error.message); return; }
+    setSubjectId(""); setStaffId(""); reload();
+  }
+  async function remove(entryId: string) {
+    setBusy(true); setErr(null);
+    const res = await deleteEntryRequest(entryId);
+    setBusy(false);
+    if (!res.success) { setErr(res.error.message); return; }
+    reload();
+  }
+
+  return (
+    <DetailDrawer open={Boolean(section)} onOpenChange={(o) => { if (!o) { setErr(null); setSubjectId(""); setStaffId(""); onClose(); } }} title={section ? `${section.className} — Section ${section.name}` : ""} description="Weekly timetable (real periods, subjects and assigned teachers)">
+      <div className="flex flex-col gap-sm">
+        {err && <p className="text-xs text-error">{err}</p>}
+        {canManage && (
+          <div className="flex flex-col gap-sm rounded-lg border border-border p-sm">
+            <div className="grid grid-cols-2 gap-sm">
+              <div>
+                <Label>Weekday</Label>
+                <Select value={weekday} onValueChange={(v) => setWeekday(v as Weekday)}>
+                  <SelectTrigger aria-label="Weekday"><SelectValue /></SelectTrigger>
+                  <SelectContent>{(timetable?.weekdays ?? []).map((d) => <SelectItem key={d} value={d}>{WEEKDAY_LABEL[d]}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Period</Label>
+                <Select value={periodId} onValueChange={setPeriodId}>
+                  <SelectTrigger aria-label="Period"><SelectValue placeholder="Period" /></SelectTrigger>
+                  <SelectContent>{teachingPeriods.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.startTime}–{p.endTime})</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Subject</Label>
+              <Select value={subjectId} onValueChange={(v) => { setSubjectId(v); setStaffId(""); }}>
+                <SelectTrigger aria-label="Subject"><SelectValue placeholder={subjects.length ? "Select subject" : "No assigned teachers yet"} /></SelectTrigger>
+                <SelectContent>{subjects.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Teacher</Label>
+              <Select value={staffId} onValueChange={setStaffId} disabled={!subjectId}>
+                <SelectTrigger aria-label="Teacher"><SelectValue placeholder="Select teacher" /></SelectTrigger>
+                <SelectContent>{teachersForSubject.map((a) => <SelectItem key={a.staffId} value={a.staffId}>{a.staffName} · {a.staffEmployeeCode}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">Only subjects offered to this class and their assigned teachers can be scheduled. Room scheduling arrives with the Facilities module.</p>
+            <Button size="sm" disabled={busy || !periodId || !subjectId || !staffId} onClick={() => void add()}>Add lesson</Button>
+          </div>
+        )}
+        {loading ? (
+          <p className="py-lg text-center text-sm text-muted-foreground">Loading timetable…</p>
+        ) : entries.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No lessons scheduled yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-xs">
+            {entries.map((e) => {
+              const period = (timetable?.periods ?? []).find((p) => p.id === e.periodId);
+              return (
+                <li key={e.id} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground"><span className="mr-2 inline-block size-2 rounded-pill align-middle" style={{ backgroundColor: e.subject.color }} aria-hidden="true" />{e.subject.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{WEEKDAY_LABEL[e.weekday]} · {period?.name ?? "—"} · {e.staff.name}</p>
+                  </div>
+                  {canManage && <Button size="sm" variant="ghost" className="text-error" disabled={busy} onClick={() => void remove(e.id)} aria-label="Remove lesson"><Trash2 className="size-3.5" /></Button>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </DetailDrawer>
   );
 }
 

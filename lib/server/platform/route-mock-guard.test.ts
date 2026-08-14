@@ -86,6 +86,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/hr-service", why: "mock HR/staff service" },
   { marker: 'hooks/use-hr"', why: "mock HR hooks" },
   { marker: "data/seed/hr", why: "mock HR/staff seed" },
+  // Phase 7 — timetable mock authority (real surfaces must use hooks/api/use-timetable-api).
+  { marker: 'hooks/use-timetable"', why: "mock timetable hooks" },
+  { marker: "services/timetable-service", why: "mock timetable service" },
+  { marker: "data/seed/timetable", why: "mock timetable seed" },
 ];
 
 function collectSources(dir: string): string[] {
