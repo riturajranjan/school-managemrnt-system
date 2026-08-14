@@ -54,6 +54,12 @@ const MIGRATED_FILES = [
   // service/hooks/seed. The class DETAIL page ([classId]) still composes the
   // mock Subjects/Teachers/Timetable/Homework/Exams tabs and is NOT migrated.
   "app/academics/subjects/page.tsx",
+  // Phase 7B.2 — the real Timetable builder + view, fully backed by
+  // /api/timetable/* (PostgreSQL). No mock timetable store/service/hooks/seed,
+  // no client conflict engine. The academics DASHBOARD + class DETAIL stay mock.
+  "app/academics/timetable/page.tsx",
+  "app/academics/timetable/create/page.tsx",
+  "components/academics/timetable/real-timetable-grid.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
