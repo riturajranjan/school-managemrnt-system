@@ -10,6 +10,7 @@ import type {
   AttendanceReportDto,
   AttendanceReportType,
   AttendanceSessionViewDto,
+  PeriodLessonDto,
   SectionDto,
   StudentAttendanceSummaryDto,
 } from "@/lib/api/contracts";
@@ -27,6 +28,15 @@ export function useAttendanceSession(sectionId: string | undefined, date: string
 
 export const createAttendanceSessionRequest = (sectionId: string, date: string): Promise<ApiResult<AttendanceSessionViewDto>> =>
   apiPost<AttendanceSessionViewDto>("/api/attendance/sessions", { sectionId, date });
+
+/** Real scheduled teaching lessons for a section on a date (period attendance). */
+export function usePeriodLessons(sectionId: string | undefined, date: string | undefined) {
+  const url = sectionId && date ? `/api/attendance/period-lessons?sectionId=${encodeURIComponent(sectionId)}&date=${encodeURIComponent(date)}` : null;
+  return useApiResource<PeriodLessonDto[]>(url);
+}
+/** Get-or-create the PERIOD attendance session for a real timetable lesson + date. */
+export const createPeriodSessionRequest = (timetableEntryId: string, date: string): Promise<ApiResult<AttendanceSessionViewDto>> =>
+  apiPost<AttendanceSessionViewDto>("/api/attendance/sessions", { type: "period", timetableEntryId, date });
 
 export const saveAttendanceRecordsRequest = (
   sessionId: string,

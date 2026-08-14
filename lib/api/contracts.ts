@@ -980,9 +980,18 @@ export type AttendanceRosterEntryDto = {
   remarks: string | null;
 };
 
+/** Period-attendance lesson context (from the AttendanceSession snapshot). */
+export type AttendanceLessonDto = {
+  timetableEntryId: string | null;
+  subject: { id: string | null; code: string | null; name: string | null };
+  period: { id: string | null; name: string | null };
+  teacher: { id: string | null; name: string | null };
+};
+
 export type AttendanceSessionDto = {
   id: string;
   date: string; // YYYY-MM-DD
+  type: "daily" | "period"; // Phase 7C
   status: string; // draft | submitted | locked
   class: { id: string; name: string };
   section: { id: string; name: string };
@@ -990,15 +999,30 @@ export type AttendanceSessionDto = {
   submittedAt: string | null;
   lockedAt: string | null;
   summary: AttendanceSummaryDto;
+  lesson?: AttendanceLessonDto; // present when type === "period"
 };
 
 export type AttendanceSessionViewDto = {
   session: AttendanceSessionDto | null; // null when no session exists yet for section+date
   date: string;
+  type: "daily" | "period";
   class: { id: string; name: string };
   section: { id: string; name: string };
   roster: AttendanceRosterEntryDto[];
   summary: AttendanceSummaryDto;
+  lesson?: AttendanceLessonDto; // present for a period view
+};
+
+/** One scheduled teaching lesson available for period attendance on a given date. */
+export type PeriodLessonDto = {
+  timetableEntryId: string;
+  weekday: Weekday;
+  period: { id: string; name: string; startTime: string; endTime: string };
+  subject: { id: string; code: string; name: string; color: string };
+  teacher: { id: string; employeeCode: string; name: string };
+  /** The period AttendanceSession already opened for this lesson+date, if any. */
+  sessionId: string | null;
+  status: string | null; // draft | submitted | locked | null
 };
 
 export type AttendanceHistoryItemDto = AttendanceSessionDto;
@@ -1053,7 +1077,7 @@ export type AttendanceReportType =
 // `columns` in order and reads each value out of the row by column key.
 export type AttendanceReportRow = Record<string, string | number>;
 export type AttendanceReportDto = {
-  type: AttendanceReportType;
+  type: AttendanceReportType | string; // daily report types + Phase-7C period report types
   columns: string[];
   rows: AttendanceReportRow[];
   threshold: number | null; // shortage/consecutive-absence policy value in effect, else null

@@ -68,6 +68,7 @@ const MIGRATED_FILES = [
   "app/attendance/page.tsx",
   "app/attendance/reports/page.tsx",
   "app/attendance/students/page.tsx",
+  "app/attendance/period/page.tsx", // Phase 7C — real period/subject attendance
   "components/attendance/attendance-marker.tsx",
 ];
 

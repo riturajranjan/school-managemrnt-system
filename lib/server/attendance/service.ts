@@ -92,9 +92,10 @@ async function loadRoster(sectionId: string) {
   });
 }
 
-function sessionDto(session: { id: string; date: Date; status: string; markedByName: string | null; submittedAt: Date | null; lockedAt: Date | null }, cls: { id: string; name: string }, sec: { id: string; name: string }, summary: AttendanceSummaryDto): AttendanceSessionDto {
+function sessionDto(session: { id: string; date: Date; type?: string; status: string; markedByName: string | null; submittedAt: Date | null; lockedAt: Date | null }, cls: { id: string; name: string }, sec: { id: string; name: string }, summary: AttendanceSummaryDto): AttendanceSessionDto {
   return {
-    id: session.id, date: dateToUi(session.date), status: session.status.toLowerCase(),
+    id: session.id, date: dateToUi(session.date), type: (session.type ?? "DAILY").toLowerCase() as "daily" | "period",
+    status: session.status.toLowerCase(),
     class: cls, section: sec, markedByName: session.markedByName,
     submittedAt: session.submittedAt ? session.submittedAt.toISOString() : null,
     lockedAt: session.lockedAt ? session.lockedAt.toISOString() : null,
@@ -110,8 +111,10 @@ export async function getSessionView(scope: OrgScope, sectionId: string, dateStr
   const date = parseAttendanceDate(dateStr);
 
   const [session, roster] = await Promise.all([
-    prisma.attendanceSession.findUnique({
-      where: { sectionId_date: { sectionId, date } },
+    // DAILY register for this section+date (partial-unique enforced; findFirst since
+    // the compound unique is now a partial index Prisma cannot address by key).
+    prisma.attendanceSession.findFirst({
+      where: { sectionId, date, type: "DAILY" },
       include: { records: { select: { studentId: true, status: true, remarks: true } } },
     }),
     loadRoster(sectionId),
@@ -132,8 +135,65 @@ export async function getSessionView(scope: OrgScope, sectionId: string, dateStr
   const sec = { id: section.id, name: section.name };
   return {
     session: session ? sessionDto(session, cls, sec, summary) : null,
-    date: dateStr, class: cls, section: sec, roster: rosterDto, summary,
+    date: dateStr, type: "daily", class: cls, section: sec, roster: rosterDto, summary,
   };
+}
+
+// ── Period session view + contextual authorization (Phase 7C) ────────────────
+
+/** Columns loaded for a PERIOD session (id + status + immutable lesson snapshot). */
+export const PERIOD_SESSION_SELECT = {
+  id: true, sectionId: true, date: true, type: true, status: true, markedByName: true, submittedAt: true, lockedAt: true,
+  timetableEntryId: true, periodId: true, periodName: true, subjectId: true, subjectCode: true, subjectName: true, staffId: true, staffName: true,
+  records: { select: { studentId: true, status: true, remarks: true } },
+} satisfies Prisma.AttendanceSessionSelect;
+type PeriodSessionRow = Prisma.AttendanceSessionGetPayload<{ select: typeof PERIOD_SESSION_SELECT }>;
+
+/** Build the grid view for a PERIOD session (roster from real Enrollment + lesson snapshot). */
+export async function periodSessionView(scope: OrgScope, session: PeriodSessionRow): Promise<AttendanceSessionViewDto> {
+  const section = await requireSectionInScope(scope, session.sectionId);
+  const roster = await loadRoster(section.id);
+  const recByStudent = new Map(session.records.map((r) => [r.studentId, r]));
+  const rosterDto: AttendanceRosterEntryDto[] = roster.map((e) => {
+    const rec = recByStudent.get(e.studentId);
+    return {
+      studentId: e.studentId, enrollmentId: e.id, name: `${e.student.firstName} ${e.student.lastName}`.trim(),
+      admissionNumber: e.student.admissionNumber, rollNumber: e.rollNumber ?? e.student.rollNumber,
+      status: rec ? statusToUi(rec.status) : null, remarks: rec?.remarks ?? null,
+    };
+  });
+  const summary = computeSummary(session.records);
+  const cls = { id: section.class.id, name: section.class.name };
+  const sec = { id: section.id, name: section.name };
+  const lesson = {
+    timetableEntryId: session.timetableEntryId,
+    subject: { id: session.subjectId, code: session.subjectCode, name: session.subjectName },
+    period: { id: session.periodId, name: session.periodName },
+    teacher: { id: session.staffId, name: session.staffName },
+  };
+  return {
+    session: { ...sessionDto(session, cls, sec, summary), lesson },
+    date: dateToUi(session.date), type: "period", class: cls, section: sec, roster: rosterDto, summary, lesson,
+  };
+}
+
+/** True if the actor holds a broad attendance-managing role (SCHOOL_ADMIN/PRINCIPAL). */
+async function isBroadAttendanceManager(scope: OrgScope): Promise<boolean> {
+  const m = await prisma.roleAssignment.findFirst({
+    where: { membership: { userId: scope.actor.id, tenantId: scope.tenantId, status: "ACTIVE" }, role: { key: { in: ["SCHOOL_ADMIN", "PRINCIPAL"] } } },
+    select: { id: true },
+  });
+  return Boolean(m);
+}
+
+/** Contextual authz for mutating a PERIOD session: a teacher may mutate only their
+ *  OWN lesson (their linked Staff = the lesson's teacher); admins/principals broad. */
+export async function assertCanMutatePeriodSession(scope: OrgScope, session: { type: string; staffId: string | null }): Promise<void> {
+  if (session.type !== "PERIOD") return;
+  if (await isBroadAttendanceManager(scope)) return;
+  const staff = await prisma.staff.findFirst({ where: { userId: scope.actor.id, schoolId: scope.schoolId }, select: { id: true } });
+  if (staff && session.staffId && staff.id === session.staffId) return;
+  throw new HttpError("FORBIDDEN", "You can only mark attendance for your own scheduled lessons");
 }
 
 // ── Get-or-create session (race-safe) ────────────────────────────────────────
@@ -143,17 +203,17 @@ export async function createOrGetSession(scope: OrgScope, sectionId: string, dat
   const section = await requireSectionInScope(scope, sectionId);
   const date = parseAttendanceDate(dateStr);
 
-  const existing = await prisma.attendanceSession.findUnique({ where: { sectionId_date: { sectionId, date } }, select: { id: true } });
+  const existing = await prisma.attendanceSession.findFirst({ where: { sectionId, date, type: "DAILY" }, select: { id: true } });
   if (!existing) {
     try {
       await prisma.$transaction(async (tx) => {
         const created = await tx.attendanceSession.create({
-          data: { tenantId: scope.tenantId, schoolId: section.schoolId, branchId: section.branchId, academicSessionId: section.academicSessionId, sectionId, date, status: "DRAFT", markedByUserId: actor.id, markedByName: actor.name },
+          data: { tenantId: scope.tenantId, schoolId: section.schoolId, branchId: section.branchId, academicSessionId: section.academicSessionId, sectionId, date, type: "DAILY", status: "DRAFT", markedByUserId: actor.id, markedByName: actor.name },
         });
         await recordAudit(tx, scope, "ATTENDANCE_SESSION_CREATED", "AttendanceSession", created.id, { sectionId, date: dateStr });
       });
     } catch (e) {
-      // Concurrent create → unique(sectionId, date) violation → fall through to read.
+      // Concurrent create → partial-unique(DAILY, sectionId, date) violation → fall through to read.
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
     }
   }
@@ -165,22 +225,23 @@ export async function createOrGetSession(scope: OrgScope, sectionId: string, dat
 async function requireSessionInScope(scope: OrgScope, sessionId: string) {
   const s = await prisma.attendanceSession.findFirst({
     where: { id: sessionId, schoolId: scope.schoolId, academicSessionId: requireSession(scope), ...(scope.branchId ? { branchId: scope.branchId } : {}) },
-    select: { id: true, sectionId: true, status: true },
+    select: { id: true, sectionId: true, status: true, type: true, staffId: true },
   });
   if (!s) throw new HttpError("ATTENDANCE_SESSION_NOT_FOUND", "Attendance session not found");
   return s;
 }
 
+/** Type-aware session view by id (DAILY → section+date view; PERIOD → lesson view). */
 export async function getSessionDetail(scope: OrgScope, sessionId: string): Promise<AttendanceSessionViewDto> {
   await requireAttendanceFeature(scope);
-  const s = await requireSessionInScope(scope, sessionId);
-  const section = await requireSectionInScope(scope, s.sectionId);
-  return getSessionView(scope, section.id, dateToUiFromSession(await sessionDate(sessionId)));
+  const s = await prisma.attendanceSession.findFirst({
+    where: { id: sessionId, schoolId: scope.schoolId, academicSessionId: requireSession(scope), ...(scope.branchId ? { branchId: scope.branchId } : {}) },
+    select: PERIOD_SESSION_SELECT,
+  });
+  if (!s) throw new HttpError("ATTENDANCE_SESSION_NOT_FOUND", "Attendance session not found");
+  if (s.type === "PERIOD") return periodSessionView(scope, s);
+  return getSessionView(scope, s.sectionId, dateToUi(s.date));
 }
-async function sessionDate(sessionId: string): Promise<Date> {
-  return (await prisma.attendanceSession.findUniqueOrThrow({ where: { id: sessionId }, select: { date: true } })).date;
-}
-const dateToUiFromSession = (d: Date) => d.toISOString().slice(0, 10);
 
 // ── Bulk marking ─────────────────────────────────────────────────────────────
 
@@ -188,9 +249,10 @@ export async function saveRecords(scope: OrgScope, sessionId: string, records: {
   await requireAttendanceFeature(scope);
   const session = await prisma.attendanceSession.findFirst({
     where: { id: sessionId, schoolId: scope.schoolId, academicSessionId: requireSession(scope), ...(scope.branchId ? { branchId: scope.branchId } : {}) },
-    select: { id: true, sectionId: true, status: true, date: true },
+    select: { id: true, sectionId: true, status: true, date: true, type: true, staffId: true },
   });
   if (!session) throw new HttpError("ATTENDANCE_SESSION_NOT_FOUND", "Attendance session not found");
+  await assertCanMutatePeriodSession(scope, session); // teacher-ownership for PERIOD sessions
   if (session.status === "LOCKED") throw new HttpError("ATTENDANCE_ALREADY_LOCKED", "This attendance session is locked");
 
   // Validate statuses + resolve every student's ENROLLED enrollment in THIS section.
@@ -219,10 +281,10 @@ export async function saveRecords(scope: OrgScope, sessionId: string, records: {
       });
     }
     await tx.attendanceSession.update({ where: { id: sessionId }, data: { markedByUserId: actor.id, markedByName: actor.name } });
-    await recordAudit(tx, scope, "ATTENDANCE_UPDATED", "AttendanceSession", sessionId, { recordCount: unique.size, date: dateToUi(session.date) });
+    await recordAudit(tx, scope, "ATTENDANCE_UPDATED", "AttendanceSession", sessionId, { type: session.type, recordCount: unique.size, date: dateToUi(session.date) });
   });
 
-  return getSessionView(scope, session.sectionId, dateToUi(session.date));
+  return getSessionDetail(scope, sessionId); // type-aware view (daily or period)
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -230,6 +292,7 @@ export async function saveRecords(scope: OrgScope, sessionId: string, records: {
 export async function submitSession(scope: OrgScope, sessionId: string): Promise<AttendanceSessionViewDto> {
   await requireAttendanceFeature(scope);
   const s = await requireSessionInScope(scope, sessionId);
+  await assertCanMutatePeriodSession(scope, s);
   if (s.status === "LOCKED") throw new HttpError("ATTENDANCE_ALREADY_LOCKED", "This attendance session is locked");
   await prisma.$transaction(async (tx) => {
     await tx.attendanceSession.update({ where: { id: sessionId }, data: { status: "SUBMITTED", submittedAt: new Date() } });
@@ -241,6 +304,7 @@ export async function submitSession(scope: OrgScope, sessionId: string): Promise
 export async function lockSession(scope: OrgScope, sessionId: string): Promise<AttendanceSessionViewDto> {
   await requireAttendanceFeature(scope);
   const s = await requireSessionInScope(scope, sessionId);
+  await assertCanMutatePeriodSession(scope, s);
   if (s.status === "LOCKED") throw new HttpError("INVALID_ATTENDANCE_TRANSITION", "Session is already locked");
   await prisma.$transaction(async (tx) => {
     await tx.attendanceSession.update({ where: { id: sessionId }, data: { status: "LOCKED", lockedAt: new Date() } });
@@ -255,7 +319,9 @@ export type HistoryParams = { page: number; pageSize: number; classId?: string; 
 
 export async function listHistory(scope: OrgScope, params: HistoryParams): Promise<{ data: AttendanceHistoryItemDto[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }> {
   await requireAttendanceFeature(scope);
-  const where: Prisma.AttendanceSessionWhereInput = { schoolId: scope.schoolId, academicSessionId: requireSession(scope) };
+  // Register/history is the DAILY attendance record (period attendance has its own
+  // reporting — daily and period denominators are kept separate, plan §17).
+  const where: Prisma.AttendanceSessionWhereInput = { schoolId: scope.schoolId, academicSessionId: requireSession(scope), type: "DAILY" };
   if (scope.branchId) where.branchId = scope.branchId;
   if (params.sectionId) where.sectionId = params.sectionId;
   if (params.status) where.status = params.status.toUpperCase() as never;
@@ -286,8 +352,10 @@ export async function studentAttendance(scope: OrgScope, studentId: string, opts
   const student = await prisma.student.findFirst({ where: { id: studentId, schoolId: scope.schoolId }, select: { id: true } });
   if (!student) throw new HttpError("NOT_FOUND", "Student not found");
 
+  // Student-360 daily summary counts DAILY sessions only (period attendance is
+  // presented separately with its own denominator — plan §18).
   const records = await prisma.attendanceRecord.findMany({
-    where: { studentId, session: { academicSessionId: requireSession(scope), schoolId: scope.schoolId } },
+    where: { studentId, session: { academicSessionId: requireSession(scope), schoolId: scope.schoolId, type: "DAILY" } },
     select: { status: true, remarks: true, session: { select: { date: true, section: { select: { id: true, name: true, class: { select: { name: true } } } } } } },
     orderBy: [{ session: { date: "desc" } }],
   });

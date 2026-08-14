@@ -15,14 +15,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SeatingView } from "./seating-view";
 import {
   createAttendanceSessionRequest,
+  createPeriodSessionRequest,
   saveAttendanceRecordsRequest,
   submitAttendanceSessionRequest,
   useAttendanceSections,
   useAttendanceSession,
+  usePeriodLessons,
 } from "@/lib/hooks/api/use-attendance";
 import type { AttendanceMode, AttendanceStatus } from "@/lib/types/attendance";
 import { attendanceStatusLabels, attendanceStatusTone } from "@/lib/types/attendance";
-import type { AttendanceRosterEntryDto } from "@/lib/api/contracts";
+import type { AttendanceRosterEntryDto, AttendanceSessionViewDto } from "@/lib/api/contracts";
 import { cn } from "@/lib/utils";
 
 const statusCycle: AttendanceStatus[] = ["present", "absent", "late", "excused", "half-day", "medical-leave", "official-duty"];
@@ -51,7 +53,36 @@ export function AttendanceMarker({ mode }: { mode: AttendanceMode }) {
   const activeSectionId = sectionId || sectionsForClass[0]?.id || "";
 
   const daily = mode === "daily";
-  const { data: sessionView, loading: rosterLoading, error: rosterError, reload } = useAttendanceSession(daily ? activeSectionId : undefined, daily ? date : undefined);
+  const isPeriod = mode === "period";
+
+  // Daily data path (Phase 5).
+  const { data: dailyView, loading: dailyLoading, error: dailyError, reload: reloadDaily } = useAttendanceSession(daily ? activeSectionId : undefined, daily ? date : undefined);
+
+  // Period data path (Phase 7C): real scheduled lessons → get-or-create session.
+  const { data: lessons, loading: lessonsLoading, error: lessonsError } = usePeriodLessons(isPeriod ? activeSectionId : undefined, isPeriod ? date : undefined);
+  const [lessonId, setLessonId] = useState("");
+  const [periodView, setPeriodView] = useState<AttendanceSessionViewDto | null>(null);
+  const [periodLoading, setPeriodLoading] = useState(false);
+
+  async function selectLesson(entryId: string) {
+    setLessonId(entryId); setStatuses({}); setPeriodView(null); setError(null);
+    if (!entryId) return;
+    setPeriodLoading(true);
+    const res = await createPeriodSessionRequest(entryId, date);
+    setPeriodLoading(false);
+    if (!res.success) { setError(res.error.message); return; }
+    setPeriodView(res.data);
+  }
+  async function reloadPeriod() {
+    if (!lessonId) return;
+    const res = await createPeriodSessionRequest(lessonId, date);
+    if (res.success) setPeriodView(res.data);
+  }
+
+  const sessionView = daily ? dailyView : periodView;
+  const rosterLoading = daily ? dailyLoading : periodLoading || lessonsLoading;
+  const rosterError = daily ? dailyError : lessonsError;
+  const reload = daily ? reloadDaily : reloadPeriod;
   const roster: AttendanceRosterEntryDto[] = useMemo(() => sessionView?.roster ?? [], [sessionView]);
 
   function statusFor(studentId: string): AttendanceStatus {
@@ -82,10 +113,17 @@ export function AttendanceMarker({ mode }: { mode: AttendanceMode }) {
       const s = statusFor(r.studentId);
       return { studentId: r.studentId, status: s === "not-marked" ? "present" : s, remarks: notes[r.studentId] || null };
     });
-    // Ensure the session exists (get-or-create), then save + submit.
-    const create = await createAttendanceSessionRequest(activeSectionId, date);
-    if (!create.success || !create.data.session) { setSaving(false); setError(create.success ? "Could not create session" : create.error.message); return; }
-    const sessionId = create.data.session.id;
+    // Resolve the session id: daily → get-or-create by section+date; period → the
+    // session already opened for the selected real lesson.
+    let sessionId: string;
+    if (daily) {
+      const create = await createAttendanceSessionRequest(activeSectionId, date);
+      if (!create.success || !create.data.session) { setSaving(false); setError(create.success ? "Could not create session" : create.error.message); return; }
+      sessionId = create.data.session.id;
+    } else {
+      if (!periodView?.session) { setSaving(false); setError("Select a scheduled lesson first."); return; }
+      sessionId = periodView.session.id;
+    }
     const save = await saveAttendanceRecordsRequest(sessionId, records);
     if (!save.success) { setSaving(false); setError(save.error.message); return; }
     const submit = await submitAttendanceSessionRequest(sessionId);
@@ -94,22 +132,28 @@ export function AttendanceMarker({ mode }: { mode: AttendanceMode }) {
     setStatuses({}); setSaved("Saved and submitted."); reload();
   }
 
-  if (!daily) {
-    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Period &amp; subject attendance will be available with the Timetable module.</p>;
+  if (!daily && !isPeriod) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">This attendance mode isn&apos;t available yet.</p>;
   }
 
   return (
     <div className="flex flex-col gap-md pb-24 sm:pb-0">
       <div className="flex flex-wrap items-center gap-sm rounded-lg border border-border bg-surface p-sm">
-        <Select value={activeClassId} onValueChange={(v) => { setClassId(v); setSectionId(""); setStatuses({}); }}>
+        <Select value={activeClassId} onValueChange={(v) => { setClassId(v); setSectionId(""); setStatuses({}); setLessonId(""); setPeriodView(null); }}>
           <SelectTrigger className="w-36" aria-label="Class"><SelectValue placeholder="Class" /></SelectTrigger>
           <SelectContent>{classes.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
         </Select>
-        <Select value={activeSectionId} onValueChange={(v) => { setSectionId(v); setStatuses({}); }}>
+        <Select value={activeSectionId} onValueChange={(v) => { setSectionId(v); setStatuses({}); setLessonId(""); setPeriodView(null); }}>
           <SelectTrigger className="w-32" aria-label="Section"><SelectValue placeholder="Section" /></SelectTrigger>
           <SelectContent>{sectionsForClass.map((s) => <SelectItem key={s.id} value={s.id}>Section {s.name}</SelectItem>)}</SelectContent>
         </Select>
-        <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); setStatuses({}); }} className="w-40" />
+        <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); setStatuses({}); setLessonId(""); setPeriodView(null); }} className="w-40" />
+        {isPeriod && (
+          <Select value={lessonId} onValueChange={(v) => void selectLesson(v)}>
+            <SelectTrigger className="w-56" aria-label="Lesson"><SelectValue placeholder={(lessons ?? []).length ? "Select lesson" : "No lessons scheduled"} /></SelectTrigger>
+            <SelectContent>{(lessons ?? []).map((l) => <SelectItem key={l.timetableEntryId} value={l.timetableEntryId}>{l.period.name} · {l.subject.name} · {l.teacher.name}</SelectItem>)}</SelectContent>
+          </Select>
+        )}
 
         <div className="ml-auto flex items-center gap-1 rounded-md bg-surface-secondary p-1">
           {(["list", "grid", "seating"] as ViewMode[]).map((v) => (
@@ -138,6 +182,10 @@ export function AttendanceMarker({ mode }: { mode: AttendanceMode }) {
         <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
       ) : !activeSectionId ? (
         <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Select a class and section to begin.</p>
+      ) : isPeriod && (lessons ?? []).length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No scheduled lessons for this section on this date.</p>
+      ) : isPeriod && !periodView ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Select a scheduled lesson to mark attendance.</p>
       ) : roster.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No enrolled students in this section.</p>
       ) : view === "seating" ? (

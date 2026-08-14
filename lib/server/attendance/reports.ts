@@ -46,9 +46,12 @@ function requireSession(scope: OrgScope): string {
   return scope.academicSessionId;
 }
 
-/** Base session scope filter (tenant is implied by school; branch when set). */
+/** Base session scope filter (tenant is implied by school; branch when set).
+ *  DAILY only — the Phase 5/5B dashboard + reports report on the daily register;
+ *  PERIOD attendance has its own reporting so a student is never counted 6× a day
+ *  in the daily percentage (plan §17). */
 function sessionScope(scope: OrgScope): Prisma.AttendanceSessionWhereInput {
-  const where: Prisma.AttendanceSessionWhereInput = { schoolId: scope.schoolId, academicSessionId: requireSession(scope) };
+  const where: Prisma.AttendanceSessionWhereInput = { schoolId: scope.schoolId, academicSessionId: requireSession(scope), type: "DAILY" };
   if (scope.branchId) where.branchId = scope.branchId;
   return where;
 }
@@ -320,4 +323,70 @@ async function consecutiveAbsenceReport(scope: OrgScope, p: ReportParams): Promi
       return { Student: m?.name ?? "—", Class: m?.className ?? "—", Section: m?.sectionName ?? "—", "Consecutive absences": a.streak };
     });
   return { type: "consecutive-absence", columns: ["Student", "Class", "Section", "Consecutive absences"], rows, threshold };
+}
+
+// ── Period / subject reports (Phase 7C) ──────────────────────────────────────
+// PERIOD sessions ONLY — daily and period denominators are kept separate. Uses the
+// same canonical computeSummary %. Subject/teacher come from the session SNAPSHOT
+// (subjectId/subjectName/subjectCode), so reports stay correct after timetable
+// edits. Section/class/date filters narrow an already scope-constrained query.
+
+export type PeriodReportType = "subject-summary" | "student-subject";
+export type PeriodReportParams = DateRange & { type: PeriodReportType; sectionId?: string; classId?: string; subjectId?: string };
+
+function periodScope(scope: OrgScope, p: PeriodReportParams): Prisma.AttendanceSessionWhereInput {
+  const where: Prisma.AttendanceSessionWhereInput = { schoolId: scope.schoolId, academicSessionId: requireSession(scope), type: "PERIOD" };
+  if (scope.branchId) where.branchId = scope.branchId;
+  if (p.sectionId) where.sectionId = p.sectionId;
+  if (p.subjectId) where.subjectId = p.subjectId;
+  if (p.classId) where.section = { classId: p.classId };
+  const df = dateFilter(p);
+  if (df) where.date = df;
+  return where;
+}
+
+export async function getPeriodReport(scope: OrgScope, p: PeriodReportParams): Promise<AttendanceReportDto> {
+  await requireAttendanceFeature(scope);
+  const records = await prisma.attendanceRecord.findMany({
+    where: { session: periodScope(scope, p) },
+    select: { studentId: true, status: true, session: { select: { id: true, subjectId: true, subjectName: true, subjectCode: true } } },
+  });
+
+  if (p.type === "subject-summary") {
+    type Acc = { name: string; code: string; sessions: Set<string>; recs: { status: string }[] };
+    const bySubject = new Map<string, Acc>();
+    for (const r of records) {
+      const key = r.session.subjectId ?? "—";
+      const acc = bySubject.get(key) ?? { name: r.session.subjectName ?? "—", code: r.session.subjectCode ?? "—", sessions: new Set(), recs: [] };
+      acc.sessions.add(r.session.id);
+      acc.recs.push({ status: r.status });
+      bySubject.set(key, acc);
+    }
+    const rows: AttendanceReportRow[] = [...bySubject.values()]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((a) => {
+        const sum = computeSummary(a.recs);
+        return { Subject: a.name, Code: a.code, Sessions: a.sessions.size, Present: sum.present, Absent: sum.absent, Late: sum.late, "Attendance %": sum.attendancePercentage ?? 0 };
+      });
+    return { type: "subject-summary", columns: ["Subject", "Code", "Sessions", "Present", "Absent", "Late", "Attendance %"], rows, threshold: null };
+  }
+
+  // student-subject: one row per (student, subject).
+  type Acc = { studentId: string; subjectName: string; recs: { status: string }[] };
+  const byKey = new Map<string, Acc>();
+  for (const r of records) {
+    const key = `${r.studentId}::${r.session.subjectId ?? "—"}`;
+    const acc = byKey.get(key) ?? { studentId: r.studentId, subjectName: r.session.subjectName ?? "—", recs: [] };
+    acc.recs.push({ status: r.status });
+    byKey.set(key, acc);
+  }
+  const meta = await loadStudentMeta(scope, [...new Set([...byKey.values()].map((a) => a.studentId))]);
+  const rows: AttendanceReportRow[] = [...byKey.values()]
+    .map((a) => {
+      const m = meta.get(a.studentId);
+      const sum = computeSummary(a.recs);
+      return { Student: m?.name ?? "—", "Admission No.": m?.admissionNumber ?? "—", Subject: a.subjectName, Sessions: sum.total, "Attendance %": sum.attendancePercentage ?? 0 };
+    })
+    .sort((a, b) => String(a.Student).localeCompare(String(b.Student)) || String(a.Subject).localeCompare(String(b.Subject)));
+  return { type: "student-subject", columns: ["Student", "Admission No.", "Subject", "Sessions", "Attendance %"], rows, threshold: null };
 }

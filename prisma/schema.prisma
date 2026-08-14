@@ -1803,6 +1803,13 @@ enum AttendanceSessionStatus {
   LOCKED
 }
 
+// Phase 7C — a session is either the whole-day register (DAILY) or a single
+// timetable lesson (PERIOD). Existing rows default to DAILY.
+enum AttendanceSessionType {
+  DAILY
+  PERIOD
+}
+
 model AttendanceSession {
   id                String                  @id @default(cuid())
   tenantId          String
@@ -1811,7 +1818,21 @@ model AttendanceSession {
   academicSessionId String
   sectionId         String
   date              DateTime                @db.Date
+  type              AttendanceSessionType   @default(DAILY)
   status            AttendanceSessionStatus @default(DRAFT)
+
+  // Phase 7C — PERIOD sessions bind to a real TimetableEntry (SetNull so deleting
+  // the lesson never deletes attendance history). The snapshot columns below are
+  // captured at creation and NEVER mutated, so historical subject/period/teacher
+  // meaning survives a later timetable move/delete, subject archive or staff change.
+  timetableEntryId String?
+  periodId         String?
+  subjectId        String?
+  staffId          String?
+  periodName       String?
+  subjectCode      String?
+  subjectName      String?
+  staffName        String?
 
   markedByUserId String?
   markedByName   String?
@@ -1821,15 +1842,20 @@ model AttendanceSession {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  section Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  records AttendanceRecord[]
+  section        Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  timetableEntry TimetableEntry?    @relation(fields: [timetableEntryId], references: [id], onDelete: SetNull)
+  records        AttendanceRecord[]
 
-  // At most one register per section per calendar day (race-safe).
-  @@unique([sectionId, date])
+  // Uniqueness is enforced by TWO PARTIAL unique indexes added in the migration
+  // (Prisma cannot express partial uniques): DAILY → (sectionId, date) WHERE
+  // type='DAILY'; PERIOD → (timetableEntryId, date) WHERE type='PERIOD'. Both are
+  // concurrency-safe. The plain indexes below cover the read patterns.
   @@index([tenantId])
-  @@index([schoolId, academicSessionId, date])
+  @@index([schoolId, academicSessionId, type, date])
   @@index([branchId, academicSessionId, date])
   @@index([sectionId, date])
+  @@index([timetableEntryId, date])
+  @@index([subjectId, date])
   @@map("attendance_sessions")
 }
 
@@ -2118,11 +2144,12 @@ model TimetableEntry {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  section            Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  subject            Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  staff              Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
-  period             TimetablePeriod    @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  section            Section             @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staff              Staff               @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  teachingAssignment TeachingAssignment  @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+  period             TimetablePeriod     @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  attendanceSessions AttendanceSession[] // Phase 7C — period attendance (SetNull keeps history)
 
   // DB-enforced conflict prevention (concurrency-safe).
   @@unique([sectionId, weekday, periodId]) // a section: one lesson per weekday+period
