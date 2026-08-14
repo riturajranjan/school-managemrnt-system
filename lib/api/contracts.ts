@@ -966,6 +966,83 @@ export type ExamScheduleEntryDto = {
   notes: string | null;
 };
 
+// --- Phase 8B: Marks entry ---
+// A row's status is authoritative over its numeric fields: ABSENT/EXEMPT/PENDING
+// always carry null marks (absence is never represented as zero). Component caps
+// (theoryMarks/practicalMarks/maxMarks) come from the ExamScheduleEntry snapshot
+// echoed on `entry` below — never re-derive them from the live Subject.
+
+export type ExamMarkSheetStatus = "draft" | "submitted" | "verified";
+export type ExamMarkStatus = "pending" | "marked" | "absent" | "exempt";
+
+export type ExamMarksRosterStudentDto = {
+  studentId: string;
+  enrollmentId: string | null;
+  admissionNumber: string;
+  rollNumber: string | null;
+  name: string;
+  /** False when the student no longer has an active Enrollment in this section but has a historical mark — kept visible, never dropped. */
+  currentlyEnrolled: boolean;
+  status: ExamMarkStatus;
+  theoryMarks: number | null;
+  practicalMarks: number | null;
+  marksObtained: number | null;
+  remarks: string | null;
+  enteredByName: string | null;
+  enteredAt: string | null; // ISO
+};
+
+export type ExamMarksRosterDto = {
+  examId: string;
+  entry: {
+    id: string;
+    examDate: string;
+    startTime: string;
+    endTime: string;
+    section: { id: string; name: string; classId: string; className: string };
+    subject: { id: string; code: string; name: string; color: string };
+    maxMarks: number;
+    passingMarks: number;
+    theoryMarks: number;
+    practicalMarks: number;
+  };
+  sheet: {
+    id: string;
+    status: ExamMarkSheetStatus;
+    submittedByName: string | null;
+    submittedAt: string | null;
+    verifiedByName: string | null;
+    verifiedAt: string | null;
+  };
+  students: ExamMarksRosterStudentDto[];
+  summary: { totalStudents: number; enteredCount: number; pendingCount: number; absentCount: number; exemptCount: number };
+  /** Server-evaluated for the calling actor — the UI never re-derives these client-side. */
+  canEnter: boolean;
+  canVerify: boolean;
+};
+
+/** Lightweight per-paper row for the Marks hub / verification list — no student-level detail. */
+export type ExamMarksSummaryItemDto = {
+  entryId: string;
+  examId: string;
+  examName: string;
+  examDate: string;
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  sheetStatus: ExamMarkSheetStatus;
+  totalStudents: number;
+  enteredCount: number;
+};
+
+export type ExamMarksSaveRecord = {
+  studentId: string;
+  status: ExamMarkStatus;
+  theoryMarks?: number | null;
+  practicalMarks?: number | null;
+  marksObtained?: number | null;
+  remarks?: string | null;
+};
+
 // --- Phase 7: Timetable ---
 
 export type Weekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";

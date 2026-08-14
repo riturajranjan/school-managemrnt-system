@@ -4,7 +4,7 @@
 // endpoints. No mock store, no localStorage — PostgreSQL is the only authority.
 import { apiDelete, apiPatch, apiPost, apiPut, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
-import type { ExamDetailDto, ExamListItemDto, ExamScheduleEntryDto, ExamTermDto, ExamTermStatus, ExamStatus } from "@/lib/api/contracts";
+import type { ExamDetailDto, ExamListItemDto, ExamMarksRosterDto, ExamMarksSaveRecord, ExamMarksSummaryItemDto, ExamScheduleEntryDto, ExamTermDto, ExamTermStatus, ExamStatus } from "@/lib/api/contracts";
 
 export function useExamTerms() {
   return useApiList<ExamTermDto>("/api/exams/terms");
@@ -40,3 +40,18 @@ export const updateScheduleEntryRequest = (examId: string, entryId: string, body
   apiPatch<ExamScheduleEntryDto>(`/api/exams/${examId}/schedule/${entryId}`, body);
 export const deleteScheduleEntryRequest = (examId: string, entryId: string): Promise<ApiResult<{ id: string }>> =>
   apiDelete<{ id: string }>(`/api/exams/${examId}/schedule/${entryId}`);
+
+// --- Phase 8B: Marks entry ---
+
+export function useExamMarksRoster(examId: string | undefined, entryId: string | undefined) {
+  return useApiResource<ExamMarksRosterDto>(examId && entryId ? `/api/exams/${examId}/schedule/${entryId}/marks` : null);
+}
+export const saveMarksRequest = (examId: string, entryId: string, records: ExamMarksSaveRecord[]): Promise<ApiResult<ExamMarksRosterDto>> =>
+  apiPut<ExamMarksRosterDto>(`/api/exams/${examId}/schedule/${entryId}/marks`, { records });
+export const submitMarksRequest = (examId: string, entryId: string): Promise<ApiResult<ExamMarksRosterDto>> =>
+  apiPost<ExamMarksRosterDto>(`/api/exams/${examId}/schedule/${entryId}/marks/submit`, {});
+export const verifyMarksRequest = (examId: string, entryId: string): Promise<ApiResult<ExamMarksRosterDto>> =>
+  apiPost<ExamMarksRosterDto>(`/api/exams/${examId}/schedule/${entryId}/marks/verify`, {});
+export function useMarksSummary(examId?: string) {
+  return useApiList<ExamMarksSummaryItemDto>(`/api/exams/marks-summary${buildQuery({ examId })}`);
+}

@@ -22,6 +22,7 @@ import type { ExamScheduleEntryDto } from "@/lib/api/contracts";
 import { getSubjectsForSection } from "@/lib/server/academics/class-subjects-service";
 import { dateToUi, parseAttendanceDate as parseExamDate } from "@/lib/server/attendance/service";
 import { hhmmToMinutes, minutesToHhmm } from "@/lib/server/timetable/periods-service";
+import { scheduleEntryHasRecordedMarks } from "@/lib/server/exams/marks-service";
 
 function requireSession(scope: OrgScope): string {
   if (!scope.academicSessionId) throw new HttpError("INVALID_SESSION", "Select an academic session first");
@@ -216,6 +217,10 @@ export async function updateScheduleEntry(scope: OrgScope, examId: string, entry
 
 export async function deleteScheduleEntry(scope: OrgScope, examId: string, entryId: string): Promise<{ id: string }> {
   await requireEntryInScope(scope, examId, entryId);
+  // Phase 8B: never let a schedule edit silently destroy recorded marks history.
+  if (await scheduleEntryHasRecordedMarks(entryId)) {
+    throw new HttpError("CONFLICT", "This paper has recorded marks and cannot be deleted");
+  }
   await prisma.$transaction(async (tx) => {
     await tx.examScheduleEntry.delete({ where: { id: entryId } });
     await recordAudit(tx, scope, "EXAM_SCHEDULE_DELETED", "ExamScheduleEntry", entryId, { examId });

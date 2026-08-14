@@ -1,7 +1,10 @@
-// Phase 8A seed — a real ExamTerm + Exam + ExamClass + a few ExamScheduleEntry
-// rows built on real Class/Section/Subject/ClassSubject (never fabricated ids).
-// Idempotent: term/exam keyed by code; class assignment by (examId,classId);
-// schedule entries by the real DB conflict uniques. No marks/results seeded.
+// Phase 8A/8B seed — a real ExamTerm + Exam + ExamClass + a few ExamScheduleEntry
+// rows built on real Class/Section/Subject/ClassSubject (never fabricated ids),
+// plus (8B) one DRAFT ExamMarkSheet with a couple of real marks so the entry/
+// submit/verify flow has something to demo. Idempotent throughout: term/exam
+// keyed by code; class assignment by (examId,classId); schedule entries by the
+// real DB conflict uniques; mark sheet by its unique examScheduleEntryId; marks
+// by (markSheetId,studentId). No results/grades/ranks/report cards seeded.
 import type { PrismaClient } from "../lib/generated/prisma/client";
 
 type Ids = { tenantId: string; schoolId: string; branchId: string; academicSessionId: string };
@@ -69,4 +72,35 @@ export async function seedExams(prisma: PrismaClient, ids: Ids) {
   }
 
   console.log(`  P8A:      term(+${termCreated ? 1 : 0}) exam(+${examCreated ? 1 : 0}) classes(+${classesAssigned}) schedule(+${entriesCreated})`);
+
+  // 5) Phase 8B — a small DRAFT mark sheet with a couple of real marks on the
+  //    first schedule entry, so the entry/submit/verify flow has something to
+  //    demo. No results/ranks/report cards — marks only, left in DRAFT.
+  let sheetCreated = false;
+  let marksCreated = 0;
+  const firstEntry = await prisma.examScheduleEntry.findFirst({ where: { examId: exam.id }, orderBy: { examDate: "asc" }, select: { id: true, sectionId: true, maxMarks: true, theoryMarks: true, practicalMarks: true } });
+  if (firstEntry) {
+    let sheet = await prisma.examMarkSheet.findUnique({ where: { examScheduleEntryId: firstEntry.id }, select: { id: true } });
+    if (!sheet) {
+      sheet = await prisma.examMarkSheet.create({ data: { tenantId, schoolId, academicSessionId, examScheduleEntryId: firstEntry.id, status: "DRAFT" }, select: { id: true } });
+      sheetCreated = true;
+    }
+    const roster = await prisma.enrollment.findMany({ where: { sectionId: firstEntry.sectionId, status: "ENROLLED" }, orderBy: { rollNumber: "asc" }, take: 2, select: { id: true, studentId: true } });
+    const hasSplit = firstEntry.practicalMarks > 0;
+    for (const en of roster) {
+      const existing = await prisma.examMark.findUnique({ where: { markSheetId_studentId: { markSheetId: sheet.id, studentId: en.studentId } }, select: { id: true } });
+      if (existing) continue;
+      const theoryMarks = hasSplit ? Math.round(firstEntry.theoryMarks * 0.8) : null;
+      const practicalMarks = hasSplit ? Math.round(firstEntry.practicalMarks * 0.8) : null;
+      const marksObtained = hasSplit ? null : Math.round(firstEntry.maxMarks * 0.8);
+      await prisma.examMark.create({
+        data: {
+          tenantId, schoolId, academicSessionId, markSheetId: sheet.id, studentId: en.studentId, enrollmentId: en.id,
+          status: "MARKED", theoryMarks, practicalMarks, marksObtained, enteredByName: "Seed data", enteredAt: new Date(),
+        },
+      });
+      marksCreated++;
+    }
+  }
+  console.log(`  P8B:      markSheet(+${sheetCreated ? 1 : 0}) marks(+${marksCreated})`);
 }

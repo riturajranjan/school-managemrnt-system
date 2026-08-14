@@ -62,12 +62,19 @@ const MIGRATED_FILES = [
   "components/academics/timetable/real-timetable-grid.tsx",
   // Phase 8A — the real Exams foundation (term/exam/class/schedule), fully
   // backed by /api/exams/* (PostgreSQL). No mock exam store/service/selectors/
-  // seed. Students/Attendance/Marks/Results/Publish pages stay mock (Phase 8B+).
+  // seed. Students/Attendance/Results/Publish pages stay mock (Phase 8C+).
   "app/exams/page.tsx",
   "app/exams/new/page.tsx",
   "app/exams/[examId]/page.tsx",
   "app/exams/[examId]/subjects/page.tsx",
   "app/exams/[examId]/schedule/page.tsx",
+  // Phase 8B — the real Marks entry (ExamMarkSheet/ExamMark), fully backed by
+  // /api/exams/*/schedule/*/marks* (PostgreSQL). No mock marks store/service/
+  // types. CSV import (app/marks/import) is NOT migrated — stays on the mock
+  // store, unlinked from the real flow.
+  "app/marks/page.tsx",
+  "app/marks/entry/page.tsx",
+  "app/marks/verification/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -114,6 +121,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/exam-conflicts", why: "mock exam conflict engine (deleted — dead import)" },
   { marker: "schemas/exam-form", why: "mock exam form schema (deleted — dead import)" },
   { marker: "data/seed/exams", why: "mock exam seed" },
+  // Phase 8B — marks mock authority (real surfaces must use hooks/api/use-exams-api).
+  { marker: '"@/lib/services/marks-service"', why: "mock marks service (still used by the deferred CSV importer — not by real surfaces)" },
+  { marker: "services/marks-verification-service", why: "mock marks verification service (deleted — dead import)" },
+  { marker: "services/marks-import-service", why: "mock marks import service (deferred CSV importer)" },
+  { marker: "selectors/marks-summary", why: "mock marks summary selector (deleted — dead import)" },
+  { marker: "types/marks", why: "mock marks types" },
 ];
 
 function collectSources(dir: string): string[] {

@@ -1,311 +1,129 @@
 "use client";
 
+// Marks verification (Phase 8B) — real PostgreSQL/API cutover. Submitted papers
+// awaiting verification; the detail drawer shows raw descriptive stats (highest/
+// average/lowest/missing/below-passing) computed directly from this paper's own
+// marks — never a computed grade, rank, or overall exam result (Phase 8C+).
+// Verification is SCHOOL_ADMIN/PRINCIPAL only (marks.verify) — no separate
+// "verification teacher" stage exists in the real RBAC catalog.
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/input";
-import { usePermissions } from "@/components/providers/permissions-provider";
-import { useManagedClasses } from "@/lib/hooks/use-academics";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { useStudents } from "@/lib/hooks/use-students";
-import { subjectById } from "@/lib/data/seed/academics";
-import { computeMarksSummary } from "@/lib/selectors/marks-summary";
-import { approveMarks, bulkVerify, lockVerification, reopenVerification, requestCorrection, verifyMarks } from "@/lib/services/marks-verification-service";
-import { marksVerificationStatusLabels, marksVerificationStageLabels, type MarksVerification } from "@/lib/types/marks";
-import type { ExamSubject } from "@/lib/types/exams";
-import { formatDateTime } from "@/lib/utils";
-
-const ACTOR_BY_STAGE = { verify: { name: "Examination Controller", role: "Examination Controller" }, approve: { name: "Principal", role: "Principal" } };
-
-type Row = { examSubject: ExamSubject; verification: MarksVerification | undefined; examName: string; className: string; sectionName: string; subjectName: string };
+import { useExamMarksRoster, useMarksSummary, verifyMarksRequest } from "@/lib/hooks/api/use-exams-api";
+import type { ExamMarksSummaryItemDto } from "@/lib/api/contracts";
 
 export default function MarksVerificationPage() {
-  const db = useSisStore();
-  const classes = useManagedClasses();
-  const students = useStudents();
-  const { can } = usePermissions();
-  const canVerify = can("marks.verify");
-  const canApprove = can("marks.approve");
+  const { data: rows, reload: reloadSummary } = useMarksSummary();
+  const submitted = useMemo(() => rows.filter((r) => r.sheetStatus === "submitted"), [rows]);
 
-  const rows: Row[] = useMemo(() => {
-    return db.examSubjects
-      .filter((s) => s.date)
-      .map((s) => {
-        const session = db.marksEntrySessions.find((ms) => ms.examSubjectId === s.id);
-        if (!session || (session.status !== "submitted" && session.status !== "locked")) return null;
-        const exam = db.exams.find((e) => e.id === s.examId);
-        const verification = db.marksVerifications.find((v) => v.examSubjectId === s.id);
-        if (verification?.status === "approved" || verification?.status === "locked") return null;
-        const schoolClass = classes.find((c) => c.id === s.classId);
-        const section = schoolClass?.sections.find((sec) => sec.id === s.sectionId);
-        return { examSubject: s, verification, examName: exam?.name ?? "", className: schoolClass?.name ?? "", sectionName: section?.name ?? "", subjectName: subjectById(s.subjectId)?.name ?? "" };
-      })
-      .filter((r): r is Row => r !== null);
-  }, [db, classes]);
+  const [detail, setDetail] = useState<ExamMarksSummaryItemDto | null>(null);
+  const roster = useExamMarksRoster(detail?.examId, detail?.entryId);
+  const [error, setError] = useState<string | null>(null);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [detail, setDetail] = useState<Row | null>(null);
-  const [correctionReason, setCorrectionReason] = useState("");
-  const [showCorrectionField, setShowCorrectionField] = useState(false);
-
-  function summaryFor(row: Row) {
-    const roster = students.filter((s) => s.sectionId === row.examSubject.sectionId);
-    const marks = db.studentMarks.filter((m) => m.examSubjectId === row.examSubject.id);
-    const attendance = db.examAttendance.filter((a) => a.examSubjectId === row.examSubject.id);
-    return { roster, summary: computeMarksSummary(roster, marks, attendance, row.examSubject) };
-  }
-
-  const safeToBulkVerify = rows.filter((r) => {
-    const { summary } = summaryFor(r);
-    return summary.failedCount === 0 && summary.missingStudentIds.length === 0 && summary.unusualStudentIds.length === 0 && (!r.verification || r.verification.status === "submitted");
-  });
-
-  const columns: ColumnDef<Row>[] = [
+  const columns: ColumnDef<ExamMarksSummaryItemDto>[] = [
     {
-      id: "subject",
-      header: "Subject",
-      alwaysVisible: true,
+      id: "subject", header: "Subject", alwaysVisible: true,
       cell: (r) => (
         <div>
-          <p className="text-sm font-medium text-foreground">
-            {r.className}-{r.sectionName} · {r.subjectName}
-          </p>
-          <p className="text-xs text-muted-foreground">{r.examName}</p>
+          <p className="text-sm font-medium text-foreground">{r.section.className}-{r.section.name} · {r.subject.name}</p>
+          <p className="text-xs text-muted-foreground">{r.examName} · {r.examDate}</p>
         </div>
       ),
     },
-    {
-      id: "summary",
-      header: "Summary",
-      cell: (r) => {
-        const { summary } = summaryFor(r);
-        return (
-          <span className="text-xs text-muted-foreground">
-            Avg {summary.average} · {summary.failedCount} failed · {summary.missingStudentIds.length} missing
-          </span>
-        );
-      },
-    },
-    { id: "status", header: "Status", align: "right", cell: (r) => <Badge tone={r.verification?.status === "verified" ? "info" : "warning"}>{marksVerificationStatusLabels[r.verification?.status ?? "submitted"]}</Badge> },
+    { id: "entered", header: "Entered", cell: (r) => <span className="text-xs text-muted-foreground">{r.enteredCount}/{r.totalStudents}</span> },
+    { id: "status", header: "Status", align: "right", cell: () => <Badge tone="info">Submitted</Badge> },
   ];
 
-  const detailData = detail ? summaryFor(detail) : null;
-  const missingNames = detailData?.summary.missingStudentIds.map((id) => detailData.roster.find((s) => s.id === id)).filter(Boolean) ?? [];
-  const failedNames = detailData?.summary.failedStudentIds.map((id) => detailData.roster.find((s) => s.id === id)).filter(Boolean) ?? [];
-  const unusualNames = detailData?.summary.unusualStudentIds.map((id) => detailData.roster.find((s) => s.id === id)).filter(Boolean) ?? [];
+  const stats = useMemo(() => {
+    if (!roster.data) return null;
+    const marked = roster.data.students.filter((s) => s.status === "marked");
+    const values = marked.map((s) => s.marksObtained ?? (s.theoryMarks ?? 0) + (s.practicalMarks ?? 0));
+    const below = marked.filter((s) => (s.marksObtained ?? (s.theoryMarks ?? 0) + (s.practicalMarks ?? 0)) < roster.data!.entry.passingMarks).length;
+    const missing = roster.data.students.filter((s) => s.status === "pending").length;
+    return {
+      count: values.length,
+      average: values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : 0,
+      highest: values.length ? Math.max(...values) : 0,
+      lowest: values.length ? Math.min(...values) : 0,
+      below, missing,
+    };
+  }, [roster.data]);
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
-      <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Marks verification</h1>
-          <p className="text-xs text-muted-foreground">Review submitted marks before they feed into results</p>
-        </div>
-        {canVerify && safeToBulkVerify.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              bulkVerify(safeToBulkVerify[0].examSubject.examId, safeToBulkVerify.map((r) => r.examSubject.id), ACTOR_BY_STAGE.verify);
-            }}
-          >
-            <Sparkles className="size-3.5" />
-            Bulk-verify {safeToBulkVerify.length} clean subject{safeToBulkVerify.length === 1 ? "" : "s"}
-          </Button>
-        )}
+      <div>
+        <h1 className="text-lg font-semibold text-foreground">Marks verification</h1>
+        <p className="text-xs text-muted-foreground">Review submitted marks before they are locked</p>
       </div>
 
       <DataTable
         columns={columns}
-        rows={rows}
-        getRowId={(r) => r.examSubject.id}
+        rows={submitted}
+        getRowId={(r) => r.entryId}
         caption="Marks awaiting verification"
         onRowClick={setDetail}
-        selectable={canVerify}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
-        bulkActionBar={
-          <div className="flex items-center justify-between rounded-md border border-border bg-surface-secondary/60 px-sm py-2 text-sm">
-            <span className="text-foreground">{selectedIds.size} selected</span>
-            <Button
-              size="sm"
-              onClick={() => {
-                bulkVerify(rows[0]?.examSubject.examId ?? "", [...selectedIds], ACTOR_BY_STAGE.verify);
-                setSelectedIds(new Set());
-              }}
-            >
-              Verify selected
-            </Button>
-          </div>
-        }
-        renderMobileCard={(r) => {
-          const { summary } = summaryFor(r);
-          return (
-            <button
-              type="button"
-              onClick={() => setDetail(r)}
-              className="surface-3d flex w-full flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
-            >
-              <div className="flex items-center justify-between gap-xs">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {r.className}-{r.sectionName} · {r.subjectName}
-                </p>
-                <Badge tone={r.verification?.status === "verified" ? "info" : "warning"}>{marksVerificationStatusLabels[r.verification?.status ?? "submitted"]}</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Avg {summary.average} · {summary.failedCount} failed · {summary.missingStudentIds.length} missing
-              </p>
-            </button>
-          );
-        }}
+        renderMobileCard={(r) => (
+          <button
+            type="button"
+            onClick={() => setDetail(r)}
+            className="surface-3d flex w-full flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+          >
+            <div className="flex items-center justify-between gap-xs">
+              <p className="truncate text-sm font-semibold text-foreground">{r.section.className}-{r.section.name} · {r.subject.name}</p>
+              <Badge tone="info">Submitted</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">{r.examName} · {r.enteredCount}/{r.totalStudents} entered</p>
+          </button>
+        )}
         emptyTitle="Nothing awaiting verification"
         emptyDescription="Submitted marks will appear here once teachers finish entry."
       />
 
       <DetailDrawer
         open={detail !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDetail(null);
-            setShowCorrectionField(false);
-            setCorrectionReason("");
-          }
-        }}
-        title={detail ? `${detail.className}-${detail.sectionName} · ${detail.subjectName}` : ""}
+        onOpenChange={(open) => { if (!open) { setDetail(null); setError(null); } }}
+        title={detail ? `${detail.section.className}-${detail.section.name} · ${detail.subject.name}` : ""}
         description={detail?.examName ?? ""}
       >
-        {detail && detailData && (
+        {detail && roster.data && stats && (
           <div className="flex flex-col gap-md">
+            {error && <p className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>}
             <div className="grid grid-cols-3 gap-sm text-center text-sm">
-              <div className="rounded-md border border-border p-sm">
-                <p className="text-lg font-bold text-foreground">{detailData.summary.highest}</p>
-                <p className="text-xs text-muted-foreground">Highest</p>
-              </div>
-              <div className="rounded-md border border-border p-sm">
-                <p className="text-lg font-bold text-foreground">{detailData.summary.average}</p>
-                <p className="text-xs text-muted-foreground">Average</p>
-              </div>
-              <div className="rounded-md border border-border p-sm">
-                <p className="text-lg font-bold text-foreground">{detailData.summary.lowest}</p>
-                <p className="text-xs text-muted-foreground">Lowest</p>
-              </div>
+              <div className="rounded-md border border-border p-sm"><p className="text-lg font-bold text-foreground">{stats.highest}</p><p className="text-xs text-muted-foreground">Highest</p></div>
+              <div className="rounded-md border border-border p-sm"><p className="text-lg font-bold text-foreground">{stats.average}</p><p className="text-xs text-muted-foreground">Average</p></div>
+              <div className="rounded-md border border-border p-sm"><p className="text-lg font-bold text-foreground">{stats.lowest}</p><p className="text-xs text-muted-foreground">Lowest</p></div>
             </div>
-
             <div className="flex items-center gap-sm text-xs">
-              <Badge tone="success">{detailData.summary.passedCount} passed</Badge>
-              <Badge tone={detailData.summary.failedCount > 0 ? "error" : "neutral"}>{detailData.summary.failedCount} failed</Badge>
-              <Badge tone={detailData.summary.missingStudentIds.length > 0 ? "warning" : "neutral"}>{detailData.summary.missingStudentIds.length} missing</Badge>
+              <Badge tone="success">{stats.count} marked</Badge>
+              <Badge tone={stats.below > 0 ? "error" : "neutral"}>{stats.below} below passing</Badge>
+              <Badge tone={stats.missing > 0 ? "warning" : "neutral"}>{stats.missing} missing</Badge>
             </div>
-
-            {missingNames.length > 0 && (
-              <div>
-                <p className="mb-xs flex items-center gap-1 text-xs font-semibold text-warning">
-                  <AlertTriangle className="size-3.5" /> Missing marks
-                </p>
-                <p className="text-sm text-foreground">{missingNames.map((s) => `${s!.profile.firstName} ${s!.profile.lastName}`).join(", ")}</p>
+            {stats.missing > 0 && (
+              <div className="flex items-center gap-sm rounded-lg border border-warning/30 bg-warning/8 px-sm py-sm text-xs text-warning">
+                <AlertTriangle className="size-4 shrink-0" />
+                {stats.missing} student{stats.missing === 1 ? "" : "s"} still have no entered marks.
               </div>
             )}
-            {failedNames.length > 0 && (
-              <div>
-                <p className="mb-xs text-xs font-semibold text-error">Failed students</p>
-                <p className="text-sm text-foreground">{failedNames.map((s) => `${s!.profile.firstName} ${s!.profile.lastName}`).join(", ")}</p>
-              </div>
-            )}
-            {unusualNames.length > 0 && (
-              <div>
-                <p className="mb-xs text-xs font-semibold text-info">Unusual values (worth a second look)</p>
-                <p className="text-sm text-foreground">{unusualNames.map((s) => `${s!.profile.firstName} ${s!.profile.lastName}`).join(", ")}</p>
-              </div>
-            )}
-
-            {detail.verification && detail.verification.history.length > 0 && (
-              <div>
-                <p className="mb-xs text-xs font-semibold text-foreground">History</p>
-                <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  {detail.verification.history.map((h) => (
-                    <li key={h.id}>
-                      {marksVerificationStageLabels[h.stage]} · {h.action} by {h.actorName} · {formatDateTime(h.createdAt)}
-                      {h.comment && ` — "${h.comment}"`}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
             <div className="flex flex-wrap gap-sm border-t border-border pt-sm">
-              {canVerify && (!detail.verification || detail.verification.status === "submitted" || detail.verification.status === "changes-requested") && (
+              {roster.data.canVerify && (
                 <Button
                   size="sm"
-                  onClick={() => {
-                    verifyMarks(detail.examSubject.examId, detail.examSubject.id, ACTOR_BY_STAGE.verify);
+                  onClick={async () => {
+                    const res = await verifyMarksRequest(detail.examId, detail.entryId);
+                    if (!res.success) { setError(res.error.message); return; }
                     setDetail(null);
+                    reloadSummary();
                   }}
                 >
-                  <CheckCircle2 className="size-3.5" />
+                  <ShieldCheck className="size-3.5" />
                   Verify
                 </Button>
               )}
-              {canApprove && detail.verification?.status === "verified" && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    approveMarks(detail.examSubject.examId, detail.examSubject.id, ACTOR_BY_STAGE.approve);
-                    setDetail(null);
-                  }}
-                >
-                  <CheckCircle2 className="size-3.5" />
-                  Approve
-                </Button>
-              )}
-              {canVerify && (
-                <Button size="sm" variant="outline" onClick={() => setShowCorrectionField((v) => !v)}>
-                  Request correction
-                </Button>
-              )}
-              {canApprove && detail.verification?.status === "verified" && (
-                <Button size="sm" variant="outline" onClick={() => lockVerification(detail.examSubject.examId, detail.examSubject.id, ACTOR_BY_STAGE.approve)}>
-                  Lock
-                </Button>
-              )}
-              {canVerify && detail.verification && detail.verification.status !== "submitted" && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    reopenVerification(detail.examSubject.examId, detail.examSubject.id, ACTOR_BY_STAGE.verify, "Reopened for review");
-                    setDetail(null);
-                  }}
-                >
-                  Reopen
-                </Button>
-              )}
             </div>
-
-            {showCorrectionField && (
-              <div className="flex flex-col gap-xs">
-                <Label htmlFor="correction-reason">What needs to change?</Label>
-                <Textarea id="correction-reason" value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} rows={2} />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="self-start"
-                  disabled={!correctionReason.trim()}
-                  onClick={() => {
-                    requestCorrection(detail.examSubject.examId, detail.examSubject.id, ACTOR_BY_STAGE.verify, correctionReason.trim());
-                    setShowCorrectionField(false);
-                    setCorrectionReason("");
-                    setDetail(null);
-                  }}
-                >
-                  Send back to teacher
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </DetailDrawer>

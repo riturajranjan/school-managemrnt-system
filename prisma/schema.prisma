@@ -76,12 +76,12 @@ model Tenant {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  schools     School[]
-  memberships TenantMembership[]
-  roles       Role[] // tenant-scoped custom roles (system roles have null tenantId)
-  subscriptions Subscription[] // Super Admin Phase SA-4B
-  invoices      Invoice[] // Super Admin Phase SA-4D
-  payments      Payment[] // Super Admin Phase SA-4E
+  schools        School[]
+  memberships    TenantMembership[]
+  roles          Role[] // tenant-scoped custom roles (system roles have null tenantId)
+  subscriptions  Subscription[] // Super Admin Phase SA-4B
+  invoices       Invoice[] // Super Admin Phase SA-4D
+  payments       Payment[] // Super Admin Phase SA-4E
   supportTickets SupportTicket[] // Super Admin Phase SA-4I
 
   @@index([status])
@@ -94,43 +94,43 @@ model Tenant {
 // ---------------------------------------------------------------------------
 
 model School {
-  id                String  @id @default(cuid())
-  tenantId          String
-  name              String
-  shortName         String?
-  code              String
-  schoolType        String?
-  board             String?
-  establishmentYear Int?
+  id                 String       @id @default(cuid())
+  tenantId           String
+  name               String
+  shortName          String?
+  code               String
+  schoolType         String?
+  board              String?
+  establishmentYear  Int?
   registrationNumber String?
-  affiliationNumber String?
-  email             String?
-  phone             String?
-  website           String?
+  affiliationNumber  String?
+  email              String?
+  phone              String?
+  website            String?
   // IANA timezone / BCP-47 locale / ISO-4217 currency. Default to the tenant's
   // values at creation time in the service layer; stored here so a school can
   // diverge from its tenant.
-  timezone String       @default("Asia/Kolkata")
-  locale   String       @default("en-IN")
-  currency String       @default("INR")
-  status   SchoolStatus @default(ACTIVE)
+  timezone           String       @default("Asia/Kolkata")
+  locale             String       @default("en-IN")
+  currency           String       @default("INR")
+  status             SchoolStatus @default(ACTIVE)
 
   createdAt  DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branches         Branch[]
-  academicSessions AcademicSession[]
-  onboarding       SchoolOnboarding? // Super Admin Phase SA-3
-  subscriptions    Subscription[] // Super Admin Phase SA-4B
-  invoices         Invoice[] // Super Admin Phase SA-4D
-  payments         Payment[] // Super Admin Phase SA-4E
-  supportTickets   SupportTicket[] // Super Admin Phase SA-4I
-  featureOverrides SchoolFeatureOverride[] // Super Admin Phase SA-4L
-  domains          SchoolDomain[] // Super Admin Phase SA-4L
-  branding         SchoolBranding? // Super Admin Phase SA-4L
-  addOns           SchoolAddOn[] // Super Admin Phase SA-4M
+  tenant              Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branches            Branch[]
+  academicSessions    AcademicSession[]
+  onboarding          SchoolOnboarding? // Super Admin Phase SA-3
+  subscriptions       Subscription[] // Super Admin Phase SA-4B
+  invoices            Invoice[] // Super Admin Phase SA-4D
+  payments            Payment[] // Super Admin Phase SA-4E
+  supportTickets      SupportTicket[] // Super Admin Phase SA-4I
+  featureOverrides    SchoolFeatureOverride[] // Super Admin Phase SA-4L
+  domains             SchoolDomain[] // Super Admin Phase SA-4L
+  branding            SchoolBranding? // Super Admin Phase SA-4L
+  addOns              SchoolAddOn[] // Super Admin Phase SA-4M
   marketplaceInstalls SchoolMarketplaceInstallation[] // Super Admin Phase SA-4M
 
   // School code is unique within its tenant.
@@ -145,7 +145,7 @@ model School {
 // ---------------------------------------------------------------------------
 
 model Branch {
-  id           String  @id @default(cuid())
+  id           String       @id @default(cuid())
   schoolId     String
   name         String
   code         String
@@ -158,9 +158,9 @@ model Branch {
   country      String?
   postalCode   String?
   // Optional IANA timezone override; falls back to the school timezone when null.
-  timezone  String?
-  isPrimary Boolean      @default(false)
-  status    BranchStatus @default(SETUP_PENDING)
+  timezone     String?
+  isPrimary    Boolean      @default(false)
+  status       BranchStatus @default(SETUP_PENDING)
 
   createdAt  DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
@@ -250,9 +250,9 @@ enum PlatformRole {
 // ---------------------------------------------------------------------------
 
 model User {
-  id    String  @id @default(cuid())
-  name  String?
-  email String  @unique // stored lowercased by the service layer (single global identity)
+  id              String     @id @default(cuid())
+  name            String?
+  email           String     @unique // stored lowercased by the service layer (single global identity)
   // Argon2id hash only — never plaintext. Nullable: invited users set it later.
   passwordHash    String?
   status          UserStatus @default(INVITED)
@@ -609,7 +609,7 @@ model Guardian {
   postalCode   String?
   photoUrl     String?
   // Optional linkage to a login identity (parent portal). Never required.
-  userId String?
+  userId       String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -680,11 +680,12 @@ model Student {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  guardians   StudentGuardian[]
-  documents   StudentDocument[]
-  timeline    StudentTimelineEvent[]
-  enrollments Enrollment[] // Phase 6-pre — real class/section enrollment
+  guardians         StudentGuardian[]
+  documents         StudentDocument[]
+  timeline          StudentTimelineEvent[]
+  enrollments       Enrollment[] // Phase 6-pre — real class/section enrollment
   attendanceRecords AttendanceRecord[] // Phase 5 — attendance
+  examMarks         ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -788,7 +789,7 @@ model AdmissionApplication {
   source            AdmissionSource @default(WEBSITE)
   admissionType     AdmissionType   @default(NEW)
 
-  appliedClass            String?
+  appliedClass             String?
   appliedSectionPreference String?
 
   // Applicant identity
@@ -850,13 +851,13 @@ model AdmissionApplication {
 // ---------------------------------------------------------------------------
 
 model AdmissionStageHistory {
-  id            String          @id @default(cuid())
-  applicationId String
-  fromStage     AdmissionStage?
-  toStage       AdmissionStage
+  id              String          @id @default(cuid())
+  applicationId   String
+  fromStage       AdmissionStage?
+  toStage         AdmissionStage
   changedByUserId String?
   changedByName   String?
-  reason        String?
+  reason          String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 
@@ -1289,10 +1290,10 @@ model SupportTicket {
   tenantId     String
   schoolId     String?
   subject      String
-  description   String
-  category     SupportTicketCategory  @default(OTHER)
-  priority     SupportTicketPriority  @default(MEDIUM)
-  status       SupportTicketStatus    @default(OPEN)
+  description  String
+  category     SupportTicketCategory @default(OTHER)
+  priority     SupportTicketPriority @default(MEDIUM)
+  status       SupportTicketStatus   @default(OPEN)
 
   assignedToUserId String?
   assignedToName   String?
@@ -1549,8 +1550,8 @@ model SchoolMarketplaceInstallation {
   appId    String
   status   MarketplaceInstallStatus @default(INSTALLED)
 
-  installedAt DateTime  @default(now()) @db.Timestamptz(6)
-  disabledAt  DateTime? @db.Timestamptz(6)
+  installedAt   DateTime  @default(now()) @db.Timestamptz(6)
+  disabledAt    DateTime? @db.Timestamptz(6)
   // NON-SECRET configuration metadata only. Secrets (API keys / tokens / client
   // secrets) are never stored here and never returned in DTOs.
   configuration Json?
@@ -1580,17 +1581,17 @@ model SchoolMarketplaceInstallation {
 // only SAFE, non-secret DB configuration — never SMTP/API/OAuth/payment secrets
 // or infrastructure/runtime credentials.
 model PlatformSetting {
-  id               String  @id @default("singleton")
-  platformName     String  @default("Novyra Campus OS")
-  supportEmail     String?
-  defaultLocale    String  @default("en-IN")
-  defaultTimezone  String  @default("Asia/Kolkata")
-  defaultCurrency  String  @default("INR")
-  maintenanceMode  Boolean @default(false)
+  id                 String  @id @default("singleton")
+  platformName       String  @default("Novyra Campus OS")
+  supportEmail       String?
+  defaultLocale      String  @default("en-IN")
+  defaultTimezone    String  @default("Asia/Kolkata")
+  defaultCurrency    String  @default("INR")
+  maintenanceMode    Boolean @default(false)
   maintenanceMessage String?
-  signupEnabled    Boolean @default(true)
-  defaultTrialDays Int     @default(14)
-  updatedByUserId  String?
+  signupEnabled      Boolean @default(true)
+  defaultTrialDays   Int     @default(14)
+  updatedByUserId    String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -1611,17 +1612,17 @@ enum AnnouncementAudience {
 }
 
 model PlatformAnnouncement {
-  id        String               @id @default(cuid())
-  title     String
-  body      String
-  category  String? // e.g. product-update | maintenance | security | billing | policy
-  status    AnnouncementStatus   @default(DRAFT)
-  audience  AnnouncementAudience @default(ALL_SCHOOLS)
+  id              String               @id @default(cuid())
+  title           String
+  body            String
+  category        String? // e.g. product-update | maintenance | security | billing | policy
+  status          AnnouncementStatus   @default(DRAFT)
+  audience        AnnouncementAudience @default(ALL_SCHOOLS)
   // Optional display window; NOT a delivery mechanism (announcements are shown
   // in-app only — no email/SMS/push is sent).
-  startsAt        DateTime? @db.Timestamptz(6)
-  endsAt          DateTime? @db.Timestamptz(6)
-  publishedAt     DateTime? @db.Timestamptz(6)
+  startsAt        DateTime?            @db.Timestamptz(6)
+  endsAt          DateTime?            @db.Timestamptz(6)
+  publishedAt     DateTime?            @db.Timestamptz(6)
   createdByUserId String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
@@ -1648,13 +1649,13 @@ enum IncidentStatus {
 // uptime/telemetry monitoring — the status page reports only real, measurable
 // internal signals (maintenance mode, DB reachability) plus these manual records.
 model PlatformIncident {
-  id          String           @id @default(cuid())
-  title       String
-  description String?
-  severity    IncidentSeverity @default(MINOR)
-  status      IncidentStatus   @default(INVESTIGATING)
-  startedAt       DateTime  @default(now()) @db.Timestamptz(6)
-  resolvedAt      DateTime? @db.Timestamptz(6)
+  id              String           @id @default(cuid())
+  title           String
+  description     String?
+  severity        IncidentSeverity @default(MINOR)
+  status          IncidentStatus   @default(INVESTIGATING)
+  startedAt       DateTime         @default(now()) @db.Timestamptz(6)
+  resolvedAt      DateTime?        @db.Timestamptz(6)
   createdByUserId String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
@@ -1761,10 +1762,11 @@ model Enrollment {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
-  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class             Class              @relation(fields: [classId], references: [id], onDelete: Cascade)
+  section           Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
   attendanceRecords AttendanceRecord[] // Phase 5 — attendance
+  examMarks         ExamMark[] // Phase 8B — historical reference only (SetNull on unenrollment)
 
   // One enrollment row per student per academic session; a student appears at
   // most once in a given section.
@@ -2285,7 +2287,9 @@ model Exam {
   @@map("exams")
 }
 
-/** Which real Classes an Exam applies to; Sections inherit through their Class. */
+/**
+ * Which real Classes an Exam applies to; Sections inherit through their Class.
+ */
 model ExamClass {
   id                String @id @default(cuid())
   tenantId          String
@@ -2331,10 +2335,11 @@ model ExamScheduleEntry {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  exam        Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
-  section     Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  subject     Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  invigilator Staff?  @relation(fields: [invigilatorStaffId], references: [id], onDelete: SetNull)
+  exam        Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  section     Section        @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject     Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  invigilator Staff?         @relation(fields: [invigilatorStaffId], references: [id], onDelete: SetNull)
+  markSheet   ExamMarkSheet? // Phase 8B — marks entry (get-or-create, one per entry)
 
   // No duplicate subject paper for the same exam+section.
   @@unique([examId, sectionId, subjectId])
@@ -2347,4 +2352,92 @@ model ExamScheduleEntry {
   @@index([examId])
   @@index([subjectId])
   @@map("exam_schedule_entries")
+}
+
+// ── Phase 8B: Marks entry ───────────────────────────────────────────────────
+
+enum ExamMarkSheetStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+}
+
+enum ExamMarkStatus {
+  PENDING
+  MARKED
+  ABSENT
+  EXEMPT
+}
+
+// One per ExamScheduleEntry (get-or-create, concurrency-safe via the unique FK).
+// Owns the Draft → Submitted → Verified lifecycle; individual ExamMark rows carry
+// no submission state of their own (locking is at the sheet, not the row).
+model ExamMarkSheet {
+  id                  String              @id @default(cuid())
+  tenantId            String
+  schoolId            String
+  academicSessionId   String
+  examScheduleEntryId String              @unique
+  status              ExamMarkSheetStatus @default(DRAFT)
+
+  submittedByUserId String?
+  submittedByName   String?
+  submittedAt       DateTime? @db.Timestamptz(6)
+  verifiedByUserId  String?
+  verifiedByName    String?
+  verifiedAt        DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  scheduleEntry ExamScheduleEntry @relation(fields: [examScheduleEntryId], references: [id], onDelete: Cascade)
+  marks         ExamMark[]
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@map("exam_mark_sheets")
+}
+
+// One row per (markSheet, student) — at most one mark for a student on a given
+// paper (@@unique). status is explicit: ABSENT/EXEMPT are NOT zero marks; the
+// numeric fields stay null for those and for PENDING (never entered). Marks
+// limits are validated against the parent ExamScheduleEntry's SNAPSHOTTED
+// values, never live Subject data (Phase 8A historical-stability guarantee
+// extends here). studentId uses onDelete: Restrict — a student with recorded
+// marks can never be hard-deleted out from under its history; enrollmentId is
+// a soft historical reference only (SetNull) since a later unenrollment must
+// never destroy an already-recorded mark.
+model ExamMark {
+  id                String  @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  markSheetId       String
+  studentId         String
+  enrollmentId      String?
+
+  status         ExamMarkStatus @default(PENDING)
+  theoryMarks    Int?
+  practicalMarks Int?
+  marksObtained  Int?
+  remarks        String?
+
+  enteredByUserId String?
+  enteredByName   String?
+  enteredAt       DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  markSheet  ExamMarkSheet @relation(fields: [markSheetId], references: [id], onDelete: Cascade)
+  student    Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment?   @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  // No duplicate mark row for the same student on the same paper.
+  @@unique([markSheetId, studentId])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@map("exam_marks")
 }

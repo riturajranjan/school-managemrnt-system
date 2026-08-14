@@ -35,6 +35,13 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "exams.view", module: "exams", action: "view", description: "View exams" },
   { key: "exams.manage", module: "exams", action: "manage", description: "Manage exams" },
 
+  // Phase 8B — deliberately separate from exams.manage: entering/verifying marks
+  // is a distinct, narrower trust boundary than managing the exam schedule itself
+  // (a TEACHER can enter marks for their own assigned section+subject without
+  // being able to reschedule papers or edit exam terms).
+  { key: "marks.enter", module: "marks", action: "enter", description: "Enter exam marks" },
+  { key: "marks.verify", module: "marks", action: "verify", description: "Verify exam marks" },
+
   { key: "results.view", module: "results", action: "view", description: "View results" },
   { key: "results.publish", module: "results", action: "publish", description: "Publish results" },
 
@@ -153,6 +160,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "attendance.view", "attendance.mark",
     "timetable.view", "timetable.manage",
     "exams.view", "exams.manage",
+    "marks.enter", "marks.verify",
     "results.view", "results.publish",
     "fees.view", "fees.collect", "fees.refund",
     "transport.view",
@@ -171,6 +179,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "attendance.view",
     "timetable.view", "timetable.manage",
     "exams.view", "exams.manage",
+    "marks.verify",
     "results.view", "results.publish",
     "fees.view",
     "communication.view", "communication.send",
@@ -185,6 +194,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "attendance.view", "attendance.mark",
     "timetable.view",
     "exams.view",
+    "marks.enter",
     "results.view",
     "communication.send",
     "documents.view",

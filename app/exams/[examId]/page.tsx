@@ -1,9 +1,10 @@
 "use client";
 
-// Exam detail (Phase 8A) — real PostgreSQL/API cutover. Same stage-card shell as
-// before; Subjects/Schedule are real (from /api/exams). Students/Attendance/
-// Marks/Results/Publish depend on modules not built yet (Phase 8B/8C) and show
-// an honest "not available yet" state instead of a fabricated readiness %.
+// Exam detail (Phase 8A/8B) — real PostgreSQL/API cutover. Same stage-card shell
+// as before; Subjects/Schedule (8A) and Marks entry (8B) are real. Students/
+// Attendance/Results/Publish depend on modules not built yet (Phase 8B roster
+// management / Phase 8C) and show an honest "not available yet" state instead of
+// a fabricated readiness %.
 // Grading scheme / Result rule / Report card template / audit-log UI are removed
 // (no real models / no bespoke entity-audit reader in this phase — real AuditEvent
 // rows are still written server-side). "Delete" is replaced by Archive, matching
@@ -56,7 +57,7 @@ export default function ExamDetailPage() {
     { key: "schedule", label: "Schedule view", href: `/exams/${exam.id}/schedule`, icon: CalendarClock, real: true, detail: "By date" },
     { key: "students", label: "Students", href: `/exams/${exam.id}/students`, icon: Users, real: false, detail: "Not available yet" },
     { key: "attendance", label: "Attendance", href: `/exams/${exam.id}/attendance`, icon: ClipboardCheck, real: false, detail: "Not available yet" },
-    { key: "marks", label: "Marks entry", href: `/exams/${exam.id}/marks`, icon: FileBadge, real: false, detail: "Available in a future phase" },
+    { key: "marks", label: "Marks entry", href: `/marks/entry?examId=${exam.id}`, icon: FileBadge, real: true, detail: `${scheduleCount} paper${scheduleCount === 1 ? "" : "s"} scheduled` },
   ] as const;
 
   return (
