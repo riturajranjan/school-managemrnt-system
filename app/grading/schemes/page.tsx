@@ -1,618 +1,226 @@
 "use client";
 
+// Grading schemes (Phase 8C) — real PostgreSQL/API cutover. Same card-list +
+// edit-bands-drawer shell as before. Dropped rather than fabricated: the
+// grading "system" selector (letter/GPA/CGPA/skill/competency/…) — only
+// percentage-band grading is real; "applicable classes" + "default scheme" —
+// a scheme is School+Session scoped and an Exam explicitly picks ONE scheme
+// (set on the exam itself, Phase 8A's Configuration section) rather than
+// auto-resolving by class; "duplicate" — trivial to recreate manually, not
+// worth a bespoke endpoint for a first cut.
 import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  Archive,
-  ArchiveRestore,
-  Copy,
-  Layers,
-  Plus,
-  Star,
-  Trash2,
-  Users,
-} from "lucide-react";
-import { GradeScaleStrip } from "@/components/grading/grade-scale-strip";
+import { AlertTriangle, Archive, ArchiveRestore, Layers, Plus, Trash2 } from "lucide-react";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useManagedClasses } from "@/lib/hooks/use-academics";
-import { useGradingSchemes } from "@/lib/hooks/use-exams";
-import { useSisStore } from "@/lib/hooks/use-store";
-import {
-  archiveGradingScheme,
-  assignSchemeClasses,
-  createGradingScheme,
-  duplicateGradingScheme,
-  saveGradeRanges,
-  setDefaultGradingScheme,
-  unarchiveGradingScheme,
-} from "@/lib/services/grading-service";
-import {
-  computeClassesWithoutScheme,
-  detectSchemeIssues,
-  schemeUsageCount,
-} from "@/lib/selectors/grading-validation";
-import { CURRENT_SESSION } from "@/lib/data/seed/reference";
-import {
-  gradingSystemLabels,
-  type GradeRange,
-  type GradingScheme,
-  type GradingSystem,
-} from "@/lib/types/grading";
-import { cn, formatDate } from "@/lib/utils";
+import { createGradingSchemeRequest, saveGradingBandsRequest, updateGradingSchemeRequest, useGradingSchemes } from "@/lib/hooks/api/use-results-api";
+import type { GradingSchemeDto } from "@/lib/api/contracts";
 
-const systemOptions: GradingSystem[] = [
-  "percentage",
-  "letter",
-  "gpa",
-  "cgpa",
-  "marks-based",
-  "skill",
-  "competency",
-  "pass-fail",
-  "descriptive",
-  "custom",
-];
+type BandDraft = { label: string; minPercent: number; maxPercent: number; isPass: boolean; color: string };
 
-function blankRange(): Omit<GradeRange, "id"> {
-  return {
-    name: "",
-    minPercent: 0,
-    maxPercent: 0,
-    color: "#18b0c8",
-    isPass: true,
-    order: 1,
-  };
+function blankBand(): BandDraft {
+  return { label: "", minPercent: 0, maxPercent: 0, isPass: true, color: "#18b0c8" };
+}
+
+/** UX-only overlap/range check — the server is the real authority (fail-closed on save). */
+function detectBandIssues(bands: BandDraft[]): string[] {
+  const errors: string[] = [];
+  const sorted = [...bands].sort((a, b) => a.minPercent - b.minPercent);
+  for (const b of sorted) {
+    if (b.minPercent > b.maxPercent) errors.push(`"${b.label || "Untitled"}": minimum is above maximum.`);
+  }
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i + 1];
+    if (a.maxPercent >= b.minPercent) errors.push(`"${a.label || "Untitled"}" overlaps "${b.label || "Untitled"}".`);
+  }
+  return errors;
 }
 
 export default function GradingSchemesPage() {
-  const schemes = useGradingSchemes();
-  const classes = useManagedClasses();
-  const db = useSisStore();
+  const { data: schemes, reload } = useGradingSchemes();
   const { can } = usePermissions();
-  const canManage = can("grading.manage");
+  const canManage = can("exams.manageSchedule"); // client convenience key covering exam/grading configuration
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editScheme, setEditScheme] = useState<GradingScheme | null>(null);
-  const [assignScheme, setAssignScheme] = useState<GradingScheme | null>(null);
-  const [assignClassIds, setAssignClassIds] = useState<string[]>([]);
   const [name, setName] = useState("");
-  const [system, setSystem] = useState<GradingSystem>("letter");
-  const [classIds, setClassIds] = useState<string[]>([]);
+  const [editScheme, setEditScheme] = useState<GradingSchemeDto | null>(null);
+  const [bands, setBands] = useState<BandDraft[]>([]);
+  const [bandErrors, setBandErrors] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const [ranges, setRanges] = useState<Omit<GradeRange, "id">[]>([]);
-  const [rangeErrors, setRangeErrors] = useState<string[]>([]);
+  const previewIssues = useMemo(() => detectBandIssues(bands), [bands]);
 
-  const classesWithoutScheme = useMemo(
-    () => computeClassesWithoutScheme(db),
-    [db],
-  );
-  const schemeIssues = useMemo(
-    () => new Map(schemes.map((s) => [s.id, detectSchemeIssues(s.ranges)])),
-    [schemes],
-  );
-  const totalIssueCount =
-    [...schemeIssues.values()].reduce((sum, issues) => sum + issues.length, 0) +
-    classesWithoutScheme.length;
-
-  function openEdit(scheme: GradingScheme) {
+  function openEdit(scheme: GradingSchemeDto) {
     setEditScheme(scheme);
-    setRanges(scheme.ranges.map(({ id: _id, ...rest }) => rest));
-    setRangeErrors([]);
+    setBands(scheme.bands.map((b) => ({ label: b.label, minPercent: b.minPercent, maxPercent: b.maxPercent, isPass: b.isPass, color: b.color })));
+    setBandErrors([]);
   }
 
-  function addRange() {
-    setRanges((prev) => [...prev, blankRange()]);
-  }
-
-  function updateRange(index: number, patch: Partial<Omit<GradeRange, "id">>) {
-    setRanges((prev) =>
-      prev.map((r, i) => (i === index ? { ...r, ...patch } : r)),
-    );
-  }
-
-  function removeRange(index: number) {
-    setRanges((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function handleSaveRanges() {
+  async function handleSaveBands() {
     if (!editScheme) return;
-    const result = saveGradeRanges(editScheme.id, ranges);
-    if (!result.valid) {
-      setRangeErrors(result.errors);
-      return;
-    }
-    setRangeErrors([]);
+    setSaving(true);
+    const res = await saveGradingBandsRequest(editScheme.id, bands);
+    setSaving(false);
+    if (!res.success) { setBandErrors([res.error.message]); return; }
+    setBandErrors([]);
     setEditScheme(null);
+    reload();
   }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">
-            Grading schemes
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Grade bands used to convert marks into grades across exams
-          </p>
+          <h1 className="text-lg font-semibold text-foreground">Grading schemes</h1>
+          <p className="text-xs text-muted-foreground">Grade bands used to convert marks into grades across exams</p>
         </div>
         {canManage && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setName("");
-              setSystem("letter");
-              setClassIds([]);
-              setCreateOpen(true);
-            }}>
+          <Button size="sm" onClick={() => { setName(""); setCreateOpen(true); }}>
             <Plus className="size-3.5" />
             New scheme
           </Button>
         )}
       </div>
 
-      {totalIssueCount > 0 && (
-        <div className="flex flex-col gap-1 rounded-lg border border-warning/30 bg-warning/8 p-sm text-xs text-warning">
-          <p className="flex items-center gap-1 font-medium">
-            <AlertTriangle className="size-3.5" /> {totalIssueCount}{" "}
-            configuration issue{totalIssueCount === 1 ? "" : "s"} across your
-            grading setup
-          </p>
-          {classesWithoutScheme.length > 0 && (
-            <p>
-              {classesWithoutScheme.length} class
-              {classesWithoutScheme.length === 1 ? "" : "es"} without an active
-              scheme: {classesWithoutScheme.map((c) => c.className).join(", ")}
-            </p>
-          )}
-        </div>
-      )}
-
       {schemes.length === 0 ? (
         <div className="flex flex-col items-center gap-sm rounded-lg border border-dashed border-border bg-surface px-md py-2xl text-center">
           <span className="flex size-11 items-center justify-center rounded-full bg-surface-secondary text-muted-foreground">
             <Layers className="size-5" />
           </span>
-          <div className="mx-auto flex  flex-col gap-1">
-            <p className="text-sm font-semibold text-foreground">
-              No grading schemes yet
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Create a scheme and define its grade bands to start calculating
-              results.
-            </p>
+          <div className="mx-auto flex flex-col gap-1">
+            <p className="text-sm font-semibold text-foreground">No grading schemes yet</p>
+            <p className="text-sm text-muted-foreground">Create a scheme and define its grade bands, then assign it to an exam.</p>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-sm lg:grid-cols-2">
-          {schemes.map((s) => {
-            const issues = schemeIssues.get(s.id) ?? [];
-            const usage = schemeUsageCount(db, s);
-            return (
-              <div
-                key={s.id}
-                className="surface-3d flex flex-col gap-sm rounded-lg border border-border bg-surface p-md">
-                <div className="flex items-start justify-between gap-sm">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">
-                      {s.isDefault && (
-                        <Star className="size-3.5 shrink-0 fill-warning text-warning" />
-                      )}
-                      {s.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {gradingSystemLabels[s.system]} · {s.ranges.length} band
-                      {s.ranges.length === 1 ? "" : "s"} · {s.session}
-                    </p>
-                  </div>
-                  <Badge
-                    tone={
-                      s.status === "active"
-                        ? "success"
-                        : s.status === "draft"
-                          ? "neutral"
-                          : "warning"
-                    }>
-                    {s.status}
-                  </Badge>
+          {schemes.map((s) => (
+            <div key={s.id} className="surface-3d flex flex-col gap-sm rounded-lg border border-border bg-surface p-md">
+              <div className="flex items-start justify-between gap-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
+                  <p className="text-xs text-muted-foreground">{s.bands.length} band{s.bands.length === 1 ? "" : "s"}</p>
                 </div>
-
-                <GradeScaleStrip ranges={s.ranges} />
-
-                {issues.length > 0 && (
-                  <div className="flex flex-col gap-0.5 rounded-md border border-warning/30 bg-warning/8 px-sm py-1.5 text-xs text-warning">
-                    {issues.slice(0, 3).map((issue, i) => (
-                      <span key={i} className="flex items-start gap-1">
-                        <AlertTriangle className="mt-0.5 size-3 shrink-0" />{" "}
-                        {issue.message}
-                      </span>
-                    ))}
-                    {issues.length > 3 && (
-                      <span>+{issues.length - 3} more</span>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-sm text-xs sm:grid-cols-4">
-                  <div>
-                    <p className="text-muted-foreground">Applies to</p>
-                    <p className="font-medium text-foreground">
-                      {s.applicableClassIds.length === 0
-                        ? "All classes"
-                        : `${s.applicableClassIds.length} class(es)`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Usage</p>
-                    <p className="flex items-center gap-1 font-medium text-foreground">
-                      <Users className="size-3" /> {usage} exam
-                      {usage === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <div className="col-span-2 sm:col-span-2">
-                    <p className="text-muted-foreground">Last updated</p>
-                    <p className="font-medium text-foreground">
-                      {formatDate(s.updatedAt)}
-                    </p>
-                  </div>
-                </div>
-
-                {canManage && (
-                  <div className="flex flex-wrap items-center gap-xs border-t border-border pt-sm">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEdit(s)}>
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setAssignScheme(s);
-                        setAssignClassIds(s.applicableClassIds);
-                      }}>
-                      <Users className="size-3.5" />
-                      Assign
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => duplicateGradingScheme(s.id)}>
-                      <Copy className="size-3.5" />
-                      Duplicate
-                    </Button>
-                    {!s.isDefault && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setDefaultGradingScheme(s.id)}>
-                        <Star className="size-3.5" />
-                        Set default
-                      </Button>
-                    )}
-                    {s.status === "archived" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => unarchiveGradingScheme(s.id)}>
-                        <ArchiveRestore className="size-3.5" />
-                        Restore
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-error"
-                        onClick={() => archiveGradingScheme(s.id)}>
-                        <Archive className="size-3.5" />
-                        Archive
-                      </Button>
-                    )}
-                  </div>
-                )}
+                <Badge tone={s.status === "active" ? "success" : "warning"}>{s.status}</Badge>
               </div>
-            );
-          })}
+
+              {s.bands.length === 0 ? (
+                <div className="flex h-6 items-center justify-center rounded-md border border-dashed border-border text-[11px] text-muted-foreground">No grade bands defined</div>
+              ) : (
+                <div className="flex h-6 w-full overflow-hidden rounded-md border border-border shadow-card">
+                  {[...s.bands].sort((a, b) => a.minPercent - b.minPercent).map((b) => (
+                    <div key={b.id} title={`${b.label} · ${b.minPercent}%–${b.maxPercent}% ${b.isPass ? "(pass)" : "(fail)"}`}
+                      className="flex min-w-[1.5rem] items-center justify-center border-r border-black/10 text-[10px] font-semibold text-white last:border-r-0"
+                      style={{ width: `${Math.max(b.maxPercent - b.minPercent, 1)}%`, backgroundColor: b.color }}>
+                      {b.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-sm text-xs">
+                <div>
+                  <p className="text-muted-foreground">Used by</p>
+                  <p className="font-medium text-foreground">{s.examCount} exam{s.examCount === 1 ? "" : "s"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Bands</p>
+                  <p className="font-medium text-foreground">{s.bands.length}</p>
+                </div>
+              </div>
+
+              {canManage && (
+                <div className="flex flex-wrap items-center gap-xs border-t border-border pt-sm">
+                  <Button size="sm" variant="outline" onClick={() => openEdit(s)}>Edit bands</Button>
+                  {s.status === "archived" ? (
+                    <Button size="sm" variant="outline" onClick={async () => { await updateGradingSchemeRequest(s.id, { status: "active" }); reload(); }}>
+                      <ArchiveRestore className="size-3.5" /> Restore
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="text-error" onClick={async () => { await updateGradingSchemeRequest(s.id, { status: "archived" }); reload(); }}>
+                      <Archive className="size-3.5" /> Archive
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      <DetailDrawer
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        title="New grading scheme"
-        description="Define grade bands after creating the scheme">
+      <DetailDrawer open={createOpen} onOpenChange={setCreateOpen} title="New grading scheme" description="Define grade bands after creating the scheme">
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!name.trim()) return;
-            const scheme = createGradingScheme({
-              name: name.trim(),
-              system,
-              session: CURRENT_SESSION,
-              applicableClassIds: classIds,
-              applicableSubjectIds: [],
-              status: "draft",
-            });
+            const res = await createGradingSchemeRequest({ name: name.trim() });
             setCreateOpen(false);
-            openEdit(scheme);
+            if (res.success) { reload(); openEdit({ ...res.data }); }
           }}
-          className="flex flex-col gap-sm">
+          className="flex flex-col gap-sm"
+        >
           <div>
             <Label htmlFor="scheme-name">Scheme name</Label>
-            <Input
-              id="scheme-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. CBSE Pattern (Secondary)"
-            />
+            <Input id="scheme-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. CBSE Pattern (Secondary)" />
           </div>
-          <div>
-            <Label>Grading system</Label>
-            <Select
-              value={system}
-              onValueChange={(v) => setSystem(v as GradingSystem)}>
-              <SelectTrigger aria-label="Grading system">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {systemOptions.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {gradingSystemLabels[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Applicable classes</Label>
-            <p className="mb-xs text-xs text-muted-foreground">
-              Leave all unchecked to apply to every class.
-            </p>
-            <div className="grid max-h-48 grid-cols-2 gap-1 overflow-y-auto rounded-md border border-border p-sm sm:grid-cols-3">
-              {classes.map((c) => (
-                <label
-                  key={c.id}
-                  className="flex min-h-9 items-center gap-1.5 text-sm text-foreground">
-                  <Checkbox
-                    checked={classIds.includes(c.id)}
-                    onCheckedChange={(checked) =>
-                      setClassIds((prev) =>
-                        checked
-                          ? [...prev, c.id]
-                          : prev.filter((id) => id !== c.id),
-                      )
-                    }
-                  />
-                  {c.name}
-                </label>
-              ))}
-            </div>
-          </div>
-          <Button type="submit" disabled={!name.trim()}>
-            Create &amp; add grade bands
-          </Button>
+          <Button type="submit" disabled={!name.trim()}>Create &amp; add grade bands</Button>
         </form>
       </DetailDrawer>
 
-      <DetailDrawer
-        open={assignScheme !== null}
-        onOpenChange={(open) => !open && setAssignScheme(null)}
-        title={assignScheme ? `Assign classes — ${assignScheme.name}` : ""}
-        description="Leave all unchecked to apply this scheme to every class">
-        {assignScheme && (
-          <div className="flex flex-col gap-sm">
-            <div className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto rounded-md border border-border p-sm sm:grid-cols-3">
-              {classes.map((c) => (
-                <label
-                  key={c.id}
-                  className="flex min-h-9 items-center gap-1.5 text-sm text-foreground">
-                  <Checkbox
-                    checked={assignClassIds.includes(c.id)}
-                    onCheckedChange={(checked) =>
-                      setAssignClassIds((prev) =>
-                        checked
-                          ? [...prev, c.id]
-                          : prev.filter((id) => id !== c.id),
-                      )
-                    }
-                  />
-                  {c.name}
-                </label>
-              ))}
-            </div>
-            <Button
-              onClick={() => {
-                assignSchemeClasses(assignScheme.id, assignClassIds);
-                setAssignScheme(null);
-              }}>
-              Save class assignment
-            </Button>
-          </div>
-        )}
-      </DetailDrawer>
-
-      <DetailDrawer
-        open={editScheme !== null}
-        onOpenChange={(open) => !open && setEditScheme(null)}
-        title={editScheme?.name ?? ""}
-        description={
-          editScheme
-            ? `${gradingSystemLabels[editScheme.system]} · Grade bands`
-            : ""
-        }>
+      <DetailDrawer open={editScheme !== null} onOpenChange={(open) => !open && setEditScheme(null)} title={editScheme?.name ?? ""} description="Grade bands">
         {editScheme && (
           <div className="flex flex-col gap-md">
-            {rangeErrors.length > 0 && (
+            {bandErrors.length > 0 && (
               <div className="flex flex-col gap-1 rounded-md border border-error/30 bg-error/8 p-sm text-xs text-error">
-                <p className="flex items-center gap-1 font-medium">
-                  <AlertTriangle className="size-3.5" /> Fix these before saving
-                </p>
-                {rangeErrors.map((e, i) => (
-                  <p key={i}>{e}</p>
-                ))}
+                <p className="flex items-center gap-1 font-medium"><AlertTriangle className="size-3.5" /> Fix these before saving</p>
+                {bandErrors.map((e, i) => <p key={i}>{e}</p>)}
               </div>
             )}
 
             <div className="flex flex-col gap-sm">
-              {ranges.map((range, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col gap-xs rounded-md border border-border p-sm">
+              {bands.map((band, index) => (
+                <div key={index} className="flex flex-col gap-xs rounded-md border border-border p-sm">
                   <div className="flex items-center gap-xs">
-                    <Input
-                      value={range.name}
-                      onChange={(e) =>
-                        updateRange(index, { name: e.target.value })
-                      }
-                      placeholder="Grade name"
-                      className="flex-1"
-                      aria-label={`Grade ${index + 1} name`}
-                    />
-                    <Input
-                      type="color"
-                      value={range.color}
-                      onChange={(e) =>
-                        updateRange(index, { color: e.target.value })
-                      }
-                      className="h-11 w-12 shrink-0 p-1 sm:h-9"
-                      aria-label={`Grade ${index + 1} colour`}
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => removeRange(index)}
-                      aria-label={`Remove grade ${index + 1}`}>
+                    <Input value={band.label} onChange={(e) => setBands((prev) => prev.map((b, i) => (i === index ? { ...b, label: e.target.value } : b)))} placeholder="Grade name" className="flex-1" aria-label={`Grade ${index + 1} name`} />
+                    <Input type="color" value={band.color} onChange={(e) => setBands((prev) => prev.map((b, i) => (i === index ? { ...b, color: e.target.value } : b)))} className="h-11 w-12 shrink-0 p-1 sm:h-9" aria-label={`Grade ${index + 1} colour`} />
+                    <Button type="button" size="icon" variant="ghost" onClick={() => setBands((prev) => prev.filter((_, i) => i !== index))} aria-label={`Remove grade ${index + 1}`}>
                       <Trash2 className="size-3.5 text-error" />
                     </Button>
                   </div>
-                  <div className="grid grid-cols-3 gap-xs">
+                  <div className="grid grid-cols-2 gap-xs">
                     <div>
-                      <Label htmlFor={`min-${index}`} className="text-[11px]">
-                        Min %
-                      </Label>
-                      <Input
-                        id={`min-${index}`}
-                        type="number"
-                        value={range.minPercent}
-                        onChange={(e) =>
-                          updateRange(index, {
-                            minPercent: Number(e.target.value),
-                          })
-                        }
-                      />
+                      <Label htmlFor={`min-${index}`} className="text-[11px]">Min %</Label>
+                      <Input id={`min-${index}`} type="number" value={band.minPercent} onChange={(e) => setBands((prev) => prev.map((b, i) => (i === index ? { ...b, minPercent: Number(e.target.value) } : b)))} />
                     </div>
                     <div>
-                      <Label htmlFor={`max-${index}`} className="text-[11px]">
-                        Max %
-                      </Label>
-                      <Input
-                        id={`max-${index}`}
-                        type="number"
-                        value={range.maxPercent}
-                        onChange={(e) =>
-                          updateRange(index, {
-                            maxPercent: Number(e.target.value),
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`gp-${index}`} className="text-[11px]">
-                        Grade point
-                      </Label>
-                      <Input
-                        id={`gp-${index}`}
-                        type="number"
-                        value={range.gradePoint ?? ""}
-                        onChange={(e) =>
-                          updateRange(index, {
-                            gradePoint:
-                              e.target.value === ""
-                                ? undefined
-                                : Number(e.target.value),
-                          })
-                        }
-                      />
+                      <Label htmlFor={`max-${index}`} className="text-[11px]">Max %</Label>
+                      <Input id={`max-${index}`} type="number" value={band.maxPercent} onChange={(e) => setBands((prev) => prev.map((b, i) => (i === index ? { ...b, maxPercent: Number(e.target.value) } : b)))} />
                     </div>
                   </div>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Checkbox
-                      checked={range.isPass}
-                      onCheckedChange={(checked) =>
-                        updateRange(index, { isPass: checked === true })
-                      }
-                    />
+                    <Checkbox checked={band.isPass} onCheckedChange={(checked) => setBands((prev) => prev.map((b, i) => (i === index ? { ...b, isPass: checked === true } : b)))} />
                     Counts as a pass
                   </label>
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addRange}
-                className="self-start">
-                <Plus className="size-3.5" />
-                Add grade band
+              <Button type="button" variant="outline" size="sm" onClick={() => setBands((prev) => [...prev, blankBand()])} className="self-start">
+                <Plus className="size-3.5" /> Add grade band
               </Button>
             </div>
 
-            <div>
-              <p className="mb-xs text-xs font-semibold text-foreground">
-                Preview
-              </p>
-              <GradeScaleStrip
-                ranges={ranges.map((r, i) => ({ ...r, id: String(i) }))}
-              />
-              <div className="mt-xs flex flex-wrap gap-1">
-                {[...ranges]
-                  .sort((a, b) => b.minPercent - a.minPercent)
-                  .map((r, i) => (
-                    <span
-                      key={i}
-                      className={cn(
-                        "rounded-pill px-sm py-1 text-xs font-medium",
-                      )}
-                      style={{
-                        backgroundColor: `${r.color}22`,
-                        color: r.color,
-                      }}>
-                      {r.name || "—"} {r.minPercent}-{r.maxPercent}%
-                    </span>
-                  ))}
+            {previewIssues.length > 0 && (
+              <div className="flex flex-col gap-0.5 text-xs text-warning">
+                {previewIssues.map((issue, i) => (
+                  <span key={i} className="flex items-start gap-1"><AlertTriangle className="mt-0.5 size-3 shrink-0" /> {issue}</span>
+                ))}
               </div>
-              {detectSchemeIssues(
-                ranges.map((r, i) => ({ ...r, id: String(i) })),
-              ).length > 0 && (
-                <div className="mt-xs flex flex-col gap-0.5 text-xs text-warning">
-                  {detectSchemeIssues(
-                    ranges.map((r, i) => ({ ...r, id: String(i) })),
-                  ).map((issue, i) => (
-                    <span key={i} className="flex items-start gap-1">
-                      <AlertTriangle className="mt-0.5 size-3 shrink-0" />{" "}
-                      {issue.message}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
 
-            <Button onClick={handleSaveRanges}>Save grade bands</Button>
+            <Button onClick={handleSaveBands} disabled={saving}>Save grade bands</Button>
           </div>
         )}
       </DetailDrawer>

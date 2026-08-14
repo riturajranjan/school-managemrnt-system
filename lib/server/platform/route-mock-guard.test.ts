@@ -75,6 +75,14 @@ const MIGRATED_FILES = [
   "app/marks/page.tsx",
   "app/marks/entry/page.tsx",
   "app/marks/verification/page.tsx",
+  // Phase 8C — real Results & Grading (GradingScheme/GradingBand + derived
+  // result computation + publication), backed by /api/results/* and
+  // /api/exams/*/results*. No mock grading/result-engine authority. The
+  // cross-exam /results/* hub (pipeline stages, report-card counts) and
+  // /grading/rules (grace marks / attendance-eligibility policy — no real
+  // backing) stay mock, unlinked from the real per-exam page.
+  "app/grading/schemes/page.tsx",
+  "app/exams/[examId]/results/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -127,6 +135,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/marks-import-service", why: "mock marks import service (deferred CSV importer)" },
   { marker: "selectors/marks-summary", why: "mock marks summary selector (deleted — dead import)" },
   { marker: "types/marks", why: "mock marks types" },
+  // Phase 8C — grading/result mock authority (real surfaces must use hooks/api/use-results-api).
+  { marker: "services/grading-service", why: "mock grading service" },
+  { marker: "services/result-engine", why: "mock result-calculation engine" },
+  { marker: "services/result-processing-service", why: "mock result-processing service" },
+  { marker: "selectors/grading-validation", why: "mock grading validation selector (deleted — dead import)" },
+  { marker: "selectors/results-pipeline", why: "mock results pipeline selector" },
 ];
 
 function collectSources(dir: string): string[] {

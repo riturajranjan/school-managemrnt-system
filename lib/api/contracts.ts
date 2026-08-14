@@ -943,6 +943,8 @@ export type ExamListItemDto = {
   status: ExamStatus;
   classCount: number;
   scheduleCount: number;
+  gradingSchemeId: string | null; // Phase 8C
+  gradingSchemeName: string | null;
 };
 
 export type ExamDetailDto = ExamListItemDto & {
@@ -1032,6 +1034,81 @@ export type ExamMarksSummaryItemDto = {
   sheetStatus: ExamMarkSheetStatus;
   totalStudents: number;
   enteredCount: number;
+};
+
+// --- Phase 8C: Results & Grading ---
+// Results are DERIVED from Phase 8B ExamMark (VERIFIED sheets only) — never a
+// second editable marks store. Before publication every value below is a live
+// preview (`published: false`); after publication it is an immutable snapshot
+// frozen at publish time, including the exact grading bands used, so a later
+// grading-scheme edit can never change a historical result.
+
+export type GradingSchemeStatus = "active" | "archived";
+
+export type GradingBandDto = {
+  id: string;
+  label: string;
+  minPercent: number;
+  maxPercent: number;
+  isPass: boolean;
+  color: string;
+  order: number;
+};
+
+export type GradingSchemeDto = {
+  id: string;
+  name: string;
+  status: GradingSchemeStatus;
+  bands: GradingBandDto[];
+  examCount: number;
+};
+
+/** Per-paper status: the 4 real ExamMark statuses, plus "unverified" for a
+ *  paper whose ExamMarkSheet exists but hasn't reached VERIFIED yet. */
+export type ExamResultMarkStatus = ExamMarkStatus | "unverified";
+export type ExamResultPassStatus = "pass" | "fail" | "absent" | "exempt" | "incomplete";
+export type ExamResultStatus = "pass" | "fail" | "absent" | "incomplete";
+
+export type ExamSubjectResultDto = {
+  examScheduleEntryId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  maxMarks: number;
+  passingMarks: number;
+  markStatus: ExamResultMarkStatus;
+  theoryMarks: number | null;
+  practicalMarks: number | null;
+  marksObtained: number | null;
+  percentage: number | null;
+  grade: string | null;
+  passStatus: ExamResultPassStatus;
+};
+
+export type StudentExamResultDto = {
+  studentId: string;
+  enrollmentId: string | null;
+  admissionNumber: string;
+  rollNumber: string | null;
+  name: string;
+  totalMaxMarks: number;
+  totalMarksObtained: number;
+  percentage: number | null;
+  grade: string | null;
+  status: ExamResultStatus;
+  subjects: ExamSubjectResultDto[];
+};
+
+export type ExamResultsDto = {
+  examId: string;
+  published: boolean;
+  publishedAt: string | null;
+  publishedByName: string | null;
+  gradingSchemeId: string | null;
+  gradingSchemeName: string | null;
+  studentCount: number;
+  incompleteCount: number;
+  students: StudentExamResultDto[];
 };
 
 export type ExamMarksSaveRecord = {

@@ -140,7 +140,8 @@ describe.skipIf(!dbReady)("exams + class applicability (DB)", () => {
   it("DTO exposes only safe display fields", async () => {
     const { exam } = await mkTermAndExam();
     const detail = await getExam(scope, exam.id);
-    expect(Object.keys(detail).sort()).toEqual(["classCount", "classes", "code", "description", "endsOn", "id", "mode", "name", "scheduleCount", "scope", "startsOn", "status", "term", "type"]);
+    // gradingSchemeId/gradingSchemeName added Phase 8C — real, safe display fields.
+    expect(Object.keys(detail).sort()).toEqual(["classCount", "classes", "code", "description", "endsOn", "gradingSchemeId", "gradingSchemeName", "id", "mode", "name", "scheduleCount", "scope", "startsOn", "status", "term", "type"]);
   });
 });
 

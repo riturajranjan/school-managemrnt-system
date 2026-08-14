@@ -686,6 +686,7 @@ model Student {
   enrollments       Enrollment[] // Phase 6-pre — real class/section enrollment
   attendanceRecords AttendanceRecord[] // Phase 5 — attendance
   examMarks         ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
+  examResults       StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -1762,11 +1763,12 @@ model Enrollment {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  class             Class              @relation(fields: [classId], references: [id], onDelete: Cascade)
-  section           Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class             Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  section           Section             @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  student           Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   attendanceRecords AttendanceRecord[] // Phase 5 — attendance
   examMarks         ExamMark[] // Phase 8B — historical reference only (SetNull on unenrollment)
+  examResults       StudentExamResult[] // Phase 8C — historical reference only (SetNull on unenrollment)
 
   // One enrollment row per student per academic session; a student appears at
   // most once in a given section.
@@ -2271,13 +2273,16 @@ model Exam {
   scope             ExamScope  @default(INTERNAL)
   mode              ExamMode   @default(OFFLINE)
   status            ExamStatus @default(DRAFT)
+  gradingSchemeId   String? // Phase 8C — which GradingScheme resolves this exam's grades; explicit, not inferred by class
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  term     ExamTerm            @relation(fields: [examTermId], references: [id], onDelete: Restrict)
-  classes  ExamClass[]
-  schedule ExamScheduleEntry[]
+  term              ExamTerm               @relation(fields: [examTermId], references: [id], onDelete: Restrict)
+  classes           ExamClass[]
+  schedule          ExamScheduleEntry[]
+  gradingScheme     GradingScheme?         @relation(fields: [gradingSchemeId], references: [id], onDelete: SetNull)
+  resultPublication ExamResultPublication? // Phase 8C — at most one publication per exam
 
   // One exam code per school + academic session.
   @@unique([schoolId, academicSessionId, code])
@@ -2440,4 +2445,133 @@ model ExamMark {
   @@index([studentId])
   @@index([enrollmentId])
   @@map("exam_marks")
+}
+
+// ===========================================================================
+// Phase 8C — Results & Grading. Deliberately NOT modelled: rank (no ranking
+// policy exists yet — deferred), GPA/CGPA (no grade-point policy exists),
+// grace marks / attendance-eligibility / max-failed-subjects / min-overall-
+// percent (all mock-only invented policy with zero real backing). V1 pass/fail
+// policy (documented in lib/server/results/engine.ts): a student PASSes an
+// exam when every non-exempt paper PASSes; FAILs if any non-exempt paper
+// FAILs or is ABSENT; is ABSENT overall only if EVERY non-exempt paper is
+// ABSENT; is INCOMPLETE if any required paper has no VERIFIED mark yet.
+//
+// GradingScheme is School + AcademicSession scoped (not per-Class, not
+// per-Exam) — Exam.gradingSchemeId picks ONE explicit scheme per exam rather
+// than duplicating bands per exam or silently auto-resolving by class.
+//
+// Results are DERIVED, never a second editable marks store: the result engine
+// only ever reads Exam → ExamScheduleEntry → ExamMarkSheet(VERIFIED) →
+// ExamMark. Before publication, results are computed LIVE (a preview) and
+// never persisted. At publication, ExamResultPublication + StudentExamResult
+// freeze an immutable snapshot — including the exact grading bands used — so
+// a later grading-scheme edit or Subject/Staff/Enrollment change can never
+// alter a historical published result. Existence of the ExamResultPublication
+// row itself IS the "published" state — no separate DRAFT publication row is
+// ever created, since preview never persists anything.
+// ===========================================================================
+
+enum GradingSchemeStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model GradingScheme {
+  id                String              @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+  name              String
+  status            GradingSchemeStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  bands GradingBand[]
+  exams Exam[]
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@map("grading_schemes")
+}
+
+// A percentage band, e.g. "A1" 91-100. Non-overlap and full-range validity are
+// enforced transactionally by the reconcile endpoint (lib/server/results/
+// grading-service.ts) — never trusted from the client alone.
+model GradingBand {
+  id              String  @id @default(cuid())
+  gradingSchemeId String
+  label           String
+  minPercent      Int
+  maxPercent      Int
+  isPass          Boolean @default(true)
+  color           String  @default("#18b0c8")
+  order           Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  scheme GradingScheme @relation(fields: [gradingSchemeId], references: [id], onDelete: Cascade)
+
+  @@index([gradingSchemeId])
+  @@map("grading_bands")
+}
+
+enum ExamResultStatus {
+  PASS
+  FAIL
+  ABSENT
+}
+
+// At most one publication per Exam (@@unique) — re-publishing is refused
+// (RESULT_ALREADY_PUBLISHED); a correction workflow is explicitly deferred.
+model ExamResultPublication {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  schoolId             String
+  academicSessionId    String
+  examId               String   @unique
+  gradingSchemeId      String
+  gradingSchemeName    String // frozen name — a later scheme rename must not alter the historical record either
+  gradingBandsSnapshot Json // frozen bands used at publish time — immutable even if the scheme is edited later
+  studentCount         Int
+  publishedByUserId    String
+  publishedByName      String?
+  publishedAt          DateTime @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  exam    Exam                @relation(fields: [examId], references: [id], onDelete: Cascade)
+  results StudentExamResult[]
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@map("exam_result_publications")
+}
+
+// A read-only historical snapshot — never exposes a PATCH path. Marks continue
+// to live only in ExamMark; this is purely the frozen publication output.
+model StudentExamResult {
+  id                 String           @id @default(cuid())
+  publicationId      String
+  studentId          String
+  enrollmentId       String?
+  totalMaxMarks      Int
+  totalMarksObtained Int
+  percentage         Int
+  grade              String?
+  status             ExamResultStatus
+  subjectResults     Json // array of per-paper breakdowns — see ExamSubjectResultDto in lib/api/contracts.ts
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  publication ExamResultPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  student     Student               @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment  Enrollment?           @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  @@unique([publicationId, studentId])
+  @@index([publicationId])
+  @@index([studentId])
+  @@map("student_exam_results")
 }

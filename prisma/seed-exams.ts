@@ -103,4 +103,28 @@ export async function seedExams(prisma: PrismaClient, ids: Ids) {
     }
   }
   console.log(`  P8B:      markSheet(+${sheetCreated ? 1 : 0}) marks(+${marksCreated})`);
+
+  // 6) Phase 8C — one real GradingScheme with a standard percentage-band set,
+  //    assigned to the exam. Not published (most students in the demo school
+  //    have no marks yet, so a real publish would correctly reject as
+  //    incomplete) — deliberately left as a live preview to demo honestly.
+  let schemeCreated = false;
+  let scheme = await prisma.gradingScheme.findFirst({ where: { schoolId, academicSessionId, name: "CBSE Pattern" }, select: { id: true } });
+  if (!scheme) {
+    scheme = await prisma.gradingScheme.create({ data: { tenantId, schoolId, academicSessionId, name: "CBSE Pattern", status: "ACTIVE" }, select: { id: true } });
+    await prisma.gradingBand.createMany({
+      data: [
+        { gradingSchemeId: scheme.id, label: "A1", minPercent: 91, maxPercent: 100, isPass: true, color: "#16a34a", order: 0 },
+        { gradingSchemeId: scheme.id, label: "A2", minPercent: 81, maxPercent: 90, isPass: true, color: "#22c55e", order: 1 },
+        { gradingSchemeId: scheme.id, label: "B1", minPercent: 71, maxPercent: 80, isPass: true, color: "#84cc16", order: 2 },
+        { gradingSchemeId: scheme.id, label: "B2", minPercent: 61, maxPercent: 70, isPass: true, color: "#eab308", order: 3 },
+        { gradingSchemeId: scheme.id, label: "C1", minPercent: 51, maxPercent: 60, isPass: true, color: "#f59e0b", order: 4 },
+        { gradingSchemeId: scheme.id, label: "C2", minPercent: 33, maxPercent: 50, isPass: true, color: "#f97316", order: 5 },
+        { gradingSchemeId: scheme.id, label: "D", minPercent: 0, maxPercent: 32, isPass: false, color: "#ef4444", order: 6 },
+      ],
+    });
+    schemeCreated = true;
+  }
+  await prisma.exam.update({ where: { id: exam.id }, data: { gradingSchemeId: scheme.id } });
+  console.log(`  P8C:      gradingScheme(+${schemeCreated ? 1 : 0})`);
 }

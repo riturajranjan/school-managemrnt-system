@@ -126,6 +126,7 @@ export const updateExamSchema = z.object({
   endsOn: dateStr.optional(),
   scope: z.enum(["internal", "external"]).optional(),
   mode: z.enum(["online", "offline"]).optional(),
+  gradingSchemeId: z.string().min(1).nullable().optional(), // Phase 8C
 });
 
 const TYPE_TO_DB: Record<ExamType, string> = {
@@ -141,6 +142,7 @@ const MODE_TO_DB: Record<ExamMode, string> = { online: "ONLINE", offline: "OFFLI
 type ExamRow = {
   id: string; name: string; code: string; type: string; description: string | null; startsOn: Date; endsOn: Date;
   scope: string; mode: string; status: string; term: { id: string; name: string };
+  gradingSchemeId: string | null; gradingScheme: { name: string } | null;
   _count?: { classes: number; schedule: number };
 };
 function listDto(e: ExamRow): ExamListItemDto {
@@ -149,11 +151,13 @@ function listDto(e: ExamRow): ExamListItemDto {
     startsOn: dateToUi(e.startsOn), endsOn: dateToUi(e.endsOn),
     scope: e.scope.toLowerCase() as ExamScopeUi, mode: e.mode.toLowerCase() as ExamMode, status: e.status.toLowerCase() as ExamStatus,
     classCount: e._count?.classes ?? 0, scheduleCount: e._count?.schedule ?? 0,
+    gradingSchemeId: e.gradingSchemeId, gradingSchemeName: e.gradingScheme?.name ?? null,
   };
 }
 const examListSelect = {
   id: true, name: true, code: true, type: true, description: true, startsOn: true, endsOn: true, scope: true, mode: true, status: true,
   term: { select: { id: true, name: true } }, _count: { select: { classes: true, schedule: true } },
+  gradingSchemeId: true, gradingScheme: { select: { name: true } },
 } satisfies Prisma.ExamSelect;
 
 export type ListExamParams = { status?: string; termId?: string; search?: string };
@@ -218,6 +222,10 @@ export async function updateExam(scope: OrgScope, examId: string, raw: unknown):
   if (input.examTermId) await requireTermInScope(scope, input.examTermId);
   if (input.code) await assertExamCodeFree(scope, input.code, examId);
   if (input.startsOn && input.endsOn && input.endsOn < input.startsOn) throw new HttpError("VALIDATION_ERROR", "End date must be on or after the start date");
+  if (input.gradingSchemeId) {
+    const scheme = await prisma.gradingScheme.findFirst({ where: { id: input.gradingSchemeId, schoolId: scope.schoolId, academicSessionId: requireSession(scope) }, select: { id: true } });
+    if (!scheme) throw new HttpError("GRADING_SCHEME_NOT_FOUND", "Grading scheme not found");
+  }
   await prisma.$transaction(async (tx) => {
     await tx.exam.update({
       where: { id: examId },
@@ -225,6 +233,7 @@ export async function updateExam(scope: OrgScope, examId: string, raw: unknown):
         examTermId: input.examTermId, name: input.name, code: input.code, type: input.type ? (TYPE_TO_DB[input.type] as never) : undefined,
         description: input.description, startsOn: input.startsOn ? parseExamDate(input.startsOn) : undefined, endsOn: input.endsOn ? parseExamDate(input.endsOn) : undefined,
         scope: input.scope ? (SCOPE_TO_DB[input.scope] as never) : undefined, mode: input.mode ? (MODE_TO_DB[input.mode] as never) : undefined,
+        gradingSchemeId: input.gradingSchemeId === undefined ? undefined : input.gradingSchemeId,
       },
     });
     await recordAudit(tx, scope, "EXAM_UPDATED", "Exam", examId);

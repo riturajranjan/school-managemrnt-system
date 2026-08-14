@@ -12,15 +12,17 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { AlertTriangle, CalendarClock, ChevronRight, ClipboardCheck, FileBadge, FileText, Pencil, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, ClipboardCheck, FileBadge, FileText, GraduationCap, Pencil, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
 import { reconcileExamClassesRequest, setExamStatusRequest, updateExamRequest, useExam, useExamSchedule } from "@/lib/hooks/api/use-exams-api";
+import { useGradingSchemes } from "@/lib/hooks/api/use-results-api";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { formatDate } from "@/lib/utils";
 
@@ -38,6 +40,7 @@ export default function ExamDetailPage() {
   const { data: exam, loading, error, reload } = useExam(params.examId);
   const { data: schedule } = useExamSchedule(params.examId);
   const { data: classes } = useClasses();
+  const { data: gradingSchemes } = useGradingSchemes();
   const { can } = usePermissions();
   const canManage = can("exams.manageSchedule");
 
@@ -58,6 +61,7 @@ export default function ExamDetailPage() {
     { key: "students", label: "Students", href: `/exams/${exam.id}/students`, icon: Users, real: false, detail: "Not available yet" },
     { key: "attendance", label: "Attendance", href: `/exams/${exam.id}/attendance`, icon: ClipboardCheck, real: false, detail: "Not available yet" },
     { key: "marks", label: "Marks entry", href: `/marks/entry?examId=${exam.id}`, icon: FileBadge, real: true, detail: `${scheduleCount} paper${scheduleCount === 1 ? "" : "s"} scheduled` },
+    { key: "results", label: "Results", href: `/exams/${exam.id}/results`, icon: GraduationCap, real: true, detail: "Live preview, publish when ready" },
   ] as const;
 
   return (
@@ -137,8 +141,25 @@ export default function ExamDetailPage() {
             <p className="text-xs text-muted-foreground">Scope / Mode</p>
             <p className="text-foreground capitalize">{exam.scope} · {exam.mode}</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Grading scheme</p>
+            {canManage ? (
+              <Select
+                value={exam.gradingSchemeId ?? "__none__"}
+                onValueChange={async (v) => { const res = await updateExamRequest(exam.id, { gradingSchemeId: v === "__none__" ? null : v }); if (!res.success) setActionError(res.error.message); else reload(); }}
+              >
+                <SelectTrigger className="h-9" aria-label="Grading scheme"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None assigned</SelectItem>
+                  {gradingSchemes.filter((s) => s.status === "active").map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-foreground">{exam.gradingSchemeName ?? "None assigned"}</p>
+            )}
+          </div>
         </div>
-        <p className="mt-sm text-xs text-muted-foreground">Grading scheme, result rules and report card templates arrive with the Marks &amp; Results module.</p>
+        <p className="mt-sm text-xs text-muted-foreground">Result rules and report card templates arrive with a future Results module.</p>
       </div>
 
       <DetailDrawer open={editOpen} onOpenChange={setEditOpen} title="Edit exam details" description={exam.code}>
