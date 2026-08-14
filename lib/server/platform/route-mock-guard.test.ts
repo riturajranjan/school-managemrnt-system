@@ -82,6 +82,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: 'hooks/use-academics"', why: "mock academics hooks (use hooks/api/use-academics-subjects)" },
   { marker: "services/subjects-service", why: "mock subjects service" },
   { marker: "data/seed/academics", why: "mock academics seed" },
+  // Phase 6A — staff/teacher mock authority (real surfaces must use hooks/api/use-staff).
+  { marker: "services/hr-service", why: "mock HR/staff service" },
+  { marker: 'hooks/use-hr"', why: "mock HR hooks" },
+  { marker: "data/seed/hr", why: "mock HR/staff seed" },
 ];
 
 function collectSources(dir: string): string[] {

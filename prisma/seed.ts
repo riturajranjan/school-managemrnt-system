@@ -19,6 +19,7 @@ import { seedSubscriptions } from "./seed-subscriptions";
 import { seedAddonsMarketplace } from "./seed-addons-marketplace";
 import { seedAcademics } from "./seed-academics";
 import { seedSubjects } from "./seed-subjects";
+import { seedStaff } from "./seed-staff";
 import { seedAttendance } from "./seed-attendance";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
@@ -278,6 +279,11 @@ async function main() {
   // Phase 6 — real Subject catalogue + Class↔Subject assignments
   // =========================================================================
   await seedSubjects(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
+
+  // =========================================================================
+  // Phase 6A — real teaching Staff + TeachingAssignments
+  // =========================================================================
+  await seedStaff(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // =========================================================================
   // Phase 5 — real attendance on the seeded sections/enrollments

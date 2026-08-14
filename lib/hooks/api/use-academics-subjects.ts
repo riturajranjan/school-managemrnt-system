@@ -26,6 +26,9 @@ export function useClassSubjects(classId: string | undefined) {
 export function useSubjectClasses(subjectId: string | undefined) {
   return useApiResource<ClassSubjectDto[]>(subjectId ? `/api/academics/subjects/${subjectId}/classes` : null);
 }
+export function useSectionSubjects(sectionId: string | undefined) {
+  return useApiResource<SubjectDto[]>(sectionId ? `/api/academics/sections/${sectionId}/subjects` : null);
+}
 export const assignClassSubjectRequest = (classId: string, subjectId: string): Promise<ApiResult<ClassSubjectDto>> =>
   apiPost<ClassSubjectDto>(`/api/academics/classes/${classId}/subjects`, { subjectId });
 export const reconcileClassSubjectsRequest = (classId: string, subjectIds: string[]): Promise<ApiResult<ClassSubjectDto[]>> =>

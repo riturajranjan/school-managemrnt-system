@@ -270,6 +270,7 @@ model User {
   sessions      Session[]
   platformAdmin PlatformAdmin?
   activeContext UserActiveContext?
+  staffProfile  Staff? // Phase 6A — optional link to a school Staff/employee record
 
   @@index([status])
   @@map("users")
@@ -1728,9 +1729,10 @@ model Section {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  class              Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
-  enrollments        Enrollment[]
-  attendanceSessions AttendanceSession[] // Phase 5 — attendance
+  class               Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollments         Enrollment[]
+  attendanceSessions  AttendanceSession[] // Phase 5 — attendance
+  teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
 
   // One section name per class.
   @@unique([classId, name])
@@ -1906,7 +1908,8 @@ model Subject {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  classSubjects ClassSubject[]
+  classSubjects       ClassSubject[]
+  teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
 
   // One subject code per school (catalogue is school-wide, reused across sessions).
   @@unique([schoolId, code])
@@ -1938,4 +1941,95 @@ model ClassSubject {
   @@index([classId])
   @@index([subjectId])
   @@map("class_subjects")
+}
+
+// ===========================================================================
+// Phase 6A — Staff / Teacher foundation (prerequisite for Timetable). A Staff
+// record is a school-domain EMPLOYEE, distinct from the auth `User` (login
+// identity). Staff is tenant/school/BRANCH scoped and NOT academic-session
+// scoped — employees persist across years; session-specific teaching lives in
+// TeachingAssignment. `userId` is an OPTIONAL 1:1 link to a login account (staff
+// may exist without one). Teaching eligibility is the explicit `isTeaching`
+// flag (never inferred from a name). Org columns are plain indexed strings
+// re-validated in the service; intra-domain links (Staff↔TeachingAssignment,
+// TeachingAssignment→Section/Subject) are real FKs.
+// ===========================================================================
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  TEMPORARY
+}
+
+model Staff {
+  id             String          @id @default(cuid())
+  tenantId       String
+  schoolId       String
+  branchId       String
+  employeeCode   String
+  firstName      String
+  lastName       String?
+  displayName    String?
+  email          String?
+  phone          String?
+  designation    String?
+  department     String?
+  employmentType EmploymentType?
+  isTeaching     Boolean         @default(false)
+  status         StaffStatus     @default(ACTIVE)
+  joiningDate    DateTime?       @db.Date
+  userId         String?         @unique
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  teachingAssignments TeachingAssignment[]
+
+  // One employee code per school.
+  @@unique([schoolId, employeeCode])
+  @@index([tenantId])
+  @@index([schoolId, branchId, status])
+  @@index([schoolId, isTeaching, status])
+  @@map("staff")
+}
+
+// A teacher (Staff) teaching a Subject in a Section for the section's academic
+// session. Real FKs to Section + Subject + Staff. The Subject must be part of the
+// Section's Class curriculum (validated via getSubjectsForSection) and the Staff
+// must be ACTIVE + teaching-eligible + in the section's branch. Multiple teachers
+// per (section, subject) are allowed (co-teaching), but a given staff is assigned
+// to a (section, subject) at most once.
+model TeachingAssignment {
+  id                String  @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+  sectionId         String
+  subjectId         String
+  staffId           String
+  isPrimary         Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staff   Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, subjectId, staffId])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([sectionId])
+  @@index([subjectId])
+  @@index([staffId])
+  @@map("teaching_assignments")
 }

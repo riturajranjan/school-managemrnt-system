@@ -23,6 +23,8 @@ import {
   useRoster,
   useSections,
 } from "@/lib/hooks/api/use-academics-foundation";
+import { useSectionSubjects } from "@/lib/hooks/api/use-academics-subjects";
+import { assignTeacherRequest, removeTeacherRequest, useTeachingAssignments, useTeachingStaff } from "@/lib/hooks/api/use-staff";
 import type { SectionDto } from "@/lib/api/contracts";
 
 function SectionsInner() {
@@ -36,6 +38,7 @@ function SectionsInner() {
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("40");
   const [rosterSection, setRosterSection] = useState<SectionDto | null>(null);
+  const [teachSection, setTeachSection] = useState<SectionDto | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function addSection() {
@@ -75,6 +78,7 @@ function SectionsInner() {
               </div>
               <div className="flex items-center gap-sm">
                 <Badge tone={s.status === "active" ? "success" : "neutral"}>{s.status}</Badge>
+                <Button size="sm" variant="outline" onClick={() => setTeachSection(s)}>Teachers</Button>
                 <Button size="sm" variant="outline" onClick={() => setRosterSection(s)}>Manage roster</Button>
               </div>
             </div>
@@ -104,7 +108,80 @@ function SectionsInner() {
       </DetailDrawer>
 
       <RosterDrawer section={rosterSection} onClose={() => { setRosterSection(null); reload(); }} canManage={canManage} />
+      <TeachersDrawer section={teachSection} onClose={() => setTeachSection(null)} canManage={canManage} />
     </div>
+  );
+}
+
+/** Real teacher assignments for a section: assign an ACTIVE teaching Staff to an
+ *  inherited Subject. Teachers come from getTeachingStaff; subjects from the real
+ *  Section→Class→ClassSubject inheritance. No mock teacher data. */
+function TeachersDrawer({ section, onClose, canManage }: { section: SectionDto | null; onClose: () => void; canManage: boolean }) {
+  const { data: assignments, loading, reload } = useTeachingAssignments(section?.id);
+  const { data: subjects } = useSectionSubjects(section?.id);
+  const { data: teachers } = useTeachingStaff(Boolean(section));
+  const [subjectId, setSubjectId] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const rows = assignments ?? [];
+
+  async function assign() {
+    if (!section || !subjectId || !staffId) { setErr("Select a subject and a teacher."); return; }
+    setBusy(true); setErr(null);
+    const res = await assignTeacherRequest(section.id, subjectId, staffId);
+    setBusy(false);
+    if (!res.success) { setErr(res.error.message); return; }
+    setSubjectId(""); setStaffId(""); reload();
+  }
+  async function remove(assignmentId: string) {
+    if (!section) return;
+    setBusy(true); setErr(null);
+    const res = await removeTeacherRequest(section.id, assignmentId);
+    setBusy(false);
+    if (!res.success) { setErr(res.error.message); return; }
+    reload();
+  }
+
+  return (
+    <DetailDrawer open={Boolean(section)} onOpenChange={(o) => { if (!o) { setSubjectId(""); setStaffId(""); setErr(null); onClose(); } }} title={section ? `${section.className} — Section ${section.name}` : ""} description="Assign teachers to this section's subjects">
+      <div className="flex flex-col gap-sm">
+        {err && <p className="text-xs text-error">{err}</p>}
+        {canManage && (
+          <div className="flex flex-col gap-sm rounded-lg border border-border p-sm">
+            <div>
+              <Label>Subject</Label>
+              <Select value={subjectId} onValueChange={setSubjectId}>
+                <SelectTrigger aria-label="Subject"><SelectValue placeholder="Select subject" /></SelectTrigger>
+                <SelectContent>{(subjects ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Teacher</Label>
+              <Select value={staffId} onValueChange={setStaffId}>
+                <SelectTrigger aria-label="Teacher"><SelectValue placeholder="Select teacher" /></SelectTrigger>
+                <SelectContent>{(teachers ?? []).map((t) => <SelectItem key={t.id} value={t.id}>{t.name} · {t.employeeCode}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" disabled={busy || !subjectId || !staffId} onClick={() => void assign()}>Assign teacher</Button>
+          </div>
+        )}
+        {loading ? (
+          <p className="py-lg text-center text-sm text-muted-foreground">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No teachers assigned yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-xs">
+            {rows.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm text-sm">
+                <div className="min-w-0"><p className="truncate font-medium text-foreground">{a.subjectName}</p><p className="truncate text-xs text-muted-foreground">{a.staffName} · {a.staffEmployeeCode}</p></div>
+                {canManage && <Button size="sm" variant="ghost" className="text-error" disabled={busy} onClick={() => void remove(a.id)} aria-label={`Remove ${a.staffName}`}><Trash2 className="size-3.5" /></Button>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </DetailDrawer>
   );
 }
 

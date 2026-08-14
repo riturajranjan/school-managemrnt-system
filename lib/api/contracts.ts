@@ -863,6 +863,56 @@ export type ClassSubjectDto = {
   order: number;
 };
 
+// --- Phase 6A: Staff / Teacher foundation ---
+
+export type StaffStatus = "active" | "inactive" | "archived";
+export type EmploymentType = "full-time" | "part-time" | "contract" | "temporary";
+
+export type StaffListItemDto = {
+  id: string;
+  employeeCode: string;
+  name: string; // displayName, else "first last"
+  designation: string | null;
+  department: string | null;
+  employmentType: EmploymentType | null;
+  isTeaching: boolean;
+  status: StaffStatus;
+  branchId: string;
+  email: string | null;
+  hasUser: boolean; // whether a login account is linked (id never exposed in list)
+};
+
+export type StaffDetailDto = StaffListItemDto & {
+  firstName: string;
+  lastName: string | null;
+  displayName: string | null;
+  phone: string | null;
+  joiningDate: string | null; // YYYY-MM-DD
+  userId: string | null;
+  userEmail: string | null; // resolved from the linked account, if any
+};
+
+/** Minimal teaching-staff option for academics/timetable pickers. */
+export type TeachingStaffOptionDto = {
+  id: string;
+  name: string;
+  employeeCode: string;
+  designation: string | null;
+};
+
+/** One teacher↔(section, subject) assignment. */
+export type TeachingAssignmentDto = {
+  id: string;
+  sectionId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  staffId: string;
+  staffName: string;
+  staffEmployeeCode: string;
+  isPrimary: boolean;
+};
+
 // --- Phase 5: Attendance ---
 
 export type AttendanceSummaryDto = {
