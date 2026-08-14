@@ -1,34 +1,29 @@
 "use client";
 
+// Attendance hub (Phase 5B) — same visual design as before (stat tiles, quick-nav
+// cards, unmarked-sections banner, Rules drawer) now fully PostgreSQL/API-backed
+// via /api/attendance/dashboard. No mock store, no localStorage, no seeded numbers.
+// The Rules drawer is READ-ONLY: it displays the effective server-side attendance
+// policy (Phase 5B defaults). Persistent, school-configurable rules are deferred
+// to a dedicated settings phase.
 import Link from "next/link";
 import { useState } from "react";
 import { AlertTriangle, CalendarClock, ClipboardCheck, Settings2, TrendingDown, UserCog, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatTile } from "@/components/ui/stat-tile";
-import { Switch } from "@/components/ui/switch";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { schoolClasses } from "@/lib/data/seed/reference";
-import { consecutiveAbsenceStudents, lateArrivalCount, presentPercentFor, unmarkedSectionsToday } from "@/lib/selectors/attendance-insights";
-import { useAttendanceRules, useAttendanceSessions } from "@/lib/hooks/use-attendance";
-import { updateAttendanceRule } from "@/lib/services/attendance-service";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { useAttendanceDashboard } from "@/lib/hooks/api/use-attendance";
 
 export default function AttendanceHubPage() {
-  const sessions = useAttendanceSessions();
-  const rules = useAttendanceRules();
-  const db = useSisStore();
+  const { data: dashboard, loading, error } = useAttendanceDashboard();
   const { can } = usePermissions();
   const [rulesOpen, setRulesOpen] = useState(false);
 
-  const allSectionIds = schoolClasses.flatMap((c) => c.sections.map((s) => s.id));
-  const unmarked = unmarkedSectionsToday(allSectionIds, sessions);
-  const minPercentRule = rules.find((r) => r.key === "minAttendancePercent")?.value ?? 75;
-  const consecutiveRule = rules.find((r) => r.key === "consecutiveAbsenceAlert")?.value ?? 3;
-  const riskStudents = consecutiveAbsenceStudents(sessions, consecutiveRule);
-  const belowMinCount = db.students.filter((s) => s.status === "active" && s.attendance.presentPercent < minPercentRule).length;
+  const shortageThreshold = dashboard?.policy.shortageThresholdPct ?? 75;
+  const consecutiveThreshold = dashboard?.policy.consecutiveAbsenceThreshold ?? 3;
+  const pending = dashboard?.pendingSections ?? 0;
 
   return (
     <div className="flex flex-col gap-md">
@@ -53,11 +48,15 @@ export default function AttendanceHubPage() {
         </div>
       </div>
 
+      {error ? (
+        <p className="rounded-lg border border-error/30 bg-error/10 px-sm py-sm text-xs text-error">{error}</p>
+      ) : null}
+
       <section className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Present today" value={`${presentPercentFor(sessions.filter((s) => s.date.slice(0, 10) === new Date().toISOString().slice(0, 10)))}%`} icon={ClipboardCheck} tone="success" />
-        <StatTile label="Late arrivals" value={String(lateArrivalCount(sessions))} icon={CalendarClock} tone="warning" />
-        <StatTile label="Below minimum" value={String(belowMinCount)} icon={TrendingDown} tone="error" hint={`< ${minPercentRule}%`} />
-        <StatTile label="Consecutive-absence risk" value={String(riskStudents.size)} icon={AlertTriangle} tone="error" />
+        <StatTile label="Present today" value={`${dashboard?.presentTodayPct ?? 0}%`} icon={ClipboardCheck} tone="success" />
+        <StatTile label="Late arrivals" value={String(dashboard?.lateToday ?? 0)} icon={CalendarClock} tone="warning" />
+        <StatTile label="Below minimum" value={String(dashboard?.belowMinimumCount ?? 0)} icon={TrendingDown} tone="error" hint={`< ${shortageThreshold}%`} />
+        <StatTile label="Consecutive-absence risk" value={String(dashboard?.consecutiveAbsenceRiskCount ?? 0)} icon={AlertTriangle} tone="error" />
       </section>
 
       <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
@@ -78,29 +77,36 @@ export default function AttendanceHubPage() {
         </Link>
       </div>
 
-      {unmarked.length > 0 && (
+      {!loading && pending > 0 && (
         <div className="flex flex-wrap items-center gap-sm rounded-lg border border-warning/30 bg-warning/10 px-sm py-sm text-xs text-warning">
           <AlertTriangle className="size-4 shrink-0" />
-          <span className="font-medium">{unmarked.length} section(s) haven&apos;t marked attendance today.</span>
+          <span className="font-medium">{pending} section(s) haven&apos;t marked attendance today.</span>
         </div>
       )}
 
-      <DetailDrawer open={rulesOpen} onOpenChange={setRulesOpen} title="Attendance rules" description="Configure thresholds used across alerts and reports">
+      <DetailDrawer open={rulesOpen} onOpenChange={setRulesOpen} title="Attendance rules" description="Effective attendance policy applied across alerts and reports">
         <div className="flex flex-col gap-md">
-          {rules.map((rule) => (
-            <div key={rule.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{rule.label}</p>
-                <p className="text-xs text-muted-foreground">{rule.description}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-xs">
-                <Input type="number" value={rule.value} onChange={(e) => updateAttendanceRule(rule.id, { value: Number(e.target.value) })} className="w-16" />
-                <span className="text-xs text-muted-foreground">{rule.unit}</span>
-                <Switch checked={rule.enabled} onCheckedChange={(checked) => updateAttendanceRule(rule.id, { enabled: checked })} />
-              </div>
+          <div className="flex items-center justify-between gap-sm rounded-md border border-border p-sm">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Minimum attendance percentage</p>
+              <p className="text-xs text-muted-foreground">Below this, a student is flagged as attendance-risk.</p>
             </div>
-          ))}
-          <Label className="text-xs text-muted-foreground">Changes apply immediately across attendance alerts and reports.</Label>
+            <div className="flex shrink-0 items-center gap-xs">
+              <span className="text-sm font-semibold text-foreground">{shortageThreshold}</span>
+              <span className="text-xs text-muted-foreground">percent</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-sm rounded-md border border-border p-sm">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Consecutive absence rule</p>
+              <p className="text-xs text-muted-foreground">Consecutive absences before a student is flagged at-risk.</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-xs">
+              <span className="text-sm font-semibold text-foreground">{consecutiveThreshold}</span>
+              <span className="text-xs text-muted-foreground">days</span>
+            </div>
+          </div>
+          <Label className="text-xs text-muted-foreground">These are the current system-default attendance rules. School-configurable rules arrive with a future School Settings release.</Label>
         </div>
       </DetailDrawer>
     </div>

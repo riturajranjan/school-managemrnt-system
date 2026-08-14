@@ -11,11 +11,6 @@ export function useAttendanceSessions(sectionId?: string) {
   );
 }
 
-export function useAttendanceRules() {
-  const db = useSisStore();
-  return db.attendanceRules;
-}
-
 export function useLeaveRequests(applicantType?: "student" | "staff") {
   const db = useSisStore();
   return useMemo(

@@ -1,21 +1,10 @@
-import type { AttendanceRecord, AttendanceRule, AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
+import type { AttendanceRecord, AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
 import { schoolClasses } from "./reference";
 import { teachers } from "./academics";
 import { seededHelpers } from "./rng";
 
 const helpers = seededHelpers(11072026);
 const { int, bool, daysAgoIso } = helpers;
-
-export const attendanceRules: AttendanceRule[] = [
-  { id: "rule-min-percent", key: "minAttendancePercent", label: "Minimum attendance percentage", description: "Below this, a student is flagged as attendance-risk.", value: 75, unit: "percent", enabled: true },
-  { id: "rule-late-threshold", key: "lateThresholdMinutes", label: "Late arrival threshold", description: "Arrivals later than this many minutes into the period count as late.", value: 10, unit: "minutes", enabled: true },
-  { id: "rule-half-day", key: "halfDayThresholdMinutes", label: "Half-day rule", description: "Missing more than this many minutes of the day counts as a half day.", value: 180, unit: "minutes", enabled: true },
-  { id: "rule-consecutive-absence", key: "consecutiveAbsenceAlert", label: "Consecutive absence rule", description: "Consecutive absences before an automatic alert is raised.", value: 3, unit: "days", enabled: true },
-  { id: "rule-parent-alert", key: "parentAlertThreshold", label: "Parent alert threshold", description: "Absences within a month before parents are notified.", value: 4, unit: "count", enabled: true },
-  { id: "rule-exam-eligibility", key: "examEligibilityPercent", label: "Exam eligibility threshold", description: "Minimum attendance percentage required to sit term exams.", value: 80, unit: "percent", enabled: true },
-  { id: "rule-monthly-shortage", key: "monthlyShortageWarning", label: "Monthly shortage warning", description: "Attendance percentage in a month that triggers a shortage warning.", value: 70, unit: "percent", enabled: true },
-  { id: "rule-edit-lock", key: "editLockHours", label: "Edit-lock duration", description: "Hours after submission during which attendance can still be edited.", value: 24, unit: "hours", enabled: true },
-];
 
 // Last 12 school days (Mon-Sat) per active section, seeded so the attendance
 // analytics/reports pages have real trend data to show, not just today.

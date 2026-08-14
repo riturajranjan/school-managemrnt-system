@@ -5,7 +5,10 @@
 import { apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
+  AttendanceDashboardDto,
   AttendanceHistoryItemDto,
+  AttendanceReportDto,
+  AttendanceReportType,
   AttendanceSessionViewDto,
   SectionDto,
   StudentAttendanceSummaryDto,
@@ -44,4 +47,18 @@ export function useAttendanceHistory(query: { page?: number; pageSize?: number; 
 /** A student's real attendance summary + recent records (Student 360). */
 export function useStudentAttendance(studentId: string | undefined) {
   return useApiResource<StudentAttendanceSummaryDto>(studentId ? `/api/students/${studentId}/attendance` : null);
+}
+
+/** Real attendance dashboard (today's tiles + section counts + effective policy). */
+export function useAttendanceDashboard() {
+  return useApiResource<AttendanceDashboardDto>("/api/attendance/dashboard");
+}
+
+/** Real student-attendance report of the given type, computed server-side.
+ *  Pass `type: null` to skip fetching (e.g. an out-of-scope report tab). */
+export function useAttendanceReport(
+  type: AttendanceReportType | null,
+  filters: { classId?: string; sectionId?: string; dateFrom?: string; dateTo?: string } = {},
+) {
+  return useApiResource<AttendanceReportDto>(type ? `/api/attendance/reports${buildQuery({ type, ...filters })}` : null);
 }

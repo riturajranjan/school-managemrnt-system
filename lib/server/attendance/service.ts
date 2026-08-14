@@ -38,26 +38,29 @@ function requireSession(scope: OrgScope): string {
 }
 
 /** Fail closed unless the school's effective plan includes the attendance feature. */
-async function requireAttendanceFeature(scope: OrgScope): Promise<void> {
+export async function requireAttendanceFeature(scope: OrgScope): Promise<void> {
   if (!(await hasFeature(scope.schoolId, "attendance"))) {
     throw new HttpError("FEATURE_DISABLED", "Attendance is not enabled for this school's plan");
   }
 }
 
 /** Normalize "YYYY-MM-DD" → UTC-midnight Date for the date-only column. */
-function parseAttendanceDate(dateStr: string): Date {
+export function parseAttendanceDate(dateStr: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new HttpError("ATTENDANCE_DATE_INVALID", "Date must be YYYY-MM-DD");
   const d = new Date(`${dateStr}T00:00:00.000Z`);
   if (Number.isNaN(d.getTime())) throw new HttpError("ATTENDANCE_DATE_INVALID", "Invalid date");
   return d;
 }
-const dateToUi = (d: Date) => d.toISOString().slice(0, 10);
+export const dateToUi = (d: Date) => d.toISOString().slice(0, 10);
+
+/** School-local "today" as YYYY-MM-DD, derived server-side (never browser tz). */
+export const serverToday = (): string => new Date().toISOString().slice(0, 10);
 
 // ── Summary (the single central calculation) ────────────────────────────────
 // attendancePercentage = (present + late + 0.5·half-day) / total · 100.
 // LATE counts as attended; HALF_DAY as half; ABSENT/EXCUSED/MEDICAL_LEAVE/
 // OFFICIAL_DUTY as not-attended. total = 0 → null.
-function computeSummary(records: { status: string }[]): AttendanceSummaryDto {
+export function computeSummary(records: { status: string }[]): AttendanceSummaryDto {
   const c = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, HALF_DAY: 0, MEDICAL_LEAVE: 0, OFFICIAL_DUTY: 0 } as Record<string, number>;
   for (const r of records) c[r.status] = (c[r.status] ?? 0) + 1;
   const total = records.length;

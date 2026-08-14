@@ -49,16 +49,6 @@ export type AttendanceSession = {
   records: AttendanceRecord[];
 };
 
-export type AttendanceRule = {
-  id: ID;
-  key: string;
-  label: string;
-  description: string;
-  value: number;
-  unit: "percent" | "minutes" | "days" | "count" | "hours";
-  enabled: boolean;
-};
-
 export type LeaveApplicantType = "student" | "staff";
 
 export type LeaveType = "sick" | "medical" | "casual" | "emergency" | "family-event" | "official-duty" | "other";

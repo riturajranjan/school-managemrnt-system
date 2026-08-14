@@ -884,6 +884,49 @@ export type StudentAttendanceSummaryDto = {
   recent: StudentAttendanceEntryDto[];
 };
 
+// --- Phase 5B: Attendance dashboard + reports (real, PostgreSQL-backed) ---
+
+/**
+ * Effective attendance policy for the current school. In Phase 5B these are
+ * read-only server defaults (see lib/server/attendance/reports.ts). Persistent,
+ * school-configurable Attendance Rules are deferred to a settings phase.
+ */
+export type AttendancePolicyDto = {
+  shortageThresholdPct: number; // a student below this % is flagged as attendance-shortage
+  consecutiveAbsenceThreshold: number; // consecutive absent days before a student is at-risk
+};
+
+export type AttendanceDashboardDto = {
+  date: string; // school-local today (YYYY-MM-DD), server-derived
+  presentTodayPct: number | null; // canonical % over today's marked records (null = nothing marked)
+  lateToday: number; // LATE records marked today
+  belowMinimumCount: number; // active-roster students whose session % < shortage threshold
+  consecutiveAbsenceRiskCount: number; // students with an absent streak ≥ threshold
+  totalSections: number; // eligible sections (active, ≥1 enrolled student)
+  markedSections: number; // eligible sections with a submitted/locked session today
+  pendingSections: number; // totalSections − markedSections
+  policy: AttendancePolicyDto;
+};
+
+export type AttendanceReportType =
+  | "daily"
+  | "monthly-trend"
+  | "class"
+  | "shortage"
+  | "late-arrival"
+  | "consecutive-absence";
+
+// A report is a generic, display-shaped table computed entirely server-side
+// (all percentages via the canonical Phase 5 summary formula). The page renders
+// `columns` in order and reads each value out of the row by column key.
+export type AttendanceReportRow = Record<string, string | number>;
+export type AttendanceReportDto = {
+  type: AttendanceReportType;
+  columns: string[];
+  rows: AttendanceReportRow[];
+  threshold: number | null; // shortage/consecutive-absence policy value in effect, else null
+};
+
 // --- Super Admin: real platform permission matrix (reference page) ---
 
 export type PlatformPermissionMatrixDto = {

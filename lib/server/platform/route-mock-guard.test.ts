@@ -48,6 +48,15 @@ const MIGRATED_FILES = [
   // so only these two files are guarded — not the whole app/academics dir.
   "app/academics/classes/page.tsx",
   "app/academics/sections/page.tsx",
+  // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
+  // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
+  // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
+  // Attendance + Leave stay on the mock store, so only these files are guarded,
+  // not the whole app/attendance dir.
+  "app/attendance/page.tsx",
+  "app/attendance/reports/page.tsx",
+  "app/attendance/students/page.tsx",
+  "components/attendance/attendance-marker.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -57,6 +66,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/saas-service", why: "mock SaaS service" },
   { marker: "selectors/saas-brief", why: "mock SaaS selectors" },
   { marker: "db.saas", why: "mock SaaS store slice" },
+  // Phase 5B — student-attendance mock authority (real surfaces must not import).
+  { marker: 'hooks/use-attendance"', why: "mock attendance hooks (use hooks/api/use-attendance)" },
+  { marker: "selectors/attendance-insights", why: "mock attendance selectors" },
+  { marker: "services/attendance-service", why: "mock attendance service" },
+  { marker: "data/seed/attendance", why: "mock attendance seed" },
+  { marker: "data/seed/reference", why: "mock reference seed (schoolClasses/classLabel)" },
 ];
 
 function collectSources(dir: string): string[] {

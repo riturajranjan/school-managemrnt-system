@@ -46,7 +46,6 @@ function makeDb(examSubjects: ExamSubject[], overrides: Partial<Db> = {}): Db {
     academicEvents: [],
     studentSupportAlerts: [],
     attendanceSessions: [],
-    attendanceRules: [],
     leaveRequests: [],
     staffAttendance: [],
     timetables: [],

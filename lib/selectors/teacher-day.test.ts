@@ -22,7 +22,6 @@ function makeDb(overrides: Partial<Db>): Db {
     academicEvents: [],
     studentSupportAlerts: [],
     attendanceSessions: [],
-    attendanceRules: [],
     leaveRequests: [],
     staffAttendance: [],
     timetables: [],

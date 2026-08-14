@@ -13,7 +13,7 @@ import type {
   SubjectAssignment,
   Teacher,
 } from "@/lib/types/academics";
-import type { AttendanceRule, AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
+import type { AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
 import type { DismissedConflict, Timetable } from "@/lib/types/timetable";
 import type { DismissedExamConflict, Exam, ExamAttendanceRecord, ExamAuditEntry, ExamClass, ExamSubject } from "@/lib/types/exams";
 import type { GradingScheme, ResultRule } from "@/lib/types/grading";
@@ -277,7 +277,7 @@ import {
   subjects,
   teachers,
 } from "./seed/academics";
-import { attendanceRules, generateAttendanceSessions, leaveRequests, staffAttendanceToday } from "./seed/attendance";
+import { generateAttendanceSessions, leaveRequests, staffAttendanceToday } from "./seed/attendance";
 import { timetables } from "./seed/timetable";
 import { examClasses, examSubjects, exams, generateExamStudentData, gradingSchemes, reportCardTemplates, resultRules } from "./seed/exams";
 import {
@@ -337,7 +337,6 @@ export type Db = {
   academicEvents: AcademicEvent[];
   studentSupportAlerts: StudentSupportAlert[];
   attendanceSessions: AttendanceSession[];
-  attendanceRules: AttendanceRule[];
   leaveRequests: LeaveRequest[];
   staffAttendance: StaffAttendance[];
   timetables: Timetable[];
@@ -637,7 +636,6 @@ function buildSeedDb(): Db {
     academicEvents,
     studentSupportAlerts,
     attendanceSessions,
-    attendanceRules,
     leaveRequests,
     staffAttendance: staffAttendanceToday,
     timetables,
