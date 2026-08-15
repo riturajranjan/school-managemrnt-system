@@ -60,6 +60,20 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "homework.view", module: "homework", action: "view", description: "View homework" },
   { key: "homework.manage", module: "homework", action: "manage", description: "Create, edit, publish and close homework" },
 
+  // Phase 9C.1 — Curriculum/Syllabus. Its own domain (like homework.*) rather
+  // than folded into academics.* (Class/Section/Subject CRUD): curriculum
+  // content authoring (units/chapters/topics) is a broad-manager action, but
+  // per-section topic PROGRESS is granted to TEACHER too and constrained
+  // server-side to the actor's own real TeachingAssignment.
+  { key: "curriculum.view", module: "curriculum", action: "view", description: "View curriculum, syllabus and section progress" },
+  { key: "curriculum.manage", module: "curriculum", action: "manage", description: "Author curriculum content and update section topic progress" },
+
+  // Phase 9C.2 — Lesson Plans. lessonPlans.manage covers create/edit/submit/
+  // complete for the actor's own real TeachingAssignment; approve/reject is a
+  // broad-manager action gated the same way homework's publish/close is.
+  { key: "lessonPlans.view", module: "lessonPlans", action: "view", description: "View lesson plans" },
+  { key: "lessonPlans.manage", module: "lessonPlans", action: "manage", description: "Create, edit, submit, review and complete lesson plans" },
+
   { key: "fees.view", module: "fees", action: "view", description: "View fees" },
   { key: "fees.collect", module: "fees", action: "collect", description: "Collect fees" },
   { key: "fees.refund", module: "fees", action: "refund", description: "Refund fees" },
@@ -179,6 +193,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "results.view", "results.publish",
     "promotion.view", "promotion.manage",
     "homework.view", "homework.manage",
+    "curriculum.view", "curriculum.manage",
+    "lessonPlans.view", "lessonPlans.manage",
     "fees.view", "fees.collect", "fees.refund",
     "transport.view",
     "library.view",
@@ -200,6 +216,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "results.view", "results.publish",
     "promotion.view", "promotion.manage",
     "homework.view", "homework.manage",
+    "curriculum.view", "curriculum.manage",
+    "lessonPlans.view", "lessonPlans.manage",
     "fees.view",
     "communication.view", "communication.send",
     "documents.view",
@@ -217,6 +235,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "results.view",
     "promotion.view",
     "homework.view", "homework.manage",
+    "curriculum.view", "curriculum.manage",
+    "lessonPlans.view", "lessonPlans.manage",
     "communication.send",
     "documents.view",
   ],

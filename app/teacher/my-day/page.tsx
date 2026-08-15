@@ -1,14 +1,13 @@
 "use client";
 
-// My Day (Phase 9A) — real PostgreSQL/API cutover. Same layout/shell as
-// before; every widget now reads from GET /api/my-day (real Staff.userId
+// My Day (Phase 9A/9B/9C.2) — real PostgreSQL/API cutover. Same layout/shell
+// as before; every widget now reads from GET /api/my-day (real Staff.userId
 // identity, real TimetableEntry/AttendanceSession/ExamMarkSheet/
-// ExamScheduleEntry) instead of the mock CURRENT_TEACHER_ID + teacher-day
-// selector. Homework and Lesson Plans stay honestly "not available yet" — no
-// real backend exists for either (Phase 9B/9C). The old "Student support
-// alerts" section is removed outright: it read a mock store slice
-// (studentSupportAlerts) with no real domain behind it and isn't part of this
-// phase's scope, so there is nothing honest to show in its place.
+// ExamScheduleEntry/Homework/LessonPlan) instead of the mock CURRENT_TEACHER_ID
+// + teacher-day selector. The old "Student support alerts" section is removed
+// outright: it read a mock store slice (studentSupportAlerts) with no real
+// domain behind it and isn't part of this phase's scope, so there is nothing
+// honest to show in its place.
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -122,7 +121,7 @@ export default function TeacherMyDayPage() {
             <StatTile label="Classes today" value={String(myDay.timetable.length)} icon={ClipboardList} tone="info" />
             <StatTile label="Attendance pending" value={String(myDay.attendance.pendingCount)} icon={CalendarCheck} tone={myDay.attendance.pendingCount > 0 ? "warning" : "success"} />
             <StatTile label="Homework due/overdue" value={String(myDay.homework.dueTodayOrOverdueCount)} icon={BookOpenCheck} tone={myDay.homework.dueTodayOrOverdueCount > 0 ? "warning" : "success"} />
-            <StatTile label="Lesson plans pending" value="—" icon={ClipboardList} tone="neutral" hint="Available after Lesson Plans module setup" />
+            <StatTile label="Lesson plan drafts" value={String(myDay.lessonPlans.draftCount)} icon={ClipboardList} tone={myDay.lessonPlans.draftCount > 0 ? "warning" : "success"} />
           </section>
 
           <div className="rounded-lg border border-border bg-surface p-md">
@@ -216,12 +215,26 @@ export default function TeacherMyDayPage() {
 
             <div className="rounded-lg border border-border bg-surface p-md">
               <div className="mb-sm flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">Lesson plans</h2>
+                <h2 className="text-sm font-semibold text-foreground">Lesson plans — today</h2>
                 <Link href="/teacher/lesson-plans" className="text-xs font-medium text-primary hover:underline">
                   View all
                 </Link>
               </div>
-              <p className="text-sm text-muted-foreground">Lesson plan data will be available after the Lesson Plans module (Phase 9C) is built.</p>
+              {myDay.lessonPlans.items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No lesson plan for today yet.</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {myDay.lessonPlans.items.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between text-sm">
+                      <Link href={`/teacher/lesson-plans?open=${p.id}`} className="truncate text-foreground hover:underline">
+                        {p.section.className}-{p.section.name} · {p.subject.name}
+                      </Link>
+                      <span className="shrink-0 text-xs text-muted-foreground">{p.status}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {myDay.lessonPlans.draftCount > 0 && <p className="mt-xs text-xs text-muted-foreground">{myDay.lessonPlans.draftCount} draft{myDay.lessonPlans.draftCount === 1 ? "" : "s"} not yet submitted.</p>}
             </div>
           </div>
 

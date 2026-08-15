@@ -1712,6 +1712,7 @@ model Class {
   classSubjects    ClassSubject[] // Phase 6 — subjects taught in this class
   examClasses      ExamClass[] // Phase 8A — exam applicability
   targetPromotions StudentPromotion[] // Phase 8E — promotions targeting this class
+  curricula        Curriculum[] // Phase 9C.1 — curriculum/syllabus tracking
 
   // One class name per school + academic session.
   @@unique([schoolId, academicSessionId, name])
@@ -1734,7 +1735,7 @@ model Section {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  class               Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  class               Class                     @relation(fields: [classId], references: [id], onDelete: Cascade)
   enrollments         Enrollment[]
   attendanceSessions  AttendanceSession[] // Phase 5 — attendance
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
@@ -1742,6 +1743,8 @@ model Section {
   examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
   targetPromotions    StudentPromotion[] // Phase 8E — promotions targeting this section
   homework            Homework[] // Phase 9B — homework/assignments
+  curriculumProgress  CurriculumTopicProgress[] // Phase 9C.1 — section-scoped syllabus progress
+  lessonPlans         LessonPlan[] // Phase 9C.2 — lesson plans
 
   // One section name per class.
   @@unique([classId, name])
@@ -1955,6 +1958,8 @@ model Subject {
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
   examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
   homework            Homework[] // Phase 9B — homework/assignments
+  curricula           Curriculum[] // Phase 9C.1 — curriculum/syllabus tracking
+  lessonPlans         LessonPlan[] // Phase 9C.2 — lesson plans
 
   // One subject code per school (catalogue is school-wide, reused across sessions).
   @@unique([schoolId, code])
@@ -2035,11 +2040,13 @@ model Staff {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
-  teachingAssignments TeachingAssignment[]
-  timetableEntries    TimetableEntry[] // Phase 7 — timetable
-  examInvigilations   ExamScheduleEntry[] // Phase 8A — optional invigilator
-  homework            Homework[] // Phase 9B — homework/assignments
+  user                    User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  teachingAssignments     TeachingAssignment[]
+  timetableEntries        TimetableEntry[] // Phase 7 — timetable
+  examInvigilations       ExamScheduleEntry[] // Phase 8A — optional invigilator
+  homework                Homework[] // Phase 9B — homework/assignments
+  curriculumTopicProgress CurriculumTopicProgress[] // Phase 9C.1 — topics this staff marked complete
+  lessonPlans             LessonPlan[] // Phase 9C.2 — lesson plans
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2074,6 +2081,7 @@ model TeachingAssignment {
   staff            Staff            @relation(fields: [staffId], references: [id], onDelete: Cascade)
   timetableEntries TimetableEntry[] // Phase 7 — timetable (Restrict: can't remove a scheduled assignment)
   homework         Homework[] // Phase 9B — homework (Restrict: can't remove an assignment with homework attached)
+  lessonPlans      LessonPlan[] // Phase 9C.2 — lesson plans (Restrict: can't remove an assignment with lesson plans attached)
 
   @@unique([sectionId, subjectId, staffId])
   @@index([tenantId])
@@ -2736,4 +2744,230 @@ model Homework {
   @@index([staffId])
   @@index([status])
   @@map("homework")
+}
+
+// ===========================================================================
+// Phase 9C.1 — Curriculum / Syllabus Tracking. Content (Curriculum -> Unit ->
+// Chapter -> Topic) is authored once per (Class, Subject, AcademicSession) —
+// mirrors the existing mock UI's 3-level Unit/Chapter/Topic hierarchy
+// (lib/types/academics.ts's CurriculumUnit/CurriculumChapter/CurriculumTopic).
+// Progress is tracked separately, per Section (different sections of the same
+// class progress at different speeds) via CurriculumTopicProgress — never a
+// persisted percentage; always derived from real topic-progress rows. Unit/
+// Chapter/Topic carry NO status column of their own — their displayed
+// "status" is always computed from descendant CurriculumTopicProgress rows
+// for whichever Section is in view (lib/server/curriculum/service.ts).
+// ===========================================================================
+
+enum CurriculumStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TopicProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Curriculum {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  academicSessionId String
+
+  classId   String
+  subjectId String
+
+  title       String
+  description String?
+  status      CurriculumStatus @default(DRAFT)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  class   Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  units   CurriculumUnit[]
+
+  // One curriculum per (class, subject) within a session — the real
+  // ClassSubject applicability this must be validated against at creation.
+  @@unique([schoolId, academicSessionId, classId, subjectId])
+  @@index([tenantId])
+  @@index([classId])
+  @@index([subjectId])
+  @@map("curricula")
+}
+
+model CurriculumUnit {
+  id           String @id @default(cuid())
+  curriculumId String
+
+  title            String
+  description      String?
+  order            Int       @default(0)
+  plannedStart     DateTime? @db.Date
+  plannedEnd       DateTime? @db.Date
+  estimatedPeriods Int       @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  curriculum Curriculum          @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  chapters   CurriculumChapter[]
+
+  @@index([curriculumId])
+  @@map("curriculum_units")
+}
+
+model CurriculumChapter {
+  id     String @id @default(cuid())
+  unitId String
+
+  title String
+  order Int    @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  unit   CurriculumUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  topics CurriculumTopic[]
+
+  @@index([unitId])
+  @@map("curriculum_chapters")
+}
+
+model CurriculumTopic {
+  id        String @id @default(cuid())
+  chapterId String
+
+  title            String
+  order            Int      @default(0)
+  learningOutcomes String[] @default([])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  chapter          CurriculumChapter         @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  progress         CurriculumTopicProgress[]
+  lessonPlanTopics LessonPlanTopic[] // Phase 9C.2 — lesson-plan syllabus mapping
+
+  @@index([chapterId])
+  @@map("curriculum_topics")
+}
+
+model CurriculumTopicProgress {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  sectionId String
+  topicId   String
+
+  status             TopicProgressStatus @default(NOT_STARTED)
+  completedAt        DateTime?           @db.Timestamptz(6)
+  completedByStaffId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  section          Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  topic            CurriculumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  completedByStaff Staff?          @relation(fields: [completedByStaffId], references: [id], onDelete: SetNull)
+
+  // One progress row per (section, topic) — upserted, never duplicated.
+  @@unique([sectionId, topicId])
+  @@index([tenantId])
+  @@index([sectionId])
+  @@index([topicId])
+  @@map("curriculum_topic_progress")
+}
+
+// ===========================================================================
+// Phase 9C.2 — Lesson Plans. A real teaching plan for one Staff teacher's
+// TeachingAssignment on one date, optionally mapped to real CurriculumTopic
+// row(s) via LessonPlanTopic (never free-floating topic names). Preserves the
+// existing mock UI's draft -> submitted -> approved/rejected -> completed
+// review workflow (lib/types/academics.ts's LessonPlanStatus / the real
+// Academic-Coordinator approve/reject buttons already in app/academics/
+// lesson-plans/page.tsx) — collapsed to the minimal real states that UI
+// actually drives.
+// ===========================================================================
+
+enum LessonPlanStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model LessonPlan {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  sectionId            String
+  subjectId            String
+  staffId              String
+  teachingAssignmentId String
+
+  title             String
+  learningObjective String
+  teachingMethod    String
+  materials         String?
+  activity          String?
+  homeworkNote      String?
+  assessmentMethod  String?
+
+  plannedDate DateTime         @db.Date
+  period      Int?
+  status      LessonPlanStatus @default(DRAFT)
+
+  reviewedByUserId String?
+  reviewedByName   String?
+  reviewComment    String?
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  section            Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject            Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staff              Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+  topics             LessonPlanTopic[]
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([sectionId])
+  @@index([subjectId])
+  @@index([staffId])
+  @@index([status])
+  @@index([plannedDate])
+  @@map("lesson_plans")
+}
+
+model LessonPlanTopic {
+  lessonPlanId String
+  topicId      String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  lessonPlan LessonPlan      @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  topic      CurriculumTopic @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@id([lessonPlanId, topicId])
+  @@index([topicId])
+  @@map("lesson_plan_topics")
 }

@@ -1,52 +1,64 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, BookOpenCheck, TrendingUp } from "lucide-react";
+// Curriculum & syllabus tracking (Phase 9C.1) — real PostgreSQL/API cutover.
+// Content (Curriculum -> Unit -> Chapter -> Topic) is real, authored once per
+// real Class+Subject; progress is real, tracked per real Section via
+// CurriculumTopicProgress — never a persisted/fabricated percentage. Layout,
+// stat tiles and the Learning Path Timeline preserved from the mock version;
+// "Notes" (no backing model) removed, a Section selector and minimal
+// create-content affordances added since real schools need a real way to
+// create curriculum, not just seed data.
+import { useState } from "react";
+import { AlertTriangle, BookOpenCheck, Plus, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
 import { LearningPathTimeline } from "@/components/academics/curriculum/learning-path-timeline";
-import { findClass } from "@/lib/data/seed/reference";
-import { teacherById } from "@/lib/data/seed/academics";
-import { curriculumCompletionPercent, delayedUnitCount } from "@/lib/selectors/academics-insights";
-import { useCurriculumUnits, useSubjects } from "@/lib/hooks/use-academics";
-import { progressStatusLabels, type ProgressStatus } from "@/lib/types/academics";
-import { cn } from "@/lib/utils";
-
-const filterableStatuses: ProgressStatus[] = ["not-started", "planned", "in-progress", "delayed", "needs-review", "completed"];
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { useClasses, useSections } from "@/lib/hooks/api/use-academics-foundation";
+import { useClassSubjects } from "@/lib/hooks/api/use-academics-subjects";
+import { createCurriculumRequest, useCurriculum, useCurriculumInsights, useCurriculumList, useSectionCurriculum } from "@/lib/hooks/api/use-curriculum-api";
 
 export default function CurriculumPage() {
-  const units = useCurriculumUnits();
-  const subjects = useSubjects();
+  const { can, role } = usePermissions();
+  // Content authoring (create curriculum, reschedule a unit) is a broad-manager
+  // action server-side (SCHOOL_ADMIN/PRINCIPAL only); recording progress is
+  // available to any curriculum.manage holder with a real TeachingAssignment,
+  // teachers included — mirrors the server's assertCanManageContent vs
+  // assertCanRecordProgress split exactly.
+  const canManageContent = can("curriculum.manage") && role !== "teacher";
+  const { data: classes } = useClasses();
+  // Explicit user picks only; defaults are derived below (never written back
+  // into state), so switching class/subject can't trigger a setState-in-effect
+  // cascade — the "effective" selection is just the override-or-first-item.
+  const [classIdOverride, setClassIdOverride] = useState<string | null>(null);
+  const classId = classIdOverride ?? classes[0]?.id ?? "";
+  const { data: classSubjectsRaw } = useClassSubjects(classId || undefined);
+  const classSubjects = classSubjectsRaw ?? [];
+  const [subjectIdOverride, setSubjectIdOverride] = useState<string | null>(null);
+  const subjectId = classSubjects.some((s) => s.subjectId === subjectIdOverride) ? subjectIdOverride! : (classSubjects[0]?.subjectId ?? "");
+  const { data: sections } = useSections(classId || undefined);
+  const [sectionIdOverride, setSectionIdOverride] = useState<string | null>(null);
+  const sectionId = sections.some((s) => s.id === sectionIdOverride) ? sectionIdOverride! : (sections[0]?.id ?? "");
 
-  const trackedClassIds = useMemo(() => [...new Set(units.map((u) => u.classId))], [units]);
-  const trackedSubjectIds = useMemo(() => [...new Set(units.map((u) => u.subjectId))], [units]);
+  const { data: insights } = useCurriculumInsights();
+  const { data: curriculaForSelection, loading: curriculumListLoading } = useCurriculumList(classId && subjectId ? { classId, subjectId } : {});
+  const curriculumSummary = classId && subjectId ? curriculaForSelection[0] : undefined;
+  const { data: curriculumDetail } = useCurriculum(curriculumSummary?.id);
+  const { data: sectionCurriculum, reload: refetchSectionCurriculum } = useSectionCurriculum(sectionId || undefined, curriculumSummary ? subjectId : undefined);
 
-  const [classId, setClassId] = useState(trackedClassIds[0] ?? "");
-  const [subjectId, setSubjectId] = useState(trackedSubjectIds[0] ?? "");
-  const [statusFilter, setStatusFilter] = useState<Set<ProgressStatus>>(new Set());
+  const view = sectionCurriculum ?? (curriculumDetail && curriculumSummary ? { curriculum: curriculumSummary, units: curriculumDetail.units, overallPercent: null as number | null } : null);
 
-  const unitsForSelection = units.filter((u) => u.classId === classId && u.subjectId === subjectId);
-  const selectedUnits = statusFilter.size === 0 ? unitsForSelection : unitsForSelection.filter((u) => statusFilter.has(u.status));
-  const delayedUnits = units.filter((u) => u.status === "delayed");
-  const delayedByClass = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const u of delayedUnits) counts.set(u.classId, (counts.get(u.classId) ?? 0) + 1);
-    return [...counts.entries()].map(([id, count]) => ({ classId: id, count }));
-  }, [delayedUnits]);
-
-  function toggleStatusFilter(status: ProgressStatus) {
-    setStatusFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
+  const [creating, setCreating] = useState(false);
+  async function handleCreateCurriculum() {
+    if (!classId || !subjectId) return;
+    const className = classes.find((c) => c.id === classId)?.name ?? "";
+    const subjectName = classSubjects.find((s) => s.subjectId === subjectId)?.subjectName ?? "";
+    setCreating(true);
+    const result = await createCurriculumRequest({ classId, subjectId, title: `${className} — ${subjectName}` });
+    setCreating(false);
+    if (result.success) refetchSectionCurriculum();
   }
-
-  const byClass = trackedClassIds.map((id) => ({ classId: id, percent: curriculumCompletionPercent(units.filter((u) => u.classId === id)) }));
-  const bySubject = trackedSubjectIds.map((id) => ({ subjectId: id, percent: curriculumCompletionPercent(units.filter((u) => u.subjectId === id)) }));
-  const teacherIds = useMemo(() => [...new Set(units.map((u) => u.teacherId))], [units]);
-  const byTeacher = teacherIds.map((id) => ({ teacherId: id, percent: curriculumCompletionPercent(units.filter((u) => u.teacherId === id)) }));
 
   return (
     <div className="flex flex-col gap-md">
@@ -56,128 +68,123 @@ export default function CurriculumPage() {
       </div>
 
       <section className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Overall completion" value={`${curriculumCompletionPercent(units)}%`} icon={TrendingUp} tone="success" />
-        <StatTile label="Units tracked" value={String(units.length)} icon={BookOpenCheck} tone="info" />
-        <StatTile label="Delayed units" value={String(delayedUnitCount(units))} icon={AlertTriangle} tone="error" />
-        <StatTile label="Classes tracked" value={String(trackedClassIds.length)} icon={BookOpenCheck} tone="neutral" />
+        <StatTile label="Overall completion" value={insights ? `${insights.overallPercent ?? 0}%` : "—"} icon={TrendingUp} tone="success" />
+        <StatTile label="Units tracked" value={insights ? String(insights.unitsTracked) : "—"} icon={BookOpenCheck} tone="info" />
+        <StatTile label="Delayed units" value={insights ? String(insights.delayedUnits) : "—"} icon={AlertTriangle} tone="error" />
+        <StatTile label="Classes tracked" value={insights ? String(insights.classesTracked) : "—"} icon={BookOpenCheck} tone="neutral" />
       </section>
 
-      <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
-        <div className="rounded-lg border border-border p-sm">
-          <h3 className="mb-xs text-sm font-semibold text-foreground">Completion by class</h3>
-          <ul className="flex flex-col gap-1 text-sm">
-            {byClass.map((row) => (
-              <li key={row.classId} className="flex items-center justify-between">
-                <span className="text-foreground">{findClass(row.classId)?.name}</span>
-                <span className="text-muted-foreground">{row.percent}%</span>
-              </li>
-            ))}
-          </ul>
+      {insights && (insights.byClass.length > 0 || insights.bySubject.length > 0 || insights.byTeacher.length > 0) && (
+        <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
+          <div className="rounded-lg border border-border p-sm">
+            <h3 className="mb-xs text-sm font-semibold text-foreground">Completion by class</h3>
+            <ul className="flex flex-col gap-1 text-sm">
+              {insights.byClass.map((row) => (
+                <li key={row.classId} className="flex items-center justify-between">
+                  <span className="text-foreground">{row.className}</span>
+                  <span className="text-muted-foreground">{row.percent ?? "—"}%</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-lg border border-border p-sm">
+            <h3 className="mb-xs text-sm font-semibold text-foreground">Completion by subject</h3>
+            <ul className="flex flex-col gap-1 text-sm">
+              {insights.bySubject.map((row) => (
+                <li key={row.subjectId} className="flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-foreground">
+                    <span className="size-1.5 shrink-0 rounded-pill" style={{ backgroundColor: row.subjectColor }} aria-hidden="true" />
+                    {row.subjectName}
+                  </span>
+                  <span className="text-muted-foreground">{row.percent ?? "—"}%</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-lg border border-border p-sm">
+            <h3 className="mb-xs text-sm font-semibold text-foreground">Completion by teacher</h3>
+            <ul className="flex flex-col gap-1 text-sm">
+              {insights.byTeacher.map((row) => (
+                <li key={row.staffId} className="flex items-center justify-between">
+                  <span className="text-foreground">{row.staffName}</span>
+                  <span className="text-muted-foreground">{row.percent ?? "—"}%</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <div className="rounded-lg border border-border p-sm">
-          <h3 className="mb-xs text-sm font-semibold text-foreground">Completion by subject</h3>
-          <ul className="flex flex-col gap-1 text-sm">
-            {bySubject.map((row) => (
-              <li key={row.subjectId} className="flex items-center justify-between">
-                <span className="flex items-center gap-1 text-foreground">
-                  <span className="size-1.5 shrink-0 rounded-pill" style={{ backgroundColor: subjects.find((s) => s.id === row.subjectId)?.color }} aria-hidden="true" />
-                  {subjects.find((s) => s.id === row.subjectId)?.name}
-                </span>
-                <span className="text-muted-foreground">{row.percent}%</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-lg border border-border p-sm">
-          <h3 className="mb-xs text-sm font-semibold text-foreground">Completion by teacher</h3>
-          <ul className="flex flex-col gap-1 text-sm">
-            {byTeacher.map((row) => (
-              <li key={row.teacherId} className="flex items-center justify-between">
-                <span className="text-foreground">{teacherById(row.teacherId)?.name}</span>
-                <span className="text-muted-foreground">{row.percent}%</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      )}
 
-      {delayedUnits.length > 0 && (
+      {insights && insights.delayedUnits > 0 && (
         <div className="flex flex-wrap items-center gap-sm rounded-lg border border-error/30 bg-error/10 px-sm py-sm text-xs text-error">
           <AlertTriangle className="size-4 shrink-0" />
-          <span className="font-medium">
-            {delayedUnits.length} unit{delayedUnits.length === 1 ? "" : "s"} delayed across {delayedByClass.length} class{delayedByClass.length === 1 ? "" : "es"}:
-          </span>
-          {delayedByClass.map(({ classId: id, count }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setClassId(id)}
-              className="rounded-pill border border-error/30 bg-surface px-sm py-0.5 font-medium text-error outline-none hover:bg-error/10 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {findClass(id)?.name} ({count})
-            </button>
-          ))}
+          <span className="font-medium">{insights.delayedUnits} unit{insights.delayedUnits === 1 ? "" : "s"} delayed across {insights.classesTracked} class{insights.classesTracked === 1 ? "" : "es"}.</span>
         </div>
       )}
 
       <div className="rounded-lg border border-border bg-surface p-md">
         <div className="mb-md flex flex-wrap items-center gap-sm">
           <h2 className="text-sm font-semibold text-foreground">Learning Path Timeline</h2>
-          <div className="ml-auto flex items-center gap-sm">
-            <Select value={classId} onValueChange={setClassId}>
+          <div className="ml-auto flex flex-wrap items-center gap-sm">
+            <Select value={classId} onValueChange={(v) => { setClassIdOverride(v); setSubjectIdOverride(null); setSectionIdOverride(null); }}>
               <SelectTrigger className="w-40" aria-label="Class">
                 <SelectValue placeholder="Class" />
               </SelectTrigger>
               <SelectContent>
-                {trackedClassIds.map((id) => (
-                  <SelectItem key={id} value={id}>
-                    {findClass(id)?.name}
-                  </SelectItem>
+                {classes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={subjectId} onValueChange={setSubjectId}>
+            <Select value={subjectId} onValueChange={setSubjectIdOverride}>
               <SelectTrigger className="w-40" aria-label="Subject">
                 <SelectValue placeholder="Subject" />
               </SelectTrigger>
               <SelectContent>
-                {trackedSubjectIds.map((id) => (
-                  <SelectItem key={id} value={id}>
-                    {subjects.find((s) => s.id === id)?.name}
-                  </SelectItem>
+                {classSubjects.map((s) => (
+                  <SelectItem key={s.subjectId} value={s.subjectId}>{s.subjectName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sectionId} onValueChange={setSectionIdOverride}>
+              <SelectTrigger className="w-32" aria-label="Section">
+                <SelectValue placeholder="Section" />
+              </SelectTrigger>
+              <SelectContent>
+                {sections.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
-        <div className="mb-sm flex flex-wrap items-center gap-1">
-          <span className="text-xs text-muted-foreground">Filter by status:</span>
-          {filterableStatuses.map((status) => {
-            const active = statusFilter.has(status);
-            const countForStatus = unitsForSelection.filter((u) => u.status === status).length;
-            if (countForStatus === 0) return null;
-            return (
-              <button
-                key={status}
-                type="button"
-                onClick={() => toggleStatusFilter(status)}
-                aria-pressed={active}
-                className={cn(
-                  "rounded-pill px-sm py-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                  active ? "bg-primary text-primary-foreground" : "bg-surface-secondary text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {progressStatusLabels[status]} ({countForStatus})
-              </button>
-            );
-          })}
-          {statusFilter.size > 0 && (
-            <button type="button" onClick={() => setStatusFilter(new Set())} className="text-[11px] font-medium text-primary underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
-              Clear
-            </button>
-          )}
-        </div>
-        <LearningPathTimeline units={selectedUnits} />
+
+        {!classId || !subjectId ? (
+          <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Select a class and subject.</p>
+        ) : curriculumListLoading && !curriculumSummary ? (
+          <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+        ) : !curriculumSummary ? (
+          <div className="flex flex-col items-center gap-sm rounded-lg border border-dashed border-border p-md text-center">
+            <p className="text-sm text-muted-foreground">No curriculum tracked yet for this class and subject.</p>
+            {canManageContent && (
+              <Button size="sm" variant="outline" disabled={creating} onClick={handleCreateCurriculum}>
+                <Plus className="size-3.5" />
+                Create curriculum
+              </Button>
+            )}
+          </div>
+        ) : curriculumSummary.status === "draft" ? (
+          <div className="flex flex-col items-center gap-sm rounded-lg border border-dashed border-border p-md text-center">
+            <p className="text-sm text-muted-foreground">This curriculum is still a draft. Add units, then activate it to start tracking section progress.</p>
+            {canManageContent && <p className="text-xs text-muted-foreground">Manage content from the curriculum detail view.</p>}
+          </div>
+        ) : !sectionId ? (
+          <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Select a section to view and record progress.</p>
+        ) : view ? (
+          <LearningPathTimeline units={view.units} sectionId={sectionId} canManageContent={canManageContent} canRecordProgress={can("curriculum.manage")} onProgressChange={refetchSectionCurriculum} />
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+        )}
       </div>
     </div>
   );

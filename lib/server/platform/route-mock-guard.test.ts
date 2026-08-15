@@ -122,6 +122,17 @@ const MIGRATED_FILES = [
   "app/academics/homework/new/page.tsx",
   "app/academics/homework/[homeworkId]/page.tsx",
   "app/teacher/homework/page.tsx",
+  // Phase 9C.1 — Curriculum/Syllabus Tracking. Real Curriculum -> Unit ->
+  // Chapter -> Topic content + real per-Section CurriculumTopicProgress. No
+  // mock curriculum-service, no mock CurriculumUnit.status/teacherId/notes.
+  "app/academics/curriculum/page.tsx",
+  "components/academics/curriculum/learning-path-timeline.tsx",
+  // Phase 9C.2 — Lesson Plans. Real LessonPlan tied to real TeachingAssignment,
+  // optional real CurriculumTopic links, Draft/Submitted/Approved/Rejected/
+  // Completed lifecycle. No mock lesson-plan-service, no simulated AI
+  // generation, no mock CURRENT_TEACHER_ID.
+  "app/academics/lesson-plans/page.tsx",
+  "app/teacher/lesson-plans/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -190,6 +201,9 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "types/promotion", why: "mock promotion run/rule types (PromotionRun/PromotionRule)" },
 
   { marker: '"@/lib/services/homework-service"', why: "mock homework service (still used by the deferred evaluations grading page — not by real surfaces)" },
+  { marker: '"@/lib/services/curriculum-service"', why: "mock curriculum unit/chapter/topic mutation service (deleted Phase 9C.1 — zero remaining consumers, dead import)" },
+  { marker: '"@/lib/services/lesson-plan-service"', why: "mock lesson-plan mutation + AI-draft service (deleted Phase 9C.2 — zero remaining consumers, dead import)" },
+  { marker: "lessonPlanFormSchema", why: "mock lesson-plan create-form schema (deleted Phase 9C.2 — dead import)" },
   { marker: "components/academics/homework", why: "deleted mock homework-meta helpers (dead import)" },
   // Phase 9A — dashboard/my-day mock authority (real surfaces must use hooks/api/use-dashboard-api, hooks/api/use-my-day-api).
   { marker: "dashboard/data/mock-data", why: "mock dashboard widget data generators (deleted — dead import)" },

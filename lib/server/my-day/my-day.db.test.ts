@@ -156,9 +156,10 @@ describe.skipIf(!dbReady)("getMyDay — timetable + attendance action (DB)", () 
     const day = await getMyDay(scopeAdmin);
     expect(day.staff).toBeNull();
     expect(day.timetable).toEqual([]);
-    // Phase 9B — homework is real now, even for an actor with no Staff profile.
+    // Phase 9B/9C.2 — homework and lesson plans are real now, even for an
+    // actor with no Staff profile.
     expect(day.homework).toEqual({ draftCount: 0, dueTodayOrOverdueCount: 0, items: [] });
-    expect(day.lessonPlans).toEqual({ available: false });
+    expect(day.lessonPlans).toEqual({ draftCount: 0, items: [] });
   });
 
   it("Teacher A cannot see Teacher B's My Day — Teacher B has no lessons of their own", async () => {

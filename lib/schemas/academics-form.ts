@@ -41,23 +41,6 @@ export const subjectAssignmentFormSchema = z.object({
 });
 export type SubjectAssignmentFormValues = z.infer<typeof subjectAssignmentFormSchema>;
 
-export const lessonPlanFormSchema = z.object({
-  classId: z.string().min(1, "Select a class"),
-  sectionId: z.string().min(1, "Select a section"),
-  subjectId: z.string().min(1, "Select a subject"),
-  date: z.string().min(1, "Date is required"),
-  period: z.number().int().min(1).max(10),
-  learningObjective: z.string().trim().min(1, "Learning objective is required"),
-  teachingMethod: z.string().trim().min(1, "Teaching method is required"),
-  materials: z.string().trim().min(1, "List the required materials"),
-  activity: z.string().trim().min(1, "Describe the classroom activity"),
-  homework: z.string().optional().or(z.literal("")),
-  assessmentMethod: z.string().optional().or(z.literal("")),
-  differentiationPlan: z.string().optional().or(z.literal("")),
-  notes: z.string().optional().or(z.literal("")),
-});
-export type LessonPlanFormValues = z.infer<typeof lessonPlanFormSchema>;
-
 export const homeworkFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
   description: z.string().trim().min(1, "Description is required"),

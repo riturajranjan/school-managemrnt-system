@@ -1495,6 +1495,164 @@ export type AssignableTeachingDto = {
   subject: { id: string; code: string; name: string; color: string };
 };
 
+// --- Phase 9C.1: Curriculum / Syllabus Tracking — content (Curriculum -> Unit
+// -> Chapter -> Topic) authored once per (Class, Subject, AcademicSession).
+// Unit/Chapter carry no persisted status/percentage — "status"/completion
+// counts here are always server-computed from real CurriculumTopicProgress
+// rows for whichever Section was requested (or null/zeroed when no section
+// context was given, e.g. the content-authoring detail view). ---
+
+export type CurriculumStatusDto = "draft" | "active" | "archived";
+export type TopicProgressStatusDto = "not-started" | "in-progress" | "completed";
+/** Derived aggregate only — never persisted. "delayed" = plannedEnd has
+ *  passed and the unit isn't fully completed (a real date-derived rule, not
+ *  an invented state). */
+export type CurriculumAggregateStatusDto = "not-started" | "in-progress" | "completed" | "delayed";
+
+export type CurriculumTopicDto = {
+  id: string;
+  title: string;
+  order: number;
+  learningOutcomes: string[];
+  /** Present only when the request was section-scoped. */
+  progress: { status: TopicProgressStatusDto; completedAt: string | null; completedByStaffName: string | null } | null;
+};
+
+export type CurriculumChapterDto = {
+  id: string;
+  title: string;
+  order: number;
+  status: CurriculumAggregateStatusDto;
+  completedTopics: number;
+  totalTopics: number;
+  topics: CurriculumTopicDto[];
+};
+
+export type CurriculumUnitDto = {
+  id: string;
+  title: string;
+  description: string | null;
+  order: number;
+  plannedStart: string | null; // YYYY-MM-DD
+  plannedEnd: string | null; // YYYY-MM-DD
+  estimatedPeriods: number;
+  status: CurriculumAggregateStatusDto;
+  completedTopics: number;
+  totalTopics: number;
+  chapters: CurriculumChapterDto[];
+};
+
+export type CurriculumListItemDto = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: CurriculumStatusDto;
+  class: { id: string; name: string };
+  subject: { id: string; code: string; name: string; color: string };
+  unitCount: number;
+  topicCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CurriculumDetailDto = CurriculumListItemDto & { units: CurriculumUnitDto[] };
+
+export type CreateCurriculumRequest = { classId: string; subjectId: string; title: string; description?: string };
+export type UpdateCurriculumRequest = { title?: string; description?: string };
+export type ChangeCurriculumStatusRequest = { status: CurriculumStatusDto };
+export type CreateCurriculumUnitRequest = { title: string; description?: string; order?: number; plannedStart?: string; plannedEnd?: string; estimatedPeriods?: number };
+export type UpdateCurriculumUnitRequest = Partial<CreateCurriculumUnitRequest>;
+export type CreateCurriculumChapterRequest = { title: string; order?: number };
+export type UpdateCurriculumChapterRequest = Partial<CreateCurriculumChapterRequest>;
+export type CreateCurriculumTopicRequest = { title: string; order?: number; learningOutcomes?: string[] };
+export type UpdateCurriculumTopicRequest = Partial<CreateCurriculumTopicRequest>;
+
+/** The full Unit -> Chapter -> Topic tree for one real Section, with per-topic
+ *  progress for that section and a real, server-computed overall percentage
+ *  (never persisted; null when the curriculum has zero topics — an honest
+ *  empty state, not a fake 0%). */
+export type SectionCurriculumDto = {
+  curriculum: CurriculumListItemDto;
+  units: CurriculumUnitDto[];
+  overallPercent: number | null;
+};
+
+export type UpdateTopicProgressRequest = { status: TopicProgressStatusDto };
+
+/** Real, DB-derived completion rollups for the Curriculum page's "Completion
+ *  by class/subject/teacher" panels — averaged across each entity's real
+ *  Sections' CurriculumTopicProgress, never a stored/fabricated number. */
+export type CurriculumInsightsDto = {
+  overallPercent: number | null;
+  unitsTracked: number;
+  delayedUnits: number;
+  classesTracked: number;
+  byClass: { classId: string; className: string; percent: number | null }[];
+  bySubject: { subjectId: string; subjectName: string; subjectColor: string; percent: number | null }[];
+  byTeacher: { staffId: string; staffName: string; percent: number | null }[];
+};
+
+// --- Phase 9C.2: Lesson Plans — a real teaching plan for one Staff teacher's
+// TeachingAssignment on one date, optionally mapped to real CurriculumTopic
+// row(s). Preserves the existing draft -> submitted -> approved/rejected ->
+// completed review workflow, collapsed to the states the real UI drives. ---
+
+export type LessonPlanStatusDto = "draft" | "submitted" | "approved" | "rejected" | "completed";
+
+export type LessonPlanListItemDto = {
+  id: string;
+  title: string;
+  status: LessonPlanStatusDto;
+  plannedDate: string; // YYYY-MM-DD
+  period: number | null;
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  teacher: { id: string; name: string };
+  learningObjective: string;
+  topicCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LessonPlanDetailDto = LessonPlanListItemDto & {
+  teachingMethod: string;
+  materials: string | null;
+  activity: string | null;
+  homeworkNote: string | null;
+  assessmentMethod: string | null;
+  reviewComment: string | null;
+  reviewedByName: string | null;
+  topics: { id: string; title: string; chapterTitle: string; unitTitle: string }[];
+};
+
+export type CreateLessonPlanRequest = {
+  sectionId: string;
+  subjectId: string;
+  title: string;
+  learningObjective: string;
+  teachingMethod: string;
+  materials?: string;
+  activity?: string;
+  homeworkNote?: string;
+  assessmentMethod?: string;
+  plannedDate: string; // YYYY-MM-DD
+  period?: number;
+  topicIds?: string[];
+};
+
+export type UpdateLessonPlanRequest = {
+  title?: string;
+  learningObjective?: string;
+  teachingMethod?: string;
+  materials?: string;
+  activity?: string;
+  homeworkNote?: string;
+  assessmentMethod?: string;
+  plannedDate?: string;
+  period?: number;
+  topicIds?: string[];
+};
+
 export type MyDayDto = {
   date: string; // YYYY-MM-DD, server-derived
   weekday: Weekday;
@@ -1514,7 +1672,10 @@ export type MyDayDto = {
     dueTodayOrOverdueCount: number; // this teacher's own PUBLISHED homework due today or earlier
     items: HomeworkListItemDto[]; // up to 5, this teacher's own PUBLISHED homework, soonest due first
   };
-  lessonPlans: { available: false };
+  lessonPlans: {
+    draftCount: number; // this teacher's own DRAFT lesson plans
+    items: { id: string; status: LessonPlanStatusDto; section: { id: string; name: string; className: string }; subject: { id: string; name: string; color: string } }[]; // this teacher's plans for TODAY
+  };
 };
 
 // Named distinctly from the Super Admin platform's DashboardSummaryDto (SA-4J,
