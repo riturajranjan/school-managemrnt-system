@@ -91,6 +91,14 @@ const MIGRATED_FILES = [
   "app/report-cards/page.tsx",
   "app/report-cards/[examId]/page.tsx",
   "app/report-cards/[examId]/[studentId]/page.tsx",
+  // Phase 8E — real Promotion / Academic-Year Transition: an explicit
+  // StudentPromotion decision (never automatic from a PASS/FAIL result),
+  // creating a NEW target-session Enrollment. Fully backed by
+  // /api/promotions/* (PostgreSQL). Must never reintroduce the mock
+  // promotion-run/rule store or the mock promotion-readiness selector.
+  "app/promotion/page.tsx",
+  "app/promotion/run/page.tsx",
+  "app/promotion/history/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -153,6 +161,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/report-card-service", why: "mock report-card template/generation-job service (deleted — dead import)" },
   { marker: "selectors/report-card-readiness", why: "mock report-card readiness selector (deleted — dead import)" },
   { marker: "types/report-cards", why: "mock report-card template/job types (ReportCard/ReportCardTemplate)" },
+  // Phase 8E — promotion mock authority (real surfaces must use hooks/api/use-promotions-api).
+  { marker: "services/promotion-service", why: "mock promotion run/rule service (deleted — dead import)" },
+  { marker: "selectors/promotion-readiness", why: "mock promotion readiness selector (deleted — dead import)" },
+  { marker: "types/promotion", why: "mock promotion run/rule types (PromotionRun/PromotionRule)" },
 ];
 
 function collectSources(dir: string): string[] {

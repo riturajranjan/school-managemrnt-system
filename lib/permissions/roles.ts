@@ -149,6 +149,11 @@ export type Permission =
   | "promotion.view"
   | "promotion.run"
   | "promotion.approve"
+  // Phase 8E — real Promotion. Aligned with the real RBAC catalog's
+  // promotion.manage key (lib/server/authz/catalog.ts); promotion.run/approve
+  // above are the pre-8E mock granularity, kept only so this legacy per-role
+  // matrix (many more UI roles than the real system-role set) still compiles.
+  | "promotion.manage"
   // Phase 5 — fees, accounting and payroll
   | "finance.viewDashboard"
   | "finance.auditView"
@@ -547,6 +552,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "promotion.view",
     "promotion.run",
     "promotion.approve",
+    "promotion.manage",
     "finance.viewDashboard",
     "finance.auditView",
     ...FEES_MANAGE,
@@ -593,6 +599,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.view",
     "promotion.view",
     "promotion.approve",
+    "promotion.manage",
     "finance.viewDashboard",
     "finance.auditView",
     ...FEES_OVERSIGHT,
@@ -642,6 +649,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.publish",
     "promotion.view",
     "promotion.approve",
+    "promotion.manage",
     "finance.viewDashboard",
     "finance.auditView",
     ...FEES_OVERSIGHT,
@@ -695,6 +703,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.publish",
     "promotion.view",
     "promotion.run",
+    "promotion.manage",
     "documents.view",
     "documents.generate",
     "documents.batch",
@@ -732,6 +741,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.generate",
     "promotion.view",
     "promotion.run",
+    "promotion.manage",
   ],
   "admission-officer": [
     "admissions.view",

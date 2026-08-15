@@ -106,21 +106,6 @@ export function useTeacherRemarks(examId: string | undefined, studentId?: string
   );
 }
 
-export function usePromotionRules() {
-  const db = useSisStore();
-  return db.promotionRules;
-}
-
-export function usePromotionRuns() {
-  const db = useSisStore();
-  return db.promotionRuns;
-}
-
-export function usePromotionRun(runId: string | undefined) {
-  const db = useSisStore();
-  return useMemo(() => db.promotionRuns.find((r) => r.id === runId), [db.promotionRuns, runId]);
-}
-
 export function useExamAuditLog(examId?: string) {
   const db = useSisStore();
   return useMemo(() => (examId ? db.examAuditLog.filter((e) => e.examId === examId) : db.examAuditLog), [db.examAuditLog, examId]);

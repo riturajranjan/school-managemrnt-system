@@ -1,4 +1,6 @@
-// GET  /api/academics/sections[?classId=] — sections in the active school+session.
+// GET  /api/academics/sections[?classId=][&academicSessionId=] — sections in
+// the active school+session (or another real session of the same school, e.g.
+// Phase 8E Promotion listing a promotion target's sections).
 // POST /api/academics/sections — create a section. academics.view / academics.manage.
 import type { NextRequest } from "next/server";
 import { handle, requirePermission } from "@/lib/server/api/guard";
@@ -11,7 +13,8 @@ export async function GET(request: NextRequest) {
   return handle(async () => {
     const ctx = await requirePermission("academics.view");
     const scope = await requireOrgScope(ctx);
-    return ok(await listSections(scope, singleParam(request.nextUrl.searchParams, "classId") ?? undefined));
+    const sp = request.nextUrl.searchParams;
+    return ok(await listSections(scope, singleParam(sp, "classId"), singleParam(sp, "academicSessionId")));
   });
 }
 

@@ -1156,6 +1156,57 @@ export type ReportCardDto = {
   summary: { totalMaxMarks: number; totalMarksObtained: number; percentage: number | null; grade: string | null; status: ExamResultStatus };
 };
 
+// --- Phase 8E: Promotion / Academic-Year Transition — PASS/FAIL is an exam
+// result, never an automatic promotion decision. A row only exists once
+// PROMOTED or RETAINED is finalized; "pending" is the absence of a row for a
+// given (student, fromSession, toSession) transition, computed server-side. ---
+
+export type PromotionDecisionDto = "promoted" | "retained";
+
+/** Why a candidate can/can't be processed right now — real facts only, never
+ *  an invented policy (no attendance/fees/grace-marks/rank/GPA rule). */
+export type PromotionEligibilityStateDto =
+  | "ready"
+  | "blocked_result_unpublished"
+  | "blocked_result_incomplete" // exam published, but no result row exists for this student
+  | "already_processed"
+  | "no_current_enrollment"
+  | "target_not_configured"; // frontend-only: no target class/section chosen yet
+
+export type PromotionCandidateDto = {
+  student: { id: string; name: string; admissionNumber: string; rollNumber: string | null };
+  currentEnrollment: { id: string; classId: string; className: string; sectionId: string; sectionName: string } | null;
+  result: { studentExamResultId: string; status: ExamResultStatus; percentage: number | null; grade: string | null } | null;
+  eligibility: { state: PromotionEligibilityStateDto; reasons: string[] };
+  existingPromotion: PromotionListItemDto | null;
+};
+
+export type PromotionListItemDto = {
+  id: string;
+  student: { id: string; name: string; admissionNumber: string };
+  fromSession: { id: string; name: string };
+  toSession: { id: string; name: string };
+  fromClassName: string | null;
+  fromSectionName: string | null;
+  decision: PromotionDecisionDto;
+  targetClass: { id: string; name: string };
+  targetSection: { id: string; name: string };
+  sourceExamId: string;
+  notes: string | null;
+  processedAt: string;
+  processedByName: string | null;
+};
+
+export type ProcessPromotionRequest = {
+  studentId: string;
+  sourceStudentResultId: string;
+  targetAcademicSessionId: string;
+  decision: PromotionDecisionDto;
+  targetClassId: string;
+  targetSectionId: string;
+  notes?: string;
+};
+
 export type ExamMarksSaveRecord = {
   studentId: string;
   status: ExamMarkStatus;

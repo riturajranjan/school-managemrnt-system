@@ -687,6 +687,7 @@ model Student {
   attendanceRecords AttendanceRecord[] // Phase 5 — attendance
   examMarks         ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
   examResults       StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
+  promotions        StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -1706,10 +1707,11 @@ model Class {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  sections      Section[]
-  enrollments   Enrollment[]
-  classSubjects ClassSubject[] // Phase 6 — subjects taught in this class
-  examClasses   ExamClass[] // Phase 8A — exam applicability
+  sections         Section[]
+  enrollments      Enrollment[]
+  classSubjects    ClassSubject[] // Phase 6 — subjects taught in this class
+  examClasses      ExamClass[] // Phase 8A — exam applicability
+  targetPromotions StudentPromotion[] // Phase 8E — promotions targeting this class
 
   // One class name per school + academic session.
   @@unique([schoolId, academicSessionId, name])
@@ -1738,6 +1740,7 @@ model Section {
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
   examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
+  targetPromotions    StudentPromotion[] // Phase 8E — promotions targeting this section
 
   // One section name per class.
   @@unique([classId, name])
@@ -1769,6 +1772,11 @@ model Enrollment {
   attendanceRecords AttendanceRecord[] // Phase 5 — attendance
   examMarks         ExamMark[] // Phase 8B — historical reference only (SetNull on unenrollment)
   examResults       StudentExamResult[] // Phase 8C — historical reference only (SetNull on unenrollment)
+  // Phase 8E — Restrict (not SetNull): once a promotion decision references an
+  // enrollment (as either its source or its own newly-created target), that
+  // enrollment is historical truth and must never be deleted out from under it.
+  promotionsFrom    StudentPromotion[]  @relation("PromotionFromEnrollment")
+  promotionsTo      StudentPromotion[]  @relation("PromotionNewEnrollment")
 
   // One enrollment row per student per academic session; a student appears at
   // most once in a given section.
@@ -2585,4 +2593,82 @@ model StudentExamResult {
   @@index([publicationId])
   @@index([studentId])
   @@map("student_exam_results")
+}
+
+// ===========================================================================
+// Phase 8E — Promotion / Academic-Year Transition.
+//
+// A StudentPromotion row is the explicit, auditable, ADMINISTRATIVE decision
+// that a student moves from one AcademicSession to the next — never an
+// automatic consequence of an exam result. Its existence for a given
+// (studentId, fromAcademicSessionId, toAcademicSessionId) IS the decision: a
+// row only gets created once PROMOTED or RETAINED is finalized (there is no
+// persisted PENDING state — "pending" is simply the absence of a row for that
+// transition, computed by the service layer from real candidate data).
+//
+// sourceExamId / sourcePublicationId / sourceStudentResultId are plain
+// snapshot scalars (no FK), matching the ExamResultPublication.gradingSchemeName
+// snapshot convention — the evidence a decision was based on must stay stable
+// even if unrelated cleanup ever touches those rows, and Promotion must never
+// be the reason a historical Exam/Publication/Result can't be modified.
+// student/fromEnrollment/newEnrollment/targetClass/targetSection ARE real FKs
+// (Restrict): once referenced by a promotion decision, none of these rows may
+// be silently deleted out from under it.
+// ===========================================================================
+
+enum PromotionDecision {
+  PROMOTED
+  RETAINED
+}
+
+model StudentPromotion {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  fromAcademicSessionId String
+  toAcademicSessionId   String
+
+  studentId String
+
+  fromEnrollmentId String
+  newEnrollmentId  String @unique // 1:1 — the Enrollment this decision created
+
+  // Snapshot references to the evidence this decision was based on — plain
+  // scalars, deliberately NOT FKs (see note above).
+  sourceExamId          String
+  sourcePublicationId   String
+  sourceStudentResultId String
+
+  decision PromotionDecision
+
+  targetClassId   String
+  targetSectionId String
+
+  processedByUserId String
+  processedByName   String?
+  processedAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  notes String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student        Student    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  fromEnrollment Enrollment @relation("PromotionFromEnrollment", fields: [fromEnrollmentId], references: [id], onDelete: Restrict)
+  newEnrollment  Enrollment @relation("PromotionNewEnrollment", fields: [newEnrollmentId], references: [id], onDelete: Restrict)
+  targetClass    Class      @relation(fields: [targetClassId], references: [id], onDelete: Restrict)
+  targetSection  Section    @relation(fields: [targetSectionId], references: [id], onDelete: Restrict)
+
+  // One decision per student per (from session -> to session) transition —
+  // the concurrency-safety backstop alongside the transactional section-
+  // capacity lock (see lib/server/promotion/service.ts).
+  @@unique([studentId, fromAcademicSessionId, toAcademicSessionId])
+  @@index([tenantId])
+  @@index([schoolId, fromAcademicSessionId, toAcademicSessionId])
+  @@index([studentId])
+  @@index([targetClassId])
+  @@index([targetSectionId])
+  @@map("student_promotions")
 }

@@ -6,16 +6,19 @@ import { apiDelete, apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type { ClassDto, EnrollableStudentDto, RosterEntryDto, SectionDto } from "@/lib/api/contracts";
 
-export function useClasses() {
-  return useApiList<ClassDto>("/api/academics/classes");
+/** `academicSessionId` overrides the ambient current session — e.g. Phase 8E
+ *  Promotion listing a promotion TARGET session's classes. Omit for the normal
+ *  "classes in my current session" case. */
+export function useClasses(academicSessionId?: string) {
+  return useApiList<ClassDto>(`/api/academics/classes${buildQuery({ academicSessionId })}`);
 }
 export const createClassRequest = (body: { name: string; order?: number }): Promise<ApiResult<ClassDto>> =>
   apiPost<ClassDto>("/api/academics/classes", body);
 export const updateClassRequest = (id: string, body: Record<string, unknown>): Promise<ApiResult<ClassDto>> =>
   apiPatch<ClassDto>(`/api/academics/classes/${id}`, body);
 
-export function useSections(classId?: string) {
-  return useApiList<SectionDto>(`/api/academics/sections${buildQuery({ classId })}`);
+export function useSections(classId?: string, academicSessionId?: string) {
+  return useApiList<SectionDto>(`/api/academics/sections${buildQuery({ classId, academicSessionId })}`);
 }
 export const createSectionRequest = (body: { classId: string; name: string; capacity?: number }): Promise<ApiResult<SectionDto>> =>
   apiPost<SectionDto>("/api/academics/sections", body);

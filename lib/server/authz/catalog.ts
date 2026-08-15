@@ -45,6 +45,13 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "results.view", module: "results", action: "view", description: "View results" },
   { key: "results.publish", module: "results", action: "publish", description: "Publish results" },
 
+  // Phase 8E — Promotion is a separate, explicit administrative decision from
+  // an exam result, so it gets its own permission pair rather than reusing
+  // results.*: a TEACHER may see who's eligible without being able to
+  // actually move a student into next year's Enrollment.
+  { key: "promotion.view", module: "promotion", action: "view", description: "View promotion candidates & history" },
+  { key: "promotion.manage", module: "promotion", action: "manage", description: "Process student promotion/retention decisions" },
+
   { key: "fees.view", module: "fees", action: "view", description: "View fees" },
   { key: "fees.collect", module: "fees", action: "collect", description: "Collect fees" },
   { key: "fees.refund", module: "fees", action: "refund", description: "Refund fees" },
@@ -162,6 +169,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "exams.view", "exams.manage",
     "marks.enter", "marks.verify",
     "results.view", "results.publish",
+    "promotion.view", "promotion.manage",
     "fees.view", "fees.collect", "fees.refund",
     "transport.view",
     "library.view",
@@ -181,6 +189,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "exams.view", "exams.manage",
     "marks.verify",
     "results.view", "results.publish",
+    "promotion.view", "promotion.manage",
     "fees.view",
     "communication.view", "communication.send",
     "documents.view",
@@ -196,6 +205,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "exams.view",
     "marks.enter",
     "results.view",
+    "promotion.view",
     "communication.send",
     "documents.view",
   ],

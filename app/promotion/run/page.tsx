@@ -1,161 +1,280 @@
 "use client";
 
+// Promotion review (Phase 8E) — real PostgreSQL/API cutover. Reviews REAL
+// candidates for one (published exam -> target academic session) transition
+// and lets the admin make an EXPLICIT decision per student — a PASS result
+// never auto-selects "Promote" here, it's just shown as the exam result.
+// Each student's decision is its own atomic server transaction
+// (POST /api/promotions/process); this page fires one request per selected
+// student and reports success/failure per row, rather than one giant
+// all-or-nothing batch — a capacity conflict on one student must not undo
+// everyone else's already-successful promotion.
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { AlertTriangle, CheckCircle2, UserCog } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/input";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useManagedClasses } from "@/lib/hooks/use-academics";
-import { usePromotionRun } from "@/lib/hooks/use-exams";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { confirmPromotionRun, updateDecision } from "@/lib/services/promotion-service";
-import { promotionDecisionLabels, type PromotionDecisionType } from "@/lib/types/promotion";
+import { useClasses, useSections } from "@/lib/hooks/api/use-academics-foundation";
+import { processPromotionRequest, usePromotionCandidates } from "@/lib/hooks/api/use-promotions-api";
+import type { PromotionCandidateDto, PromotionDecisionDto } from "@/lib/api/contracts";
 
-const ACTOR = { name: "Principal", role: "Principal" };
-const decisionOptions: PromotionDecisionType[] = ["promote", "conditional-promotion", "retain", "transfer", "graduate", "withdraw", "pending"];
+const eligibilityLabel: Record<string, string> = {
+  ready: "Ready", blocked_result_unpublished: "Results not published", blocked_result_incomplete: "No result for this exam",
+  already_processed: "Already decided", no_current_enrollment: "Not currently enrolled", target_not_configured: "Choose a target",
+};
+const eligibilityTone: Record<string, "success" | "warning" | "neutral" | "error"> = {
+  ready: "success", blocked_result_unpublished: "warning", blocked_result_incomplete: "warning", already_processed: "neutral", no_current_enrollment: "error", target_not_configured: "neutral",
+};
+const resultStatusTone: Record<string, "success" | "error" | "neutral"> = { pass: "success", fail: "error", absent: "neutral" };
+
+type RowState = { decision: PromotionDecisionDto | "skip"; targetClassId: string; targetSectionId: string; notes: string; submitting: boolean; error: string | null; done: boolean };
 
 function PromotionRunContent() {
   const searchParams = useSearchParams();
-  const runId = searchParams.get("runId") ?? "";
-  const db = useSisStore();
-  const run = usePromotionRun(runId);
-  const classes = useManagedClasses();
+  const examId = searchParams.get("examId") ?? "";
+  const targetAcademicSessionId = searchParams.get("targetAcademicSessionId") ?? "";
+  const classId = searchParams.get("classId") ?? undefined;
+  const sectionId = searchParams.get("sectionId") ?? undefined;
+
   const { can } = usePermissions();
-  const canApprove = can("promotion.approve");
+  const canManage = can("promotion.manage");
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
+  const { data: candidates, loading, error, reload } = usePromotionCandidates(examId || undefined, targetAcademicSessionId || undefined, classId, sectionId);
+  const { data: targetClasses } = useClasses(targetAcademicSessionId || undefined);
+  const [defaultClassId, setDefaultClassId] = useState("");
 
-  if (!run) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Promotion run not found.</p>;
+  const [rows, setRows] = useState<Record<string, RowState>>({});
+  // Adjusting state to match newly-arrived candidates during render (not in an
+  // effect) — the React-recommended pattern for "state derived from props/data
+  // that must still be locally editable and preserved across reloads." Keyed
+  // on the candidate id set so it only resets when that set actually changes,
+  // never on every render.
+  const candidateKey = candidates ? candidates.map((c) => c.student.id).join(",") : null;
+  const [syncedKey, setSyncedKey] = useState<string | null>(null);
+  if (candidates && candidateKey !== syncedKey) {
+    setSyncedKey(candidateKey);
+    setRows((prev) => {
+      const next: Record<string, RowState> = {};
+      for (const c of candidates) {
+        next[c.student.id] = prev[c.student.id] ?? { decision: "skip", targetClassId: defaultClassId, targetSectionId: "", notes: "", submitting: false, error: null, done: c.eligibility.state === "already_processed" };
+      }
+      return next;
+    });
+  }
 
-  const originClass = classes.find((c) => c.id === run.classId);
-  const defaultTargetClass = classes.find((c) => c.order === (originClass?.order ?? 0) + 1);
-  const needsDestination = run.decisions.filter((d) => (d.decision === "promote" || d.decision === "conditional-promotion") && (!d.toClassId || !d.toSectionId)).length;
+  function patchRow(studentId: string, patch: Partial<RowState>) {
+    setRows((prev) => ({ ...prev, [studentId]: { ...prev[studentId], ...patch } }));
+  }
+
+  function applyDefaultTarget() {
+    setRows((prev) => {
+      const next = { ...prev };
+      for (const id of Object.keys(next)) {
+        if (next[id].decision !== "skip" && !next[id].done) next[id] = { ...next[id], targetClassId: defaultClassId, targetSectionId: "" };
+      }
+      return next;
+    });
+  }
+
+  if (!examId || !targetAcademicSessionId) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Missing exam or target session — start from the Promotion hub.</p>;
+  }
+  if (!can("promotion.view")) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">You don&apos;t have permission to view promotion.</p>;
+  }
+  if (loading && !candidates) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading candidates…</p>;
+  if (error || !candidates) {
+    return (
+      <div className="flex flex-col gap-sm">
+        <Link href="/promotion" className="text-xs text-muted-foreground hover:underline">← Promotion</Link>
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      </div>
+    );
+  }
+
+  const selectedCount = Object.values(rows).filter((r) => r.decision !== "skip" && !r.done).length;
+
+  async function processSelected() {
+    if (!candidates) return;
+    const toProcess = candidates.filter((c) => rows[c.student.id] && rows[c.student.id].decision !== "skip" && !rows[c.student.id].done);
+    await Promise.allSettled(
+      toProcess.map(async (c) => {
+        const row = rows[c.student.id];
+        if (!c.result || !row.targetClassId || !row.targetSectionId) return;
+        patchRow(c.student.id, { submitting: true, error: null });
+        const res = await processPromotionRequest({
+          studentId: c.student.id, sourceStudentResultId: c.result.studentExamResultId, targetAcademicSessionId,
+          decision: row.decision as PromotionDecisionDto, targetClassId: row.targetClassId, targetSectionId: row.targetSectionId,
+          notes: row.notes.trim() || undefined,
+        });
+        if (res.success) patchRow(c.student.id, { submitting: false, done: true });
+        else patchRow(c.student.id, { submitting: false, error: res.error.message });
+      }),
+    );
+    reload();
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-sm">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Promotion run — {originClass?.name}</h1>
-          <p className="text-xs text-muted-foreground">
-            {run.fromSession} → {run.toSession} · {run.decisions.length} student{run.decisions.length === 1 ? "" : "s"}
-          </p>
+          <Link href="/promotion" className="text-xs text-muted-foreground hover:underline">← Promotion</Link>
+          <h1 className="text-lg font-semibold text-foreground">Promotion review</h1>
+          <p className="text-xs text-muted-foreground">{candidates.length} student{candidates.length === 1 ? "" : "s"}</p>
         </div>
-        <Badge tone={run.status === "completed" ? "success" : "neutral"}>{run.status}</Badge>
       </div>
 
-      {run.status !== "completed" && needsDestination > 0 && (
-        <div className="flex items-center gap-sm rounded-lg border border-warning/30 bg-warning/8 px-sm py-sm text-sm text-warning">
-          <AlertTriangle className="size-4 shrink-0" />
-          {needsDestination} student(s) still need a destination class and section before this run can be confirmed.
-        </div>
-      )}
-
-      {outcome && (
-        <div className={`flex items-center gap-sm rounded-lg border px-sm py-sm text-sm ${outcome.ok ? "border-success/30 bg-success/8 text-success" : "border-error/30 bg-error/8 text-error"}`}>
-          {outcome.ok ? <CheckCircle2 className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
-          {outcome.message}
+      {canManage && (
+        <div className="flex flex-wrap items-end gap-sm rounded-lg border border-border bg-surface p-sm">
+          <div>
+            <label className="mb-xs block text-xs font-medium text-foreground">Default target class</label>
+            <Select value={defaultClassId} onValueChange={(v) => { setDefaultClassId(v); }}>
+              <SelectTrigger className="w-40" aria-label="Default target class">
+                <SelectValue placeholder="Class" />
+              </SelectTrigger>
+              <SelectContent>
+                {targetClasses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button size="sm" variant="outline" onClick={applyDefaultTarget} disabled={!defaultClassId}>
+            Apply to selected decisions
+          </Button>
         </div>
       )}
 
       <div className="flex flex-col gap-sm">
-        {run.decisions.map((decision) => {
-          const student = db.students.find((s) => s.id === decision.studentId);
-          const showDestination = decision.decision === "promote" || decision.decision === "conditional-promotion";
-          const targetClass = classes.find((c) => c.id === (decision.toClassId ?? defaultTargetClass?.id));
-          return (
-            <div key={decision.studentId} className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-sm sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
-                  <span className="truncate">{student ? `${student.profile.firstName} ${student.profile.lastName}` : decision.studentId}</span>
-                  {decision.overriddenBy && (
-                    <Badge tone="warning">
-                      <UserCog className="size-3" /> Overridden by {decision.overriddenBy}
-                    </Badge>
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">{decision.reason}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-xs">
-                <Select
-                  value={decision.decision}
-                  onValueChange={(v) => updateDecision(run.id, decision.studentId, { decision: v as PromotionDecisionType, toClassId: v === "promote" || v === "conditional-promotion" ? (decision.toClassId ?? defaultTargetClass?.id) : undefined }, ACTOR)}
-                  disabled={run.status === "completed" || !canApprove}
-                >
-                  <SelectTrigger className="w-44" aria-label="Decision">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {decisionOptions.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {promotionDecisionLabels[d]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {showDestination && (
-                  <>
-                    <Select value={decision.toClassId ?? ""} onValueChange={(v) => updateDecision(run.id, decision.studentId, { toClassId: v, toSectionId: undefined })} disabled={run.status === "completed" || !canApprove}>
-                      <SelectTrigger className="w-32" aria-label="Destination class">
-                        <SelectValue placeholder="Class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {classes.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={decision.toSectionId ?? ""} onValueChange={(v) => updateDecision(run.id, decision.studentId, { toSectionId: v })} disabled={run.status === "completed" || !canApprove || !targetClass}>
-                      <SelectTrigger className="w-28" aria-label="Destination section">
-                        <SelectValue placeholder="Section" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {targetClass?.sections.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name} ({s.enrolledCount}/{s.capacity})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      defaultValue={decision.newRollNumber ?? ""}
-                      onBlur={(e) => updateDecision(run.id, decision.studentId, { newRollNumber: e.target.value || undefined })}
-                      placeholder="Roll no."
-                      className="w-20"
-                      disabled={run.status === "completed" || !canApprove}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {candidates.map((c) => (
+          <CandidateRow
+            key={c.student.id}
+            candidate={c}
+            row={rows[c.student.id]}
+            canManage={canManage}
+            targetClasses={targetClasses}
+            targetAcademicSessionId={targetAcademicSessionId}
+            onPatch={(patch) => patchRow(c.student.id, patch)}
+          />
+        ))}
+        {candidates.length === 0 && <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No candidates for this class/section.</p>}
       </div>
 
-      {run.status !== "completed" && canApprove && (
-        <Button onClick={() => setConfirmOpen(true)} disabled={needsDestination > 0}>
-          Confirm promotion for {run.decisions.filter((d) => d.decision !== "pending").length} student(s)
+      {canManage && selectedCount > 0 && (
+        <Button onClick={processSelected} disabled={Object.values(rows).some((r) => r.submitting)}>
+          {Object.values(rows).some((r) => r.submitting) ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+          Process {selectedCount} decision{selectedCount === 1 ? "" : "s"}
         </Button>
       )}
+    </div>
+  );
+}
 
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Confirm this promotion run?"
-        description="Student class, section and session assignments will be updated immediately. This is recorded in the audit log and reflected across the whole system."
-        confirmLabel="Confirm promotion"
-        onConfirm={() => {
-          const result = confirmPromotionRun(run.id, ACTOR);
-          setOutcome(result.ok ? { ok: true, message: `${result.promoted} student(s) promoted successfully.` } : { ok: false, message: result.errors.join(" ") });
-          setConfirmOpen(false);
-        }}
-      />
+function CandidateRow({
+  candidate, row, canManage, targetClasses, targetAcademicSessionId, onPatch,
+}: {
+  candidate: PromotionCandidateDto;
+  row: RowState | undefined;
+  canManage: boolean;
+  targetClasses: { id: string; name: string }[];
+  targetAcademicSessionId: string;
+  onPatch: (patch: Partial<RowState>) => void;
+}) {
+  const { data: sections } = useSections(row?.targetClassId || undefined, targetAcademicSessionId);
+  if (!row) return null;
+
+  const alreadyDone = candidate.eligibility.state === "already_processed" || row.done;
+  const canDecide = canManage && candidate.eligibility.state === "ready" && !alreadyDone;
+
+  return (
+    <div className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-sm">
+      <div className="flex flex-wrap items-start justify-between gap-sm">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">{candidate.student.name}</p>
+          <p className="text-xs text-muted-foreground">
+            Roll {candidate.student.rollNumber ?? "—"} · {candidate.currentEnrollment ? `${candidate.currentEnrollment.className}-${candidate.currentEnrollment.sectionName}` : "No current enrollment"}
+          </p>
+        </div>
+        <Badge tone={eligibilityTone[candidate.eligibility.state] ?? "neutral"}>{eligibilityLabel[candidate.eligibility.state] ?? candidate.eligibility.state}</Badge>
+      </div>
+
+      <div className="grid grid-cols-3 gap-sm text-xs">
+        <div>
+          <p className="text-muted-foreground">Result</p>
+          <p className="font-medium text-foreground">
+            {candidate.result ? (
+              <Badge tone={resultStatusTone[candidate.result.status] ?? "neutral"}>{candidate.result.status}{candidate.result.percentage !== null ? ` · ${candidate.result.percentage}%` : ""}</Badge>
+            ) : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Grade</p>
+          <p className="font-medium text-foreground">{candidate.result?.grade ?? "—"}</p>
+        </div>
+      </div>
+
+      {candidate.eligibility.reasons.length > 0 && <p className="text-xs text-muted-foreground">{candidate.eligibility.reasons.join(" ")}</p>}
+
+      {alreadyDone && candidate.existingPromotion && (
+        <p className="flex items-center gap-1 text-xs text-success">
+          <CheckCircle2 className="size-3.5" />
+          {candidate.existingPromotion.decision === "promoted" ? "Promoted" : "Retained"} to {candidate.existingPromotion.targetClass.name}-{candidate.existingPromotion.targetSection.name}
+        </p>
+      )}
+
+      {row.error && (
+        <p className="flex items-center gap-1 text-xs text-error">
+          <AlertTriangle className="size-3.5 shrink-0" /> {row.error}
+        </p>
+      )}
+
+      {!alreadyDone && (
+        <div className="flex flex-wrap items-center gap-xs">
+          <Select value={row.decision} onValueChange={(v) => onPatch({ decision: v as RowState["decision"], targetSectionId: "" })} disabled={!canDecide || row.submitting}>
+            <SelectTrigger className="w-32" aria-label="Decision">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="skip">Pending</SelectItem>
+              <SelectItem value="promoted">Promote</SelectItem>
+              <SelectItem value="retained">Retain</SelectItem>
+            </SelectContent>
+          </Select>
+          {row.decision !== "skip" && (
+            <>
+              <Select value={row.targetClassId} onValueChange={(v) => onPatch({ targetClassId: v, targetSectionId: "" })} disabled={!canDecide || row.submitting}>
+                <SelectTrigger className="w-32" aria-label="Target class">
+                  <SelectValue placeholder="Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {targetClasses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={row.targetSectionId} onValueChange={(v) => onPatch({ targetSectionId: v })} disabled={!canDecide || row.submitting || !row.targetClassId}>
+                <SelectTrigger className="w-28" aria-label="Target section">
+                  <SelectValue placeholder="Section" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sections.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.enrolledCount}/{s.capacity})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+          {row.submitting && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+        </div>
+      )}
+
+      {!alreadyDone && row.decision !== "skip" && canDecide && (
+        <Textarea value={row.notes} onChange={(e) => onPatch({ notes: e.target.value })} placeholder="Notes (optional)" rows={1} className="text-xs" />
+      )}
     </div>
   );
 }

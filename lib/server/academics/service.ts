@@ -21,6 +21,20 @@ function requireSession(scope: OrgScope): string {
   return scope.academicSessionId;
 }
 
+/**
+ * Resolve which academic session a Classes/Sections list should read from:
+ * the ambient scope session by default (unchanged existing behavior), or an
+ * explicit override — validated to belong to the SAME school, never trusted
+ * blindly — when the caller (Phase 8E Promotion) needs another real session's
+ * Classes/Sections, e.g. the target of a promotion.
+ */
+async function resolveListSession(scope: OrgScope, academicSessionId?: string): Promise<string> {
+  if (!academicSessionId) return requireSession(scope);
+  const session = await prisma.academicSession.findFirst({ where: { id: academicSessionId, schoolId: scope.schoolId }, select: { id: true } });
+  if (!session) throw new HttpError("INVALID_SESSION", "That academic session was not found for this school");
+  return session.id;
+}
+
 export const createClassSchema = z.object({ name: z.string().trim().min(1).max(60), order: z.number().int().min(0).max(1000).optional() });
 export const updateClassSchema = z.object({ name: z.string().trim().min(1).max(60).optional(), order: z.number().int().min(0).max(1000).optional(), status: z.enum(["active", "archived"]).optional() });
 export const createSectionSchema = z.object({ classId: z.string().min(1), name: z.string().trim().min(1).max(20), capacity: z.number().int().min(1).max(200).optional() });
@@ -43,9 +57,9 @@ function classDto(c: ClassRow): ClassDto {
 
 const classInclude = { sections: { select: { capacity: true } }, _count: { select: { sections: true, enrollments: { where: { status: "ENROLLED" as const } } } } } satisfies Prisma.ClassInclude;
 
-export async function listClasses(scope: OrgScope): Promise<ClassDto[]> {
+export async function listClasses(scope: OrgScope, academicSessionId?: string): Promise<ClassDto[]> {
   const rows = await prisma.class.findMany({
-    where: { schoolId: scope.schoolId, academicSessionId: requireSession(scope) },
+    where: { schoolId: scope.schoolId, academicSessionId: await resolveListSession(scope, academicSessionId) },
     orderBy: [{ order: "asc" }, { name: "asc" }],
     include: classInclude,
   });
@@ -111,9 +125,9 @@ async function resolveSectionBranch(scope: OrgScope): Promise<string> {
   throw new HttpError("INVALID_BRANCH", "Select a branch before creating a section");
 }
 
-export async function listSections(scope: OrgScope, classId?: string): Promise<SectionDto[]> {
+export async function listSections(scope: OrgScope, classId?: string, academicSessionId?: string): Promise<SectionDto[]> {
   const rows = await prisma.section.findMany({
-    where: { schoolId: scope.schoolId, academicSessionId: requireSession(scope), ...(classId ? { classId } : {}) },
+    where: { schoolId: scope.schoolId, academicSessionId: await resolveListSession(scope, academicSessionId), ...(classId ? { classId } : {}) },
     include: sectionInclude,
     orderBy: [{ class: { order: "asc" } }, { name: "asc" }],
   });
