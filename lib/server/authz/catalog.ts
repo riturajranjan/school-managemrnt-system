@@ -82,6 +82,19 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "calendar.view", module: "calendar", action: "view", description: "View the academic calendar" },
   { key: "calendar.manage", module: "calendar", action: "manage", description: "Create, edit and cancel calendar events" },
 
+  // Phase 9E.1 — Staff Attendance. Its own domain (not folded into attendance.*,
+  // which is student attendance): staffAttendance.view gates the confidential
+  // staff roster (broad managers only — a TEACHER sees their own day via My Day,
+  // not the roster), matching the existing client permission matrix.
+  { key: "staffAttendance.view", module: "staffAttendance", action: "view", description: "View the staff attendance roster" },
+  { key: "staffAttendance.manage", module: "staffAttendance", action: "manage", description: "Mark and correct staff attendance" },
+
+  // Phase 9E.2 — Leave Management. leave.submit is self-service (submit/view/
+  // cancel own requests) — broadly granted, matching the existing client matrix.
+  // leave.approve is the broad-manager review action (view all, approve/reject).
+  { key: "leave.submit", module: "leave", action: "submit", description: "Submit and manage own leave requests" },
+  { key: "leave.approve", module: "leave", action: "approve", description: "Review, approve and reject staff leave requests" },
+
   { key: "fees.view", module: "fees", action: "view", description: "View fees" },
   { key: "fees.collect", module: "fees", action: "collect", description: "Collect fees" },
   { key: "fees.refund", module: "fees", action: "refund", description: "Refund fees" },
@@ -204,6 +217,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "curriculum.view", "curriculum.manage",
     "lessonPlans.view", "lessonPlans.manage",
     "calendar.view", "calendar.manage",
+    "staffAttendance.view", "staffAttendance.manage",
+    "leave.submit", "leave.approve",
     "fees.view", "fees.collect", "fees.refund",
     "transport.view",
     "library.view",
@@ -228,6 +243,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "curriculum.view", "curriculum.manage",
     "lessonPlans.view", "lessonPlans.manage",
     "calendar.view", "calendar.manage",
+    "staffAttendance.view", "staffAttendance.manage",
+    "leave.submit", "leave.approve",
     "fees.view",
     "communication.view", "communication.send",
     "documents.view",
@@ -248,12 +265,13 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "curriculum.view", "curriculum.manage",
     "lessonPlans.view", "lessonPlans.manage",
     "calendar.view",
+    "leave.submit",
     "communication.send",
     "documents.view",
   ],
   LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage"],
   TRANSPORT_MANAGER: ["dashboard.view", "transport.view", "transport.manage"],
-  HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage"],
+  HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage", "staffAttendance.view", "staffAttendance.manage", "leave.submit", "leave.approve"],
 };
 
 // ---------------------------------------------------------------------------

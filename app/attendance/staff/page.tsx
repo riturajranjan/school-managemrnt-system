@@ -1,5 +1,8 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9E.1) — reads the live
+// GET /api/staff-attendance(+/summary) endpoints. A staff member with no
+// record for today shows "not-marked", never a fake "absent".
 import { useMemo, useState } from "react";
 import { Clock, UserCheck, UserMinus, UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,26 +12,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatTile } from "@/components/ui/stat-tile";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useStaffAttendance } from "@/lib/hooks/use-attendance";
-import { correctAttendance } from "@/lib/services/staff-attendance-service";
-import {
-  staffAttendanceStatusTone,
-  type StaffAttendance,
-} from "@/lib/types/attendance";
+import { markStaffAttendanceRequest, useStaffAttendanceRoster, useStaffAttendanceSummary } from "@/lib/hooks/api/use-staff-attendance-api";
+import type { EffectiveStaffAttendanceStatusDto, StaffAttendanceRosterEntryDto } from "@/lib/api/contracts";
+
+const statusTone: Record<EffectiveStaffAttendanceStatusDto, "success" | "warning" | "error" | "info" | "neutral"> = {
+  present: "success", absent: "error", late: "warning", "half-day": "warning", "on-leave": "info", "not-marked": "neutral",
+};
+const statusLabel: Record<EffectiveStaffAttendanceStatusDto, string> = {
+  present: "Present", absent: "Absent", late: "Late", "half-day": "Half day", "on-leave": "On leave", "not-marked": "Not marked",
+};
 
 export default function StaffAttendancePage() {
-  const staffAttendance = useStaffAttendance();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: roster, loading, error, reload } = useStaffAttendanceRoster(today);
+  const { data: summary, reload: reloadSummary } = useStaffAttendanceSummary(today);
   const { can } = usePermissions();
-  const [correcting, setCorrecting] = useState<StaffAttendance | null>(null);
+  const [correcting, setCorrecting] = useState<StaffAttendanceRosterEntryDto | null>(null);
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const byDepartment = useMemo(() => {
-    const map = new Map<string, StaffAttendance[]>();
-    for (const a of staffAttendance)
-      map.set(a.department, [...(map.get(a.department) ?? []), a]);
+    const map = new Map<string, StaffAttendanceRosterEntryDto[]>();
+    for (const a of roster ?? []) {
+      const key = a.department ?? "Unassigned";
+      map.set(key, [...(map.get(key) ?? []), a]);
+    }
     return [...map.entries()];
-  }, [staffAttendance]);
+  }, [roster]);
 
   if (!can("staffAttendance.view")) {
     return (
@@ -45,14 +56,6 @@ export default function StaffAttendancePage() {
     );
   }
 
-  const present = staffAttendance.filter((a) => a.status === "present").length;
-  const absent = staffAttendance.filter((a) => a.status === "absent").length;
-  const onLeave = staffAttendance.filter((a) => a.status === "on-leave").length;
-  const late = staffAttendance.filter((a) => a.status === "late").length;
-  const notCheckedIn = staffAttendance.filter(
-    (a) => a.status === "not-checked-in",
-  ).length;
-
   return (
     <div className="flex flex-col gap-md">
       <div>
@@ -64,38 +67,22 @@ export default function StaffAttendancePage() {
         </p>
       </div>
 
-      <section className="grid grid-cols-2 gap-sm sm:grid-cols-5">
-        <StatTile
-          label="Present"
-          value={String(present)}
-          icon={UserCheck}
-          tone="success"
-        />
-        <StatTile
-          label="Absent"
-          value={String(absent)}
-          icon={UserX}
-          tone="error"
-        />
-        <StatTile
-          label="On leave"
-          value={String(onLeave)}
-          icon={UserMinus}
-          tone="info"
-        />
-        <StatTile
-          label="Late"
-          value={String(late)}
-          icon={Clock}
-          tone="warning"
-        />
-        <StatTile
-          label="Not checked in"
-          value={String(notCheckedIn)}
-          icon={UserX}
-          tone="neutral"
-        />
-      </section>
+      {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
+      {loading && !roster && <p className="text-xs text-muted-foreground">Loading…</p>}
+
+      {summary && (
+        <section className="grid grid-cols-2 gap-sm sm:grid-cols-5">
+          <StatTile label="Present" value={String(summary.present)} icon={UserCheck} tone="success" />
+          <StatTile label="Absent" value={String(summary.absent)} icon={UserX} tone="error" />
+          <StatTile label="On leave" value={String(summary.onLeave)} icon={UserMinus} tone="info" />
+          <StatTile label="Late" value={String(summary.late)} icon={Clock} tone="warning" />
+          <StatTile label="Not marked" value={String(summary.notMarked)} icon={UserX} tone="neutral" />
+        </section>
+      )}
+
+      {roster && roster.length === 0 && !loading && (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No active staff found.</p>
+      )}
 
       {byDepartment.map(([department, members]) => (
         <div
@@ -109,19 +96,19 @@ export default function StaffAttendancePage() {
           <ul className="divide-y divide-border">
             {members.map((m) => (
               <li
-                key={m.id}
+                key={m.staffId}
                 className="flex flex-wrap items-center gap-sm p-sm">
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {m.staffName}
+                  {m.name}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {m.checkIn ? `In ${m.checkIn}` : "—"}
+                  {m.checkInAt ? `In ${m.checkInAt}` : "—"}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {m.checkOut ? `Out ${m.checkOut}` : ""}
+                  {m.checkOutAt ? `Out ${m.checkOutAt}` : ""}
                 </span>
-                <Badge tone={staffAttendanceStatusTone[m.status]}>
-                  {m.status.replace("-", " ")}
+                <Badge tone={statusTone[m.status]}>
+                  {statusLabel[m.status]}
                 </Badge>
                 {can("staffAttendance.manage") && (
                   <Button
@@ -129,8 +116,8 @@ export default function StaffAttendancePage() {
                     variant="ghost"
                     onClick={() => {
                       setCorrecting(m);
-                      setCheckIn(m.checkIn ?? "");
-                      setCheckOut(m.checkOut ?? "");
+                      setCheckIn(m.checkInAt ?? "");
+                      setCheckOut(m.checkOutAt ?? "");
                     }}>
                     Correct
                   </Button>
@@ -145,7 +132,7 @@ export default function StaffAttendancePage() {
         open={correcting !== null}
         onOpenChange={(open) => !open && setCorrecting(null)}
         title="Correct attendance"
-        description={correcting?.staffName}>
+        description={correcting?.name}>
         <div className="flex flex-col gap-sm">
           <div>
             <Label htmlFor="correct-in">Check-in</Label>
@@ -166,14 +153,19 @@ export default function StaffAttendancePage() {
             />
           </div>
           <Button
-            onClick={() => {
-              if (correcting)
-                correctAttendance(
-                  correcting.staffId,
-                  { checkIn, checkOut, status: "present" },
-                  "Administrator",
-                );
+            disabled={saving}
+            onClick={async () => {
+              if (!correcting) return;
+              setSaving(true);
+              const wasOnLeave = correcting.status === "on-leave";
+              await markStaffAttendanceRequest({
+                date: today,
+                entries: [{ staffId: correcting.staffId, status: "present", checkInAt: checkIn || undefined, checkOutAt: checkOut || undefined, override: wasOnLeave }],
+              });
+              setSaving(false);
               setCorrecting(null);
+              reload();
+              reloadSummary();
             }}>
             Save correction
           </Button>

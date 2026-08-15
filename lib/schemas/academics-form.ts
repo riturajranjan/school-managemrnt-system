@@ -56,14 +56,14 @@ export const homeworkFormSchema = z.object({
 });
 export type HomeworkFormValues = z.infer<typeof homeworkFormSchema>;
 
+// Phase 9E.2 — real leaveTypeId (a real LeaveType.id), not a fixed mock enum.
 export const leaveFormSchema = z
   .object({
-    leaveType: z.enum(["sick", "medical", "casual", "emergency", "family-event", "official-duty", "other"]),
+    leaveTypeId: z.string().min(1, "Select a leave type"),
     startDate: z.string().min(1, "Start date is required"),
     endDate: z.string().min(1, "End date is required"),
     halfDay: z.boolean(),
     reason: z.string().trim().min(5, "Please provide a brief reason"),
-    emergencyContact: z.string().optional().or(z.literal("")),
   })
   .refine((data) => new Date(data.endDate) >= new Date(data.startDate), {
     message: "End date must be on or after the start date",

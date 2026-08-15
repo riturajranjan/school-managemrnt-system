@@ -1,4 +1,4 @@
-import type { AttendanceRecord, AttendanceSession, LeaveRequest, StaffAttendance } from "@/lib/types/attendance";
+import type { AttendanceRecord, AttendanceSession, LeaveRequest } from "@/lib/types/attendance";
 import { schoolClasses } from "./reference";
 import { teachers } from "./academics";
 import { seededHelpers } from "./rng";
@@ -109,24 +109,3 @@ export const leaveRequests: LeaveRequest[] = [
     reviewerNote: "Please resubmit with a medical certificate for retroactive leave.",
   },
 ];
-
-// Today's staff attendance snapshot — the Staff Attendance dashboard is
-// primarily "today" plus the leave-integration rows above.
-export const staffAttendanceToday: StaffAttendance[] = teachers.map((teacher, index) => {
-  const onLeave = teacher.status === "on-leave";
-  const roll = int(0, 99);
-  const status = onLeave ? "on-leave" : roll < 78 ? "present" : roll < 88 ? "late" : roll < 94 ? "not-checked-in" : "absent";
-  return {
-    id: `staff-att-${teacher.id}`,
-    staffId: teacher.id,
-    staffName: teacher.name,
-    department: teacher.department,
-    date: new Date().toISOString(),
-    checkIn: status === "present" || status === "late" ? `0${7 + (index % 2)}:${String(int(0, 59)).padStart(2, "0")}` : undefined,
-    checkOut: status === "present" ? `${15 + (index % 3)}:${String(int(0, 59)).padStart(2, "0")}` : undefined,
-    shift: "Morning · 07:45 – 15:30",
-    status: status as StaffAttendance["status"],
-    lateMinutes: status === "late" ? int(5, 30) : undefined,
-    source: bool(0.7) ? "biometric" : "manual",
-  };
-});

@@ -27,6 +27,7 @@ import { seedPromotionTargetSession } from "./seed-promotion";
 import { seedHomework } from "./seed-homework";
 import { seedCurriculum } from "./seed-curriculum";
 import { seedLessonPlans } from "./seed-lesson-plans";
+import { seedStaffAttendanceLeave } from "./seed-staff-attendance-leave";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
 
@@ -326,6 +327,11 @@ async function main() {
   // Phase 9C.2 — real Lesson Plans on the seeded TeachingAssignment
   // =========================================================================
   await seedLessonPlans(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
+
+  // =========================================================================
+  // Phase 9E — real Staff Attendance + Leave Management
+  // =========================================================================
+  await seedStaffAttendanceLeave(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

@@ -92,30 +92,8 @@ export type LeaveRequest = {
   reviewerNote?: string;
 };
 
-export type StaffAttendanceStatus = "present" | "absent" | "late" | "half-day" | "on-leave" | "not-checked-in";
-
-export const staffAttendanceStatusTone: Record<StaffAttendanceStatus, StatusTone> = {
-  present: "success",
-  absent: "error",
-  late: "warning",
-  "half-day": "warning",
-  "on-leave": "info",
-  "not-checked-in": "neutral",
-};
-
-export type StaffAttendance = {
-  id: ID;
-  staffId: ID;
-  staffName: string;
-  department: string;
-  date: string;
-  checkIn?: string;
-  checkOut?: string;
-  shift: string;
-  status: StaffAttendanceStatus;
-  lateMinutes?: number;
-  overtimeMinutes?: number;
-  source: "biometric" | "manual";
-  correctedBy?: string;
-  note?: string;
-};
+// Staff attendance/leave mock types were removed in Phase 9E — real
+// StaffAttendanceRecord + LeaveRequest (lib/api/contracts.ts) back
+// app/attendance/staff and app/attendance/leave now. LeaveRequest below
+// remains — the mock leave store still backs app/academics/page.tsx's
+// substitute-requirement selector (not migrated in Phase 9E).

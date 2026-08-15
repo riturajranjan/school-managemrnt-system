@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import { Bell, BellOff, CalendarDays, ClipboardCheck, FileBadge, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, CalendarDays, ClipboardCheck, FileBadge, UserCheck, type LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
 import { useShell } from "./shell-context";
 import { timeAgo } from "@/lib/utils";
@@ -14,6 +14,9 @@ const TYPE_ICON: Record<NotificationTypeDto, LucideIcon> = {
   "lesson-plan-rejected": ClipboardCheck,
   "exam-scheduled": FileBadge,
   "calendar-event": CalendarDays,
+  "leave-request-submitted": UserCheck,
+  "leave-request-approved": UserCheck,
+  "leave-request-rejected": UserCheck,
 };
 
 export function NotificationCenter() {

@@ -135,14 +135,22 @@ const MIGRATED_FILES = [
   "app/teacher/lesson-plans/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
-  // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
-  // Attendance + Leave stay on the mock store, so only these files are guarded,
-  // not the whole app/attendance dir.
+  // reintroduce the student-attendance mock store/hooks/selectors/seed.
   "app/attendance/page.tsx",
   "app/attendance/reports/page.tsx",
   "app/attendance/students/page.tsx",
   "app/attendance/period/page.tsx", // Phase 7C — real period/subject attendance
   "components/attendance/attendance-marker.tsx",
+  // Phase 9E.1/9E.2 — real Staff Attendance (StaffAttendanceRecord) + Leave
+  // Management (LeaveType/LeaveRequest), fully backed by /api/staff-attendance/*
+  // and /api/leave/* (PostgreSQL). Must never reintroduce the mock
+  // staff-attendance-service/leave-service or the mock db.staffAttendance/
+  // useStaffAttendance/useLeaveRequests(applicantType) authority. The HR
+  // module's /hr/attendance + /hr/leave stay on the mock Employee/db.hrAttendance/
+  // db.hrLeaveRequests store — a separate, still-fully-mock Employee domain
+  // (Phase 8 HR) not migrated here — so only these files are guarded.
+  "app/attendance/staff/page.tsx",
+  "app/attendance/leave/page.tsx",
   // Phase 9D.1 — Academic Calendar. Real CalendarEvent rows merged at query
   // time with events derived live from Exam schedule/Homework/Lesson Plan
   // tables. No mock academic-events selector, no client-side recurrence
@@ -230,6 +238,11 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   // Phase 9D.2 — notification mock authority (real surfaces must use hooks/api/use-notifications-api).
   { marker: "shell/notification-data", why: "mock bell notification data (deleted — dead import)" },
   { marker: "commNotifications", why: "mock communication-notification store slice" },
+  // Phase 9E — staff-attendance/leave mock authority (real surfaces must use
+  // hooks/api/use-staff-attendance-api, hooks/api/use-leave-api).
+  { marker: "services/staff-attendance-service", why: "mock staff-attendance service (deleted — dead import)" },
+  { marker: '"@/lib/services/leave-service"', why: "mock staff/student leave-request service (deleted — dead import)" },
+  { marker: "db.staffAttendance", why: "mock staff-attendance store slice (deleted — dead import)" },
 ];
 
 function collectSources(dir: string): string[] {

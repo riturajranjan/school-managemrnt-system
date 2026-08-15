@@ -1699,7 +1699,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected";
 
 export type NotificationDto = {
   id: string;
@@ -1710,6 +1710,96 @@ export type NotificationDto = {
   createdAt: string;
   readAt: string | null;
 };
+
+// --- Phase 9E.1: Staff Attendance — real StaffAttendanceRecord, one row per
+// staff per day. A staff member with no row for a date is NOT_MARKED (never
+// synthesized as absent). ---
+
+export type StaffAttendanceStatusDto = "present" | "absent" | "late" | "half-day" | "on-leave";
+export type EffectiveStaffAttendanceStatusDto = StaffAttendanceStatusDto | "not-marked";
+
+export type StaffAttendanceRosterEntryDto = {
+  staffId: string;
+  name: string;
+  employeeCode: string;
+  designation: string | null;
+  department: string | null;
+  status: EffectiveStaffAttendanceStatusDto;
+  checkInAt: string | null; // HH:MM
+  checkOutAt: string | null; // HH:MM
+  notes: string | null;
+  recordId: string | null; // null when NOT_MARKED — nothing to correct yet
+};
+
+export type StaffAttendanceSummaryDto = {
+  date: string; // YYYY-MM-DD
+  totalActiveStaff: number;
+  present: number;
+  absent: number;
+  late: number;
+  halfDay: number;
+  onLeave: number;
+  notMarked: number;
+};
+
+export type MarkStaffAttendanceRequest = {
+  date: string; // YYYY-MM-DD
+  entries: { staffId: string; status: StaffAttendanceStatusDto; checkInAt?: string; checkOutAt?: string; notes?: string; override?: boolean }[];
+};
+
+export type StaffAttendanceHistoryEntryDto = {
+  id: string;
+  date: string;
+  status: StaffAttendanceStatusDto;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  notes: string | null;
+  markedByName: string | null;
+};
+
+/** null when the staff member has zero attendance rows in range — never fake 0%. */
+export type StaffAttendancePercentDto = { presentDays: number; countedDays: number; percentage: number | null };
+
+// --- Phase 9E.2: Leave Management — real LeaveType + LeaveRequest.
+// LeaveRequest is the sole authority for staff leave; approving one writes
+// ON_LEAVE onto StaffAttendanceRecord for the covered dates (never the
+// reverse). ---
+
+export type LeaveTypeStatusDto = "active" | "inactive";
+
+export type LeaveTypeDto = {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  isPaid: boolean;
+  status: LeaveTypeStatusDto;
+};
+
+export type CreateLeaveTypeRequest = { name: string; code: string; description?: string; isPaid?: boolean };
+export type UpdateLeaveTypeRequest = { name?: string; description?: string; isPaid?: boolean; status?: LeaveTypeStatusDto };
+
+export type LeaveRequestStatusDto = "pending" | "approved" | "rejected" | "cancelled";
+
+export type LeaveRequestDto = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  startDate: string;
+  endDate: string;
+  halfDay: boolean;
+  reason: string;
+  status: LeaveRequestStatusDto;
+  requestedAt: string;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+};
+
+export type CreateLeaveRequestRequest = { staffId?: string; leaveTypeId: string; startDate: string; endDate: string; halfDay?: boolean; reason: string };
+export type RejectLeaveRequestRequest = { reviewNote: string };
 
 export type MyDayDto = {
   date: string; // YYYY-MM-DD, server-derived

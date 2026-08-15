@@ -2048,6 +2048,8 @@ model Staff {
   homework                Homework[] // Phase 9B — homework/assignments
   curriculumTopicProgress CurriculumTopicProgress[] // Phase 9C.1 — topics this staff marked complete
   lessonPlans             LessonPlan[] // Phase 9C.2 — lesson plans
+  attendanceRecords       StaffAttendanceRecord[] // Phase 9E.1 — own daily attendance
+  leaveRequests           LeaveRequest[] // Phase 9E.2 — own leave requests
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3065,6 +3067,9 @@ enum NotificationType {
   LESSON_PLAN_REJECTED
   EXAM_SCHEDULED
   CALENDAR_EVENT
+  LEAVE_REQUEST_SUBMITTED
+  LEAVE_REQUEST_APPROVED
+  LEAVE_REQUEST_REJECTED
 }
 
 model Notification {
@@ -3109,4 +3114,133 @@ model NotificationRecipient {
   @@index([userId, readAt])
   @@index([userId, createdAt])
   @@map("notification_recipients")
+}
+
+// ===========================================================================
+// Phase 9E.1 — Staff Attendance. A separate domain from student AttendanceSession/
+// AttendanceRecord (Phase 5/7C) — different entity (Staff, not Student), different
+// grain (one row per staff per day, no periods/sections), no shared table. A
+// missing StaffAttendanceRecord for a given staff+date is NOT_MARKED — never
+// synthesized as ABSENT by a query. ON_LEAVE is set by the leave-approval flow
+// (see LeaveRequest below) as the one honest crossover between the two domains;
+// StaffAttendanceRecord otherwise never duplicates leave-request state.
+// ===========================================================================
+
+enum StaffAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  ON_LEAVE
+}
+
+model StaffAttendanceRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId String
+  date    DateTime @db.Date
+
+  status     StaffAttendanceStatus
+  checkInAt  DateTime? @db.Timestamptz(6)
+  checkOutAt DateTime? @db.Timestamptz(6)
+  notes      String?
+
+  markedByUserId String
+  markedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  // One attendance record per staff member per day — upserted, never duplicated.
+  @@unique([staffId, date])
+  @@index([tenantId])
+  @@index([schoolId, branchId, date])
+  @@index([staffId, date])
+  @@map("staff_attendance_records")
+}
+
+// ===========================================================================
+// Phase 9E.2 — Leave Management. LeaveRequest is the sole authority for staff
+// leave; StaffAttendanceRecord.ON_LEAVE (above) is written FROM an approval
+// here, never the reverse. Real Staff FK only — no free-floating name/email
+// identity. Overlap prevention and the PENDING->APPROVED/REJECTED/CANCELLED
+// lifecycle are enforced in lib/server/leave/service.ts (row-lock + conditional
+// updateMany), not by a DB constraint Postgres can't express without extensions.
+// ===========================================================================
+
+enum LeaveTypeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model LeaveType {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  name        String
+  code        String
+  description String?
+  isPaid      Boolean         @default(true)
+  status      LeaveTypeStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  requests LeaveRequest[]
+
+  // One leave-type code per school.
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@map("leave_types")
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model LeaveRequest {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId     String
+  leaveTypeId String
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  halfDay   Boolean  @default(false)
+  reason    String
+
+  status LeaveRequestStatus @default(PENDING)
+
+  requestedByUserId String
+  requestedAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  reviewedByUserId String?
+  reviewedByName   String?
+  reviewedAt       DateTime? @db.Timestamptz(6)
+  reviewNote       String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff     Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, branchId])
+  @@index([staffId, status])
+  @@index([staffId, startDate, endDate])
+  @@index([status])
+  @@map("leave_requests")
 }

@@ -10,16 +10,3 @@ export function useAttendanceSessions(sectionId?: string) {
     [db.attendanceSessions, sectionId],
   );
 }
-
-export function useLeaveRequests(applicantType?: "student" | "staff") {
-  const db = useSisStore();
-  return useMemo(
-    () => (applicantType ? db.leaveRequests.filter((r) => r.applicantType === applicantType) : db.leaveRequests),
-    [db.leaveRequests, applicantType],
-  );
-}
-
-export function useStaffAttendance() {
-  const db = useSisStore();
-  return db.staffAttendance;
-}
