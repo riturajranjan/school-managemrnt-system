@@ -128,21 +128,12 @@ export function createBroadcast(draft: BroadcastDraft, send: boolean): Result & 
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
-
-export function markNotificationRead(id: string): Result {
-  setState((db) => ({ ...db, commNotifications: db.commNotifications.map((n) => (n.id === id ? { ...n, read: true } : n)) }));
-  return { ok: true };
-}
-
-export function markAllNotificationsRead(): Result {
-  setState((db) => ({ ...db, commNotifications: db.commNotifications.map((n) => ({ ...n, read: true })) }));
-  return { ok: true };
-}
-
-export function archiveNotification(id: string): Result {
-  setState((db) => ({ ...db, commNotifications: db.commNotifications.map((n) => (n.id === id ? { ...n, archived: true, read: true } : n)) }));
-  return { ok: true };
-}
+// Phase 9D.2 — the real in-app Notification list/mark-read live at
+// lib/server/notifications/service.ts + /api/notifications/*. This mock
+// commNotifications-mutating trio (markNotificationRead/markAllNotifications-
+// Read/archiveNotification) was deleted — zero remaining consumers after
+// app/notifications/page.tsx cut over. Preferences (channel toggles below)
+// remain mock — no email/SMS/push infra exists yet (V1 is in-app only).
 
 export function updateNotificationSettings(patch: Partial<NotificationSettings>): Result {
   setState((db) => ({ ...db, notificationSettings: { ...db.notificationSettings, ...patch } }));

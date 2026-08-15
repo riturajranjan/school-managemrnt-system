@@ -23,6 +23,7 @@ import { getSubjectsForSection } from "@/lib/server/academics/class-subjects-ser
 import { dateToUi, parseAttendanceDate as parseExamDate } from "@/lib/server/attendance/service";
 import { hhmmToMinutes, minutesToHhmm } from "@/lib/server/timetable/periods-service";
 import { scheduleEntryHasRecordedMarks } from "@/lib/server/exams/marks-service";
+import { createNotification } from "@/lib/server/notifications/service";
 
 function requireSession(scope: OrgScope): string {
   if (!scope.academicSessionId) throw new HttpError("INVALID_SESSION", "Select an academic session first");
@@ -117,6 +118,25 @@ async function requireActiveStaffInScope(scope: OrgScope, staffId: string): Prom
   if (!staff) throw new HttpError("VALIDATION_ERROR", "Invigilator is not a valid, active staff member in this school");
 }
 
+/** Real recipients for EXAM_SCHEDULED — the section+subject's real
+ *  TeachingAssignment holder(s) plus the invigilator (if assigned). Staff
+ *  without a linked User account are silently excluded (createNotification's
+ *  empty-recipients guard handles the all-excluded case). */
+async function notifyExamScheduled(tx: Prisma.TransactionClient, scope: OrgScope, entry: EntryRow): Promise<void> {
+  const [exam, assignments, invigilator] = await Promise.all([
+    tx.exam.findUnique({ where: { id: entry.examId }, select: { name: true } }),
+    tx.teachingAssignment.findMany({ where: { sectionId: entry.section.id, subjectId: entry.subject.id }, select: { staff: { select: { userId: true } } } }),
+    entry.invigilator ? tx.staff.findUnique({ where: { id: entry.invigilator.id }, select: { userId: true } }) : Promise.resolve(null),
+  ]);
+  const recipientUserIds = [...assignments.map((a) => a.staff.userId), invigilator?.userId].filter((id): id is string => Boolean(id));
+  await createNotification(tx, {
+    tenantId: scope.tenantId, schoolId: scope.schoolId, type: "EXAM_SCHEDULED",
+    title: `Exam scheduled: ${exam?.name ?? "Exam"} — ${entry.subject.name}`, body: `${entry.subject.name} paper for ${entry.section.name} scheduled on ${entryDto(entry).examDate}.`,
+    href: "/exams", sourceType: "ExamScheduleEntry", sourceId: entry.id,
+    dedupeKey: `EXAM_SCHEDULED:${entry.id}`, recipientUserIds,
+  });
+}
+
 // ── Mutations ────────────────────────────────────────────────────────────────
 
 export async function createScheduleEntry(scope: OrgScope, examId: string, raw: unknown): Promise<ExamScheduleEntryDto> {
@@ -160,6 +180,7 @@ export async function createScheduleEntry(scope: OrgScope, examId: string, raw: 
         select: entrySelect,
       });
       await recordAudit(tx, scope, "EXAM_SCHEDULE_CREATED", "ExamScheduleEntry", row.id, { examId, sectionId: input.sectionId, subjectId: input.subjectId, examDate: input.examDate });
+      await notifyExamScheduled(tx, scope, row);
       return row;
     });
   } catch (e) {

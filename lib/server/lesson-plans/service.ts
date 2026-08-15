@@ -29,6 +29,7 @@ import type { ListMeta } from "@/lib/server/api/response";
 import type { LessonPlanDetailDto, LessonPlanListItemDto, LessonPlanStatusDto } from "@/lib/api/contracts";
 import { getCurrentStaffProfile } from "@/lib/server/staff/service";
 import { listAssignableCurriculumTopics } from "@/lib/server/curriculum/service";
+import { createNotification } from "@/lib/server/notifications/service";
 
 function requireSession(scope: OrgScope): string {
   if (!scope.academicSessionId) throw new HttpError("INVALID_SESSION", "Select an academic session first");
@@ -251,13 +252,34 @@ export async function updateLessonPlan(scope: OrgScope, lessonPlanId: string, ra
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
 
-async function transition(scope: OrgScope, lessonPlanId: string, from: string[], to: string, auditAction: "LESSON_PLAN_STATUS_CHANGED" | "LESSON_PLAN_COMPLETED", extra: Prisma.LessonPlanUpdateInput = {}) {
+async function transition(
+  scope: OrgScope, lessonPlanId: string, from: string[], to: string,
+  auditAction: "LESSON_PLAN_STATUS_CHANGED" | "LESSON_PLAN_COMPLETED", extra: Prisma.LessonPlanUpdateInput = {},
+  afterTransition?: (tx: Prisma.TransactionClient) => Promise<void>,
+) {
   const { count } = await prisma.$transaction(async (tx) => {
     const result = await tx.lessonPlan.updateMany({ where: { id: lessonPlanId, status: { in: from as never[] } }, data: { status: to as never, ...extra } });
-    if (result.count > 0) await recordAudit(tx, scope, auditAction, "LessonPlan", lessonPlanId, { to });
+    if (result.count > 0) {
+      await recordAudit(tx, scope, auditAction, "LessonPlan", lessonPlanId, { to });
+      if (afterTransition) await afterTransition(tx);
+    }
     return result;
   });
   if (count === 0) throw new HttpError("CONFLICT", `Only a plan in ${from.join("/")} can move to ${to}`);
+}
+
+/** Real Staff.userId recipient for LESSON_PLAN_APPROVED/REJECTED — the plan's
+ *  own teacher. No-ops (via createNotification's empty-recipients guard) if
+ *  the Staff has no linked User account yet. */
+async function notifyLessonPlanReview(tx: Prisma.TransactionClient, scope: OrgScope, lessonPlanId: string, type: "LESSON_PLAN_APPROVED" | "LESSON_PLAN_REJECTED", planTitle: string, staffId: string, comment: string | null): Promise<void> {
+  const staff = await tx.staff.findUnique({ where: { id: staffId }, select: { userId: true } });
+  await createNotification(tx, {
+    tenantId: scope.tenantId, schoolId: scope.schoolId, type,
+    title: type === "LESSON_PLAN_APPROVED" ? `Lesson plan approved: ${planTitle}` : `Lesson plan rejected: ${planTitle}`,
+    body: type === "LESSON_PLAN_APPROVED" ? `Your lesson plan "${planTitle}" was approved.` : `Your lesson plan "${planTitle}" was rejected.${comment ? ` Reason: ${comment}` : ""}`,
+    href: "/teacher/lesson-plans", sourceType: "LessonPlan", sourceId: lessonPlanId,
+    dedupeKey: `${type}:${lessonPlanId}`, recipientUserIds: staff?.userId ? [staff.userId] : [],
+  });
 }
 
 export async function submitLessonPlan(scope: OrgScope, lessonPlanId: string): Promise<LessonPlanDetailDto> {
@@ -269,8 +291,9 @@ export async function submitLessonPlan(scope: OrgScope, lessonPlanId: string): P
 
 export async function approveLessonPlan(scope: OrgScope, lessonPlanId: string): Promise<LessonPlanDetailDto> {
   if (!(await isBroadLessonPlanManager(scope))) throw new HttpError("FORBIDDEN", "You do not have permission to perform this action.");
-  await requireLessonPlanInScope(scope, lessonPlanId);
-  await transition(scope, lessonPlanId, ["SUBMITTED"], "APPROVED", "LESSON_PLAN_STATUS_CHANGED", { reviewedByUserId: scope.actor.id, reviewedByName: scope.actor.name, reviewComment: null });
+  const existing = await requireLessonPlanInScope(scope, lessonPlanId);
+  await transition(scope, lessonPlanId, ["SUBMITTED"], "APPROVED", "LESSON_PLAN_STATUS_CHANGED", { reviewedByUserId: scope.actor.id, reviewedByName: scope.actor.name, reviewComment: null },
+    (tx) => notifyLessonPlanReview(tx, scope, lessonPlanId, "LESSON_PLAN_APPROVED", existing.title, existing.staff.id, null));
   return getLessonPlan(scope, lessonPlanId);
 }
 
@@ -279,8 +302,9 @@ export const rejectLessonPlanSchema = z.object({ comment: z.string().trim().min(
 export async function rejectLessonPlan(scope: OrgScope, lessonPlanId: string, raw: unknown): Promise<LessonPlanDetailDto> {
   if (!(await isBroadLessonPlanManager(scope))) throw new HttpError("FORBIDDEN", "You do not have permission to perform this action.");
   const input = parseInput(rejectLessonPlanSchema, raw);
-  await requireLessonPlanInScope(scope, lessonPlanId);
-  await transition(scope, lessonPlanId, ["SUBMITTED"], "REJECTED", "LESSON_PLAN_STATUS_CHANGED", { reviewedByUserId: scope.actor.id, reviewedByName: scope.actor.name, reviewComment: input.comment });
+  const existing = await requireLessonPlanInScope(scope, lessonPlanId);
+  await transition(scope, lessonPlanId, ["SUBMITTED"], "REJECTED", "LESSON_PLAN_STATUS_CHANGED", { reviewedByUserId: scope.actor.id, reviewedByName: scope.actor.name, reviewComment: input.comment },
+    (tx) => notifyLessonPlanReview(tx, scope, lessonPlanId, "LESSON_PLAN_REJECTED", existing.title, existing.staff.id, input.comment));
   return getLessonPlan(scope, lessonPlanId);
 }
 

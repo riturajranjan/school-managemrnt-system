@@ -143,6 +143,19 @@ const MIGRATED_FILES = [
   "app/attendance/students/page.tsx",
   "app/attendance/period/page.tsx", // Phase 7C — real period/subject attendance
   "components/attendance/attendance-marker.tsx",
+  // Phase 9D.1 — Academic Calendar. Real CalendarEvent rows merged at query
+  // time with events derived live from Exam schedule/Homework/Lesson Plan
+  // tables. No mock academic-events selector, no client-side recurrence
+  // authority. (app/academics/page.tsx hub is NOT migrated — still fully
+  // mock — so only the calendar page itself is guarded.)
+  "app/academics/calendar/page.tsx",
+  // Phase 9D.2 — In-app Notifications. Real Notification/NotificationRecipient
+  // rows via /api/notifications/*. No mock commNotifications/notification-data
+  // authority, no fake unread badge.
+  "app/notifications/page.tsx",
+  "components/shell/notification-center.tsx",
+  "components/shell/notification-trigger.tsx",
+  "components/shell/shell-context.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -210,6 +223,13 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/teacher-day", why: "mock teacher-day selector (deleted — dead import)" },
   { marker: "lib/current-user", why: "fake CURRENT_TEACHER_ID/NAME identity — use the real Staff.userId resolver" },
   { marker: "use-widget-data", why: "mock-data-fetching widget hook (deleted — dead import)" },
+  // Phase 9D.1 — calendar mock authority (real surfaces must use hooks/api/use-calendar-api).
+  { marker: "selectors/calendar-occurrences", why: "mock recurrence-expansion selector (deleted — dead import)" },
+  { marker: "createAcademicEvent", why: "mock academic-event mutation (deleted Phase 9D.1 — dead import)" },
+  { marker: "duplicateAcademicEvent", why: "mock academic-event mutation (deleted Phase 9D.1 — dead import)" },
+  // Phase 9D.2 — notification mock authority (real surfaces must use hooks/api/use-notifications-api).
+  { marker: "shell/notification-data", why: "mock bell notification data (deleted — dead import)" },
+  { marker: "commNotifications", why: "mock communication-notification store slice" },
 ];
 
 function collectSources(dir: string): string[] {

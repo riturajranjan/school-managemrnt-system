@@ -1653,6 +1653,64 @@ export type UpdateLessonPlanRequest = {
   topicIds?: string[];
 };
 
+// --- Phase 9D.1: Academic Calendar — real manual CalendarEvent rows, merged
+// at query time with events DERIVED live from Exam schedule/Homework due
+// dates/Lesson Plan planned dates. Derived occurrences are never persisted;
+// they're identified by (sourceType, sourceId) instead of a CalendarEvent id
+// so they can never drift from their own source-of-truth table. ---
+
+export type CalendarEventTypeDto = "holiday" | "meeting" | "ptm" | "celebration" | "activity" | "deadline" | "other";
+export type CalendarAudienceDto = "all" | "teachers";
+export type CalendarRecurrenceDto = "none" | "weekly" | "yearly";
+export type CalendarSourceTypeDto = "manual" | "exam" | "homework" | "lesson-plan";
+
+export type CalendarEventDto = {
+  id: string;
+  sourceType: CalendarSourceTypeDto;
+  sourceId: string; // CalendarEvent.id for manual rows, the source row's id otherwise
+  title: string;
+  description: string | null;
+  type: CalendarEventTypeDto;
+  audience: CalendarAudienceDto;
+  startDate: string; // YYYY-MM-DD
+  endDate: string | null;
+  allDay: boolean;
+  recurring: CalendarRecurrenceDto;
+  location: string | null;
+  createdBy: string | null;
+  editable: boolean; // false for derived occurrences — edit at the source (Exams/Homework/Lesson Plans)
+};
+
+export type CreateCalendarEventRequest = {
+  title: string;
+  description?: string;
+  type: CalendarEventTypeDto;
+  audience?: CalendarAudienceDto;
+  startDate: string; // YYYY-MM-DD
+  endDate?: string;
+  allDay?: boolean;
+  recurring?: CalendarRecurrenceDto;
+  recurrenceUntil?: string;
+  location?: string;
+};
+
+export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
+
+// --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
+// NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
+
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event";
+
+export type NotificationDto = {
+  id: string;
+  type: NotificationTypeDto;
+  title: string;
+  body: string;
+  href: string | null;
+  createdAt: string;
+  readAt: string | null;
+};
+
 export type MyDayDto = {
   date: string; // YYYY-MM-DD, server-derived
   weekday: Weekday;

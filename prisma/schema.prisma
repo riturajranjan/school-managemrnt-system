@@ -266,11 +266,12 @@ model User {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  memberships   TenantMembership[]
-  sessions      Session[]
-  platformAdmin PlatformAdmin?
-  activeContext UserActiveContext?
-  staffProfile  Staff? // Phase 6A — optional link to a school Staff/employee record
+  memberships            TenantMembership[]
+  sessions               Session[]
+  platformAdmin          PlatformAdmin?
+  activeContext          UserActiveContext?
+  staffProfile           Staff? // Phase 6A — optional link to a school Staff/employee record
+  notificationRecipients NotificationRecipient[] // Phase 9D.2 — in-app notifications
 
   @@index([status])
   @@map("users")
@@ -2970,4 +2971,142 @@ model LessonPlanTopic {
   @@id([lessonPlanId, topicId])
   @@index([topicId])
   @@map("lesson_plan_topics")
+}
+
+// ===========================================================================
+// Phase 9D.1 — Academic Calendar. ONLY manual, school-authored events are
+// persisted here (CalendarEvent). Exam/Homework/LessonPlan calendar items are
+// NEVER copied into this table — they are computed at query time from their
+// own real tables (lib/server/calendar/service.ts) and identified by
+// (sourceType, sourceId) rather than a CalendarEvent row, so there is exactly
+// one truth for e.g. a Homework due date and the calendar can never drift
+// from it. Audience is staff-only (ALL_STAFF/TEACHERS) — Student/Guardian
+// have no linked User account in this system (see Notification section
+// below), so there is no real identity to resolve a wider audience against.
+// ===========================================================================
+
+enum CalendarEventType {
+  HOLIDAY
+  MEETING
+  PTM
+  CELEBRATION
+  ACTIVITY
+  DEADLINE
+  OTHER
+}
+
+enum CalendarEventAudience {
+  ALL_STAFF
+  TEACHERS
+}
+
+enum CalendarRecurrence {
+  NONE
+  WEEKLY
+  YEARLY
+}
+
+enum CalendarEventStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model CalendarEvent {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String?
+  academicSessionId String
+
+  title       String
+  description String?
+  eventType   CalendarEventType
+  audience    CalendarEventAudience @default(ALL_STAFF)
+
+  startDate DateTime @db.Date
+  endDate   DateTime? @db.Date
+  allDay    Boolean  @default(true)
+
+  recurrence      CalendarRecurrence @default(NONE)
+  recurrenceUntil DateTime?          @db.Date
+
+  location String?
+  status   CalendarEventStatus @default(ACTIVE)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([schoolId, academicSessionId, startDate])
+  @@index([status])
+  @@map("calendar_events")
+}
+
+// ===========================================================================
+// Phase 9D.2 — In-app Notifications (V1: in-app only — no email/SMS/push).
+// One Notification row per logical event (dedupeKey unique — see
+// lib/server/notifications/service.ts's doc comment for the exact dedupe
+// design), fanned out to real recipients via NotificationRecipient. Read
+// state is per-recipient (never a single shared isRead flag). Recipients are
+// always real User rows — Student/Guardian have no linked User account yet,
+// so this system can only ever reach Staff with a linked User (Staff.userId)
+// or other real platform users. sourceType/sourceId are plain snapshot
+// strings, not FKs, so a Notification's history survives its source domain
+// row being archived/deleted later (Restrict/Cascade FK entanglement across
+// five+ unrelated domains would be unnecessary and fragile).
+// ===========================================================================
+
+enum NotificationType {
+  LESSON_PLAN_APPROVED
+  LESSON_PLAN_REJECTED
+  EXAM_SCHEDULED
+  CALENDAR_EVENT
+}
+
+model Notification {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  type  NotificationType
+  title String
+  body  String
+
+  sourceType String?
+  sourceId   String?
+  href       String?
+
+  // Stable per logical event (e.g. "LESSON_PLAN_APPROVED:<auditEventId>") —
+  // the real retry/concurrency guarantee. See service doc comment.
+  dedupeKey String @unique
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  recipients NotificationRecipient[]
+
+  @@index([tenantId])
+  @@index([schoolId])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             String @id @default(cuid())
+  notificationId String
+  userId         String
+
+  readAt DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notification_recipients")
 }

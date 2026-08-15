@@ -129,6 +129,7 @@ export type Permission =
   | "timetable.view"
   | "timetable.manage"
   | "timetable.publish"
+  | "calendar.view" // Phase 9D.1 — aligned with the real RBAC catalog's calendar.view/manage keys
   | "calendar.manage"
   // Phase 4 — examinations, marks, results, report cards, promotion
   | "exams.view"
@@ -533,6 +534,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "timetable.view",
     "timetable.manage",
     "timetable.publish",
+    "calendar.view",
     "calendar.manage",
     "exams.view",
     "exams.create",
@@ -597,6 +599,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "attendance.viewAny",
     "staffAttendance.view",
     "timetable.view",
+    "calendar.view",
     "calendar.manage",
     "exams.view",
     "results.view",
@@ -649,6 +652,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "staffAttendance.view",
     "timetable.view",
     "timetable.publish",
+    "calendar.view",
     "calendar.manage",
     "exams.view",
     "results.view",
@@ -735,6 +739,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "timetable.view",
     "timetable.manage",
     "timetable.publish",
+    "calendar.view",
     "calendar.manage",
     "communication.send",
     "exams.view",
@@ -841,6 +846,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "staffAttendance.view",
     "staffAttendance.manage",
     "timetable.view",
+    "calendar.view",
     "calendar.manage",
     "exams.view",
     "results.view",
@@ -897,6 +903,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "curriculum.manage",
     "lessonPlans.view",
     "lessonPlans.manage",
+    "calendar.view",
     "attendance.markOwn",
     "attendance.viewOwn",
     "leave.submit",

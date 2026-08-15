@@ -2,7 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiGet, apiPost } from "@/lib/api/client";
-import { initialNotifications, type NotificationItem } from "./notification-data";
+import type { NotificationDto } from "@/lib/api/contracts";
+
+/** Bell dropdown polling interval — no websocket infra exists yet (Phase 9D.2 is in-app only). */
+const NOTIFICATION_POLL_MS = 60_000;
 
 // Real workspace-context shapes (from /api/auth/context*). Kept light on the client.
 type IdName = { id: string; name: string };
@@ -34,7 +37,7 @@ type ShellContextValue = {
   setMobileSearchOpen: (open: boolean) => void;
   mobileContextSheetOpen: boolean;
   setMobileContextSheetOpen: (open: boolean) => void;
-  notifications: NotificationItem[];
+  notifications: NotificationDto[];
   unreadCount: number;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -66,7 +69,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileContextSheetOpen, setMobileContextSheetOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Real context state.
   const [contextLoading, setContextLoading] = useState(true);
@@ -133,6 +137,64 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  // Real notifications (Phase 9D.2) — GET /api/notifications for the bell
+  // dropdown + a separate unread-count endpoint (so the badge stays accurate
+  // even beyond the dropdown's page size). Polled — no websocket infra exists.
+  // Fetch-only (no setState) so both the poll effect and the open-refresh
+  // effect can apply results in their own scope — mirrors loadAll/applyResults above.
+  const fetchNotifications = useCallback(async () => {
+    const [list, count] = await Promise.all([
+      apiGet<NotificationDto[]>("/api/notifications?pageSize=20"),
+      apiGet<{ count: number }>("/api/notifications/unread-count"),
+    ]);
+    return { list, count };
+  }, []);
+
+  const applyNotifications = useCallback((r: Awaited<ReturnType<typeof fetchNotifications>>) => {
+    if (r.list.success) setNotifications(r.list.data);
+    if (r.count.success) setUnreadCount(r.count.data.count);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchNotifications().then((r) => {
+      if (active) applyNotifications(r);
+    });
+    const interval = setInterval(() => {
+      fetchNotifications().then((r) => {
+        if (active) applyNotifications(r);
+      });
+    }, NOTIFICATION_POLL_MS);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [fetchNotifications, applyNotifications]);
+
+  // Refresh on open so the drawer reflects anything that arrived since the last poll.
+  useEffect(() => {
+    if (!notificationCenterOpen) return;
+    let active = true;
+    fetchNotifications().then((r) => {
+      if (active) applyNotifications(r);
+    });
+    return () => {
+      active = false;
+    };
+  }, [notificationCenterOpen, fetchNotifications, applyNotifications]);
+
+  const markNotificationReadFn = useCallback((id: string) => {
+    setNotifications((items) => items.map((item) => (item.id === id ? { ...item, readAt: item.readAt ?? new Date().toISOString() } : item)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    void apiPost(`/api/notifications/${id}/read`, {});
+  }, []);
+
+  const markAllNotificationsReadFn = useCallback(() => {
+    setNotifications((items) => items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })));
+    setUnreadCount(0);
+    void apiPost("/api/notifications/mark-all-read", {});
+  }, []);
+
   // Global ⌘K / Ctrl+K shortcut for global search.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -144,8 +206,6 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const value = useMemo<ShellContextValue>(
     () => ({
@@ -167,9 +227,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       setMobileContextSheetOpen,
       notifications,
       unreadCount,
-      markNotificationRead: (id: string) =>
-        setNotifications((items) => items.map((item) => (item.id === id ? { ...item, read: true } : item))),
-      markAllNotificationsRead: () => setNotifications((items) => items.map((item) => ({ ...item, read: true }))),
+      markNotificationRead: markNotificationReadFn,
+      markAllNotificationsRead: markAllNotificationsReadFn,
       contextLoading,
       schools,
       branches,
@@ -195,6 +254,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       mobileContextSheetOpen,
       notifications,
       unreadCount,
+      markNotificationReadFn,
+      markAllNotificationsReadFn,
       contextLoading,
       schools,
       branches,

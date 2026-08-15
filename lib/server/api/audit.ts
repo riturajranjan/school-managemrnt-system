@@ -137,7 +137,10 @@ export type AuditAction =
   | "LESSON_PLAN_CREATED"
   | "LESSON_PLAN_UPDATED"
   | "LESSON_PLAN_STATUS_CHANGED"
-  | "LESSON_PLAN_COMPLETED";
+  | "LESSON_PLAN_COMPLETED"
+  | "CALENDAR_EVENT_CREATED"
+  | "CALENDAR_EVENT_UPDATED"
+  | "CALENDAR_EVENT_CANCELLED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

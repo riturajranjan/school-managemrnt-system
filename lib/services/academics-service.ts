@@ -1,5 +1,5 @@
 import { setState, type Db } from "@/lib/data/store";
-import type { AcademicEvent, ManagedClass, ManagedSection } from "@/lib/types/academics";
+import type { ManagedClass, ManagedSection } from "@/lib/types/academics";
 import { bulkUpdateSection } from "./students-service";
 import { generateId } from "@/lib/utils";
 
@@ -81,27 +81,3 @@ export function promoteSection(fromSectionId: string, toClassId: string, toSecti
   bulkUpdateSection(studentIds, toSectionId, toClassId, actorName);
 }
 
-export function createAcademicEvent(data: Omit<AcademicEvent, "id">): AcademicEvent {
-  const event: AcademicEvent = { ...data, id: generateId("event") };
-  setState((db) => ({ ...db, academicEvents: [...db.academicEvents, event] }));
-  return event;
-}
-
-export function updateAcademicEvent(eventId: string, patch: Partial<AcademicEvent>) {
-  setState((db) => ({ ...db, academicEvents: db.academicEvents.map((e) => (e.id === eventId ? { ...e, ...patch } : e)) }));
-}
-
-export function deleteAcademicEvent(eventId: string) {
-  setState((db) => ({ ...db, academicEvents: db.academicEvents.filter((e) => e.id !== eventId) }));
-}
-
-export function duplicateAcademicEvent(eventId: string, newStartDate: string): AcademicEvent | undefined {
-  let created: AcademicEvent | undefined;
-  setState((db) => {
-    const source = db.academicEvents.find((e) => e.id === eventId);
-    if (!source) return db;
-    created = { ...source, id: generateId("event"), startDate: newStartDate, endDate: undefined };
-    return { ...db, academicEvents: [...db.academicEvents, created] };
-  });
-  return created;
-}

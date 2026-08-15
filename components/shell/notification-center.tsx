@@ -2,9 +2,19 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import Link from "next/link";
+import { Bell, BellOff, CalendarDays, ClipboardCheck, FileBadge, type LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
-import { notificationCategories } from "./notification-data";
 import { useShell } from "./shell-context";
+import { timeAgo } from "@/lib/utils";
+import type { NotificationDto, NotificationTypeDto } from "@/lib/api/contracts";
+
+const TYPE_ICON: Record<NotificationTypeDto, LucideIcon> = {
+  "lesson-plan-approved": ClipboardCheck,
+  "lesson-plan-rejected": ClipboardCheck,
+  "exam-scheduled": FileBadge,
+  "calendar-event": CalendarDays,
+};
 
 export function NotificationCenter() {
   const {
@@ -59,57 +69,62 @@ export function NotificationCenter() {
                     </Dialog.Close>
                   </div>
                 </div>
-                <Dialog.Description className="sr-only">
-                  Notifications grouped by action required, attendance, fees, academics, transport, communication,
-                  and system.
-                </Dialog.Description>
+                <Dialog.Description className="sr-only">Your recent notifications.</Dialog.Description>
 
                 <div className="flex-1 overflow-y-auto px-sm py-sm">
-                  {notificationCategories.map((category) => {
-                    const items = notifications.filter((n) => n.category === category.key);
-                    return (
-                      <div key={category.key} className="mb-md last:mb-0">
-                        <div className="flex items-center gap-xs px-sm pb-xs">
-                          <category.icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            {category.label}
-                          </p>
-                        </div>
-                        {items.length === 0 ? (
-                          <p className="px-sm py-xs text-sm text-muted-foreground/70">No new updates</p>
-                        ) : (
-                          <div className="flex flex-col gap-0.5">
-                            {items.map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => markNotificationRead(item.id)}
-                                className="flex items-start gap-sm rounded-md px-sm py-xs text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
-                              >
-                                <span
-                                  className={`mt-1.5 size-1.5 shrink-0 rounded-full ${item.read ? "bg-transparent" : "bg-primary"}`}
-                                  aria-hidden="true"
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="flex items-baseline justify-between gap-sm">
-                                    <span
-                                      className={`truncate text-sm ${item.read ? "font-normal text-foreground/80" : "font-medium text-foreground"}`}
-                                    >
-                                      {item.title}
-                                    </span>
-                                    <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>
-                                  </span>
-                                  <span className="block truncate text-xs text-muted-foreground">
-                                    {item.description}
-                                  </span>
+                  {notifications.length === 0 ? (
+                    <div className="flex flex-col items-center gap-xs py-2xl text-center">
+                      <BellOff className="size-5 text-muted-foreground" aria-hidden="true" />
+                      <p className="text-sm text-muted-foreground">No notifications yet.</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-0.5">
+                      {notifications.map((item: NotificationDto) => {
+                        const Icon = TYPE_ICON[item.type] ?? Bell;
+                        const read = Boolean(item.readAt);
+                        const content = (
+                          <>
+                            <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            <span
+                              className={`mt-1.5 size-1.5 shrink-0 rounded-full ${read ? "bg-transparent" : "bg-primary"}`}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-baseline justify-between gap-sm">
+                                <span className={`truncate text-sm ${read ? "font-normal text-foreground/80" : "font-medium text-foreground"}`}>
+                                  {item.title}
                                 </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                                <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(item.createdAt)}</span>
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">{item.body}</span>
+                            </span>
+                          </>
+                        );
+                        return item.href ? (
+                          <Link
+                            key={item.id}
+                            href={item.href}
+                            onClick={() => {
+                              markNotificationRead(item.id);
+                              setNotificationCenterOpen(false);
+                            }}
+                            className="flex items-start gap-sm rounded-md px-sm py-xs text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {content}
+                          </Link>
+                        ) : (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => markNotificationRead(item.id)}
+                            className="flex items-start gap-sm rounded-md px-sm py-xs text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {content}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </Dialog.Content>

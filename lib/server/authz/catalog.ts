@@ -74,6 +74,14 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "lessonPlans.view", module: "lessonPlans", action: "view", description: "View lesson plans" },
   { key: "lessonPlans.manage", module: "lessonPlans", action: "manage", description: "Create, edit, submit, review and complete lesson plans" },
 
+  // Phase 9D.1 — Academic Calendar. calendar.view is granted broadly (every
+  // school role that has dashboard.view); calendar.manage (author/cancel
+  // manual events) is a broad-manager-only action, matching the existing
+  // client-side UI matrix (super-admin/school-owner/principal/academic-
+  // coordinator/administrator already gate "Add event" on it).
+  { key: "calendar.view", module: "calendar", action: "view", description: "View the academic calendar" },
+  { key: "calendar.manage", module: "calendar", action: "manage", description: "Create, edit and cancel calendar events" },
+
   { key: "fees.view", module: "fees", action: "view", description: "View fees" },
   { key: "fees.collect", module: "fees", action: "collect", description: "Collect fees" },
   { key: "fees.refund", module: "fees", action: "refund", description: "Refund fees" },
@@ -195,6 +203,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "homework.view", "homework.manage",
     "curriculum.view", "curriculum.manage",
     "lessonPlans.view", "lessonPlans.manage",
+    "calendar.view", "calendar.manage",
     "fees.view", "fees.collect", "fees.refund",
     "transport.view",
     "library.view",
@@ -218,6 +227,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "homework.view", "homework.manage",
     "curriculum.view", "curriculum.manage",
     "lessonPlans.view", "lessonPlans.manage",
+    "calendar.view", "calendar.manage",
     "fees.view",
     "communication.view", "communication.send",
     "documents.view",
@@ -237,6 +247,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "homework.view", "homework.manage",
     "curriculum.view", "curriculum.manage",
     "lessonPlans.view", "lessonPlans.manage",
+    "calendar.view",
     "communication.send",
     "documents.view",
   ],
