@@ -18,7 +18,7 @@ import { recordAudit } from "@/lib/server/api/audit";
 import { parseInput } from "@/lib/server/validation";
 import { z } from "zod";
 import type { OrgScope } from "@/lib/server/api/scope";
-import type { EmploymentType, StaffDetailDto, StaffListItemDto, StaffStatus, TeachingStaffOptionDto } from "@/lib/api/contracts";
+import type { CurrentStaffDto, EmploymentType, StaffDetailDto, StaffListItemDto, StaffStatus, TeachingStaffOptionDto } from "@/lib/api/contracts";
 
 // UI kebab ↔ DB enum.
 const EMP_TO_DB: Record<EmploymentType, string> = { "full-time": "FULL_TIME", "part-time": "PART_TIME", contract: "CONTRACT", temporary: "TEMPORARY" };
@@ -162,6 +162,23 @@ export async function getTeachingStaff(scope: OrgScope, opts: { branchId?: strin
     select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, designation: true },
   });
   return rows.map((s) => ({ id: s.id, name: displayName(s), employeeCode: s.employeeCode, designation: s.designation }));
+}
+
+/**
+ * Canonical resolver (Phase 9A): the authenticated actor's own real Staff
+ * profile, via User → Staff.userId — never inferred from email/name/role
+ * string. Returns null when the actor has no linked, ACTIVE Staff record in
+ * this school (e.g. a SCHOOL_ADMIN with no employee record, or a Staff row
+ * that was deactivated) — callers show an honest empty/deferred state, never
+ * fabricate a teacher identity.
+ */
+export async function getCurrentStaffProfile(scope: OrgScope): Promise<CurrentStaffDto | null> {
+  const staff = await prisma.staff.findFirst({
+    where: { userId: scope.actor.id, schoolId: scope.schoolId, status: "ACTIVE" },
+    select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, designation: true, isTeaching: true },
+  });
+  if (!staff) return null;
+  return { id: staff.id, employeeCode: staff.employeeCode, name: displayName(staff), designation: staff.designation, isTeaching: staff.isTeaching };
 }
 
 // ── Mutations ────────────────────────────────────────────────────────────────

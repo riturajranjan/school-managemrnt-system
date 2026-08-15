@@ -1393,3 +1393,84 @@ export type PlatformPermissionMatrixDto = {
   areas: { key: string; label: string }[];
   matrix: Record<string, Record<string, "manage" | "view" | null>>;
 };
+
+// --- Phase 9A: Teacher Experience Foundation (Main Dashboard + My Day) ---
+// Every field here is either read straight off a real table or derived by an
+// existing canonical service (attendance dashboard, marks summary, timetable).
+// No AI/insight generation, no composite "pulse" score, no fabricated homework/
+// lesson-plan/notification/calendar counts — those stay explicitly unavailable
+// until their own domain is real (see the `available: false` shapes below).
+
+export type CurrentStaffDto = {
+  id: string;
+  employeeCode: string;
+  name: string;
+  designation: string | null;
+  isTeaching: boolean;
+};
+
+/** A real scheduled lesson (TimetableEntry) with its historical class/section/
+ *  subject context, plus — for My Day only — the real attendance action state
+ *  for that specific lesson (from the PERIOD AttendanceSession tied to it). */
+export type MyDayTimetableEntryDto = {
+  timetableEntryId: string;
+  weekday: Weekday;
+  period: { id: string; name: string; startTime: string; endTime: string };
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  attendance: { sessionId: string | null; status: "not_marked" | "draft" | "submitted" | "locked" };
+};
+
+/** A pending mark-entry task: a real ExamScheduleEntry this teacher owns
+ *  (via TeachingAssignment) whose ExamMarkSheet isn't VERIFIED yet. */
+export type MyDayMarksActionDto = {
+  entryId: string;
+  examId: string;
+  examName: string;
+  examDate: string; // YYYY-MM-DD
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  sheetStatus: ExamMarkSheetStatus; // "draft" | "submitted" — never "verified" (excluded)
+  totalStudents: number;
+  enteredCount: number;
+};
+
+export type UpcomingExamDto = {
+  examId: string;
+  examName: string;
+  examDate: string; // YYYY-MM-DD — the earliest real ExamScheduleEntry date for this exam within the filter
+  termName: string;
+  section: { id: string; name: string; classId: string; className: string } | null; // null when school-wide (admin view spans many sections)
+  subject: { id: string; code: string; name: string; color: string } | null;
+};
+
+export type MyDayDto = {
+  date: string; // YYYY-MM-DD, server-derived
+  weekday: Weekday;
+  staff: CurrentStaffDto | null; // null when the actor has no real teaching Staff profile
+  timetable: MyDayTimetableEntryDto[];
+  attendance: {
+    pendingCount: number; // today's lessons with attendance not yet submitted/locked
+    completedCount: number;
+  };
+  marks: {
+    pendingCount: number;
+    actions: MyDayMarksActionDto[];
+  };
+  upcomingExams: UpcomingExamDto[];
+  homework: { available: false };
+  lessonPlans: { available: false };
+};
+
+// Named distinctly from the Super Admin platform's DashboardSummaryDto (SA-4J,
+// above) — this is the school-side Main Dashboard.
+export type SchoolDashboardSummaryDto = {
+  date: string;
+  weekday: Weekday;
+  attendance: AttendanceDashboardDto; // the exact canonical Phase 5B DTO, reused verbatim
+  todaysTimetable: {
+    available: boolean; // false when the actor has no real teaching Staff profile
+    entries: MyDayTimetableEntryDto[];
+  };
+  upcomingExams: UpcomingExamDto[];
+};

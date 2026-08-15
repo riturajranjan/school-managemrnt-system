@@ -30,6 +30,14 @@ const MIGRATED_ROUTE_DIRS = [
   "app/super-admin/audit",
   "app/super-admin/activity",
   "app/super-admin/permissions",
+  // Phase 9A — Main Dashboard widgets: real (Attendance, Today's Timetable,
+  // Upcoming Exams — GET /api/dashboard) or honestly deferred (School Pulse,
+  // AI Morning Brief, 3D Campus Overview, Action Inbox, Fee Collection, Staff
+  // Availability, Transport Status, Exception Feed — DeferredWidget, no
+  // fetch). components/dashboard/data/types.ts keeps some still-shared mock
+  // types (e.g. PulseFactor, reused by other not-yet-migrated dashboards) —
+  // harmless, it contains no mock-store imports itself.
+  "components/dashboard",
 ];
 
 // Individual migrated files (not whole directories) that must stay mock-free.
@@ -99,6 +107,14 @@ const MIGRATED_FILES = [
   "app/promotion/page.tsx",
   "app/promotion/run/page.tsx",
   "app/promotion/history/page.tsx",
+  // Phase 9A — Teacher Experience Foundation. Main Dashboard (app/page.tsx,
+  // real via GET /api/dashboard) and My Day (real Staff.userId identity,
+  // real timetable/attendance/marks/exams via GET /api/my-day). Homework and
+  // Lesson Plans stay honestly "not available yet" (Phase 9B/9C) — no mock
+  // CURRENT_TEACHER_ID, no mock teacher-day selector, no mock dashboard
+  // widget data.
+  "app/page.tsx",
+  "app/teacher/my-day/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -165,6 +181,11 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/promotion-service", why: "mock promotion run/rule service (deleted — dead import)" },
   { marker: "selectors/promotion-readiness", why: "mock promotion readiness selector (deleted — dead import)" },
   { marker: "types/promotion", why: "mock promotion run/rule types (PromotionRun/PromotionRule)" },
+  // Phase 9A — dashboard/my-day mock authority (real surfaces must use hooks/api/use-dashboard-api, hooks/api/use-my-day-api).
+  { marker: "dashboard/data/mock-data", why: "mock dashboard widget data generators (deleted — dead import)" },
+  { marker: "selectors/teacher-day", why: "mock teacher-day selector (deleted — dead import)" },
+  { marker: "lib/current-user", why: "fake CURRENT_TEACHER_ID/NAME identity — use the real Staff.userId resolver" },
+  { marker: "use-widget-data", why: "mock-data-fetching widget hook (deleted — dead import)" },
 ];
 
 function collectSources(dir: string): string[] {

@@ -22,7 +22,7 @@ import { z } from "zod";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { SectionTimetableDto, TeacherTimetableDto, TimetableEntryDto, Weekday } from "@/lib/api/contracts";
 import { getSubjectsForSection } from "@/lib/server/academics/class-subjects-service";
-import { listPeriods, requirePeriodInScope } from "./periods-service";
+import { listPeriods, minutesToHhmm, requirePeriodInScope } from "./periods-service";
 
 // The weekdays a timetable grid spans (Mon–Sat; Sunday off). Data, not UI authority.
 export const GRID_WEEKDAYS: Weekday[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -104,6 +104,39 @@ export async function getTeacherTimetable(scope: OrgScope, staffId: string): Pro
   ]);
   const name = staff.displayName?.trim() || `${staff.firstName} ${staff.lastName ?? ""}`.trim();
   return { staff: { id: staff.id, employeeCode: staff.employeeCode, name }, weekdays: GRID_WEEKDAYS, periods, entries: rows.map(entryDto) };
+}
+
+export type TeacherWeekdayLesson = {
+  timetableEntryId: string;
+  weekday: Weekday;
+  period: { id: string; name: string; startTime: string; endTime: string };
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+};
+
+/** A teacher's REAL scheduled lessons for exactly one weekday, ordered by
+ *  period — the shared building block for both Phase 9A's My Day timetable and
+ *  the Main Dashboard's "Today's Timetable" widget. One batched query (never
+ *  the whole week, unlike getTeacherTimetable) so a hot dashboard path stays
+ *  fast. Attendance-action state is NOT this function's concern — the caller
+ *  (lib/server/my-day/service.ts) enriches it from real AttendanceSession rows. */
+export async function getTeacherEntriesForWeekday(scope: OrgScope, staffId: string, weekday: Weekday): Promise<TeacherWeekdayLesson[]> {
+  const rows = await prisma.timetableEntry.findMany({
+    where: { staffId, academicSessionId: requireSession(scope), weekday: WEEKDAY_TO_DB[weekday] as never, period: { type: "TEACHING" } },
+    orderBy: [{ period: { order: "asc" } }],
+    select: {
+      id: true,
+      period: { select: { id: true, name: true, startMinutes: true, endMinutes: true } },
+      section: { select: { id: true, name: true, classId: true, class: { select: { name: true } } } },
+      subject: { select: { id: true, code: true, name: true, color: true } },
+    },
+  });
+  return rows.map((e) => ({
+    timetableEntryId: e.id, weekday,
+    period: { id: e.period.id, name: e.period.name, startTime: minutesToHhmm(e.period.startMinutes), endTime: minutesToHhmm(e.period.endMinutes) },
+    section: { id: e.section.id, name: e.section.name, classId: e.section.classId, className: e.section.class.name },
+    subject: { id: e.subject.id, code: e.subject.code, name: e.subject.name, color: e.subject.color },
+  }));
 }
 
 // ── Mutations ────────────────────────────────────────────────────────────────

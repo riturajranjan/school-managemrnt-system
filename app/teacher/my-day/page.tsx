@@ -1,7 +1,16 @@
 "use client";
 
+// My Day (Phase 9A) — real PostgreSQL/API cutover. Same layout/shell as
+// before; every widget now reads from GET /api/my-day (real Staff.userId
+// identity, real TimetableEntry/AttendanceSession/ExamMarkSheet/
+// ExamScheduleEntry) instead of the mock CURRENT_TEACHER_ID + teacher-day
+// selector. Homework and Lesson Plans stay honestly "not available yet" — no
+// real backend exists for either (Phase 9B/9C). The old "Student support
+// alerts" section is removed outright: it read a mock store slice
+// (studentSupportAlerts) with no real domain behind it and isn't part of this
+// phase's scope, so there is nothing honest to show in its place.
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AlertTriangle,
   BookOpenCheck,
@@ -17,196 +26,203 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatTile } from "@/components/ui/stat-tile";
-import { CURRENT_TEACHER_ID, CURRENT_TEACHER_NAME } from "@/lib/current-user";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { buildTeacherDay, currentAndNextClass } from "@/lib/selectors/teacher-day";
+import { useMyDay } from "@/lib/hooks/api/use-my-day-api";
 import { draftParentMessage, generateRevisionActivity, summarizeClassPerformance } from "@/lib/services/teacher-ai-service";
-import { homeworkStatusTone, lessonPlanStatusTone } from "@/lib/types/academics";
-import { formatDate } from "@/lib/utils";
+import type { MyDayTimetableEntryDto } from "@/lib/api/contracts";
+
+const ATTENDANCE_ACTION_LABEL: Record<MyDayTimetableEntryDto["attendance"]["status"], string> = {
+  not_marked: "Not marked", draft: "Draft", submitted: "Submitted", locked: "Locked",
+};
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
 
 export default function TeacherMyDayPage() {
-  const db = useSisStore();
+  const { data: myDay, loading, error } = useMyDay();
   const [aiOpen, setAiOpen] = useState<null | "message" | "summary" | "revision">(null);
   const [aiTopic, setAiTopic] = useState("");
   const [aiResult, setAiResult] = useState("");
 
-  const dayItems = useMemo(() => buildTeacherDay(db, CURRENT_TEACHER_ID), [db]);
-  const { current, next } = currentAndNextClass(dayItems);
+  if (loading) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
+  if (error || !myDay) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error ?? "Couldn't load My Day."}</p>;
 
-  const mySections = useMemo(() => [...new Set(db.subjectAssignments.filter((a) => a.primaryTeacherId === CURRENT_TEACHER_ID).map((a) => a.sectionId))], [db.subjectAssignments]);
-  const myStudentIds = useMemo(() => new Set(db.students.filter((s) => mySections.includes(s.sectionId)).map((s) => s.id)), [db.students, mySections]);
-  const myAlerts = useMemo(() => db.studentSupportAlerts.filter((a) => myStudentIds.has(a.studentId) && !a.resolved).slice(0, 6), [db.studentSupportAlerts, myStudentIds]);
-
-  const pendingLessonPlans = db.lessonPlans.filter((p) => p.teacherId === CURRENT_TEACHER_ID && p.status === "draft").length;
-  const homeworkPendingReview = db.homework.filter((h) => h.teacherId === CURRENT_TEACHER_ID).reduce((sum, h) => sum + db.homeworkSubmissions.filter((s) => s.homeworkId === h.id && s.status === "submitted").length, 0);
-  const attendancePendingCount = dayItems.filter((i) => i.kind === "class" && i.status !== "upcoming").length;
-  const myHomework = db.homework.filter((h) => h.teacherId === CURRENT_TEACHER_ID).slice(0, 5);
-  const myLessonPlans = db.lessonPlans.filter((p) => p.teacherId === CURRENT_TEACHER_ID).slice(0, 5);
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const current = myDay.timetable.find((t) => nowMinutes >= toMinutes(t.period.startTime) && nowMinutes < toMinutes(t.period.endTime));
+  const next = myDay.timetable.find((t) => toMinutes(t.period.startTime) > nowMinutes);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = myDay.staff?.name.split(" ")[0];
 
   return (
     <div className="flex flex-col gap-md pb-24 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">
-          {greeting}, {CURRENT_TEACHER_NAME.split(" ")[0]}
+          {greeting}{firstName ? `, ${firstName}` : ""}
         </h1>
         <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
-        <div className={`rounded-lg border p-sm ${current ? "border-primary bg-primary/5" : "border-border bg-surface"}`}>
-          <p className="text-xs font-medium text-muted-foreground">Current class</p>
-          {current ? (
-            <>
-              <p className="text-sm font-semibold text-foreground">{current.title}</p>
-              <p className="text-xs text-muted-foreground">{current.startTime} – {current.endTime}</p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">No class in session</p>
-          )}
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-sm">
-          <p className="text-xs font-medium text-muted-foreground">Next class</p>
-          {next ? (
-            <>
-              <p className="text-sm font-semibold text-foreground">{next.title}</p>
-              <p className="text-xs text-muted-foreground">{next.startTime} – {next.endTime}</p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">No more classes today</p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-xs">
-        <Button asChild size="sm">
-          <Link href="/attendance/students">
-            <CalendarCheck className="size-3.5" />
-            Mark attendance
-          </Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/academics/homework/new">Create homework</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/teacher/lesson-plans">Open lesson plan</Link>
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setAiOpen("message")}>
-          <Sparkles className="size-3.5" />
-          AI assistant
-        </Button>
-      </div>
-
-      <section className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Classes today" value={String(dayItems.filter((i) => i.kind === "class").length)} icon={ClipboardList} tone="info" />
-        <StatTile label="Attendance pending" value={String(Math.max(0, attendancePendingCount))} icon={CalendarCheck} tone="warning" />
-        <StatTile label="Homework to review" value={String(homeworkPendingReview)} icon={BookOpenCheck} tone="warning" />
-        <StatTile label="Lesson plans pending" value={String(pendingLessonPlans)} icon={ClipboardList} tone={pendingLessonPlans > 0 ? "error" : "success"} />
-      </section>
-
-      <div className="rounded-lg border border-border bg-surface p-md">
-        <h2 className="mb-sm text-sm font-semibold text-foreground">Today&apos;s timeline</h2>
-        {dayItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing scheduled today.</p>
-        ) : (
-          <ol className="flex flex-col gap-1">
-            {dayItems.map((item) => (
-              <li key={item.id}>
-                {item.href ? (
-                  <Link
-                    href={item.href}
-                    className={`flex items-center justify-between gap-sm rounded-md border p-sm text-sm ${item.status === "current" ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-secondary/60"}`}
-                  >
-                    <span className="text-foreground">{item.title}</span>
-                    <span className="text-xs text-muted-foreground">{item.startTime ?? ""}</span>
-                  </Link>
-                ) : (
-                  <div className="flex items-center justify-between gap-sm rounded-md border border-border bg-surface p-sm text-sm">
-                    <span className="text-foreground">{item.title}</span>
-                    <span className="text-xs text-muted-foreground">{item.startTime ?? ""}</span>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-
-      {myAlerts.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-md">
-          <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
-            <AlertTriangle className="size-4 text-warning" /> Student support alerts
-          </h2>
-          <ul className="flex flex-col gap-sm">
-            {myAlerts.map((alert) => {
-              const student = db.students.find((s) => s.id === alert.studentId);
-              return (
-                <li key={alert.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{student ? `${student.profile.firstName} ${student.profile.lastName}` : alert.studentId}</p>
-                    <p className="text-xs text-muted-foreground">{alert.detail}</p>
-                  </div>
-                  <Badge tone={alert.severity === "high" ? "error" : alert.severity === "medium" ? "warning" : "info"}>{alert.severity}</Badge>
-                </li>
-              );
-            })}
-          </ul>
+      {!myDay.staff && (
+        <div className="rounded-lg border border-dashed border-border bg-surface p-md text-center text-sm text-muted-foreground">
+          My Day shows a teaching schedule — there&apos;s no teaching Staff profile linked to your account.
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface p-md">
-          <div className="mb-sm flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Homework</h2>
-            <Link href="/academics/homework" className="text-xs font-medium text-primary hover:underline">
-              View all
-            </Link>
+      {myDay.staff && (
+        <>
+          <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
+            <div className={`rounded-lg border p-sm ${current ? "border-primary bg-primary/5" : "border-border bg-surface"}`}>
+              <p className="text-xs font-medium text-muted-foreground">Current class</p>
+              {current ? (
+                <>
+                  <p className="text-sm font-semibold text-foreground">{current.subject.name} — {current.section.className}-{current.section.name}</p>
+                  <p className="text-xs text-muted-foreground">{current.period.startTime} – {current.period.endTime}</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No class in session</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-border bg-surface p-sm">
+              <p className="text-xs font-medium text-muted-foreground">Next class</p>
+              {next ? (
+                <>
+                  <p className="text-sm font-semibold text-foreground">{next.subject.name} — {next.section.className}-{next.section.name}</p>
+                  <p className="text-xs text-muted-foreground">{next.period.startTime} – {next.period.endTime}</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No more classes today</p>
+              )}
+            </div>
           </div>
-          <ul className="flex flex-col gap-1">
-            {myHomework.map((h) => (
-              <li key={h.id} className="flex items-center justify-between text-sm">
-                <Link href={`/academics/homework/${h.id}`} className="truncate text-foreground hover:underline">
-                  {h.title}
+
+          <div className="flex flex-wrap gap-xs">
+            <Button asChild size="sm">
+              <Link href="/attendance/students">
+                <CalendarCheck className="size-3.5" />
+                Mark attendance
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/academics/homework/new">Create homework</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/teacher/lesson-plans">Open lesson plan</Link>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setAiOpen("message")}>
+              <Sparkles className="size-3.5" />
+              AI assistant
+            </Button>
+          </div>
+
+          <section className="grid grid-cols-2 gap-sm sm:grid-cols-4">
+            <StatTile label="Classes today" value={String(myDay.timetable.length)} icon={ClipboardList} tone="info" />
+            <StatTile label="Attendance pending" value={String(myDay.attendance.pendingCount)} icon={CalendarCheck} tone={myDay.attendance.pendingCount > 0 ? "warning" : "success"} />
+            <StatTile label="Homework to review" value="—" icon={BookOpenCheck} tone="neutral" hint="Available after Homework module setup" />
+            <StatTile label="Lesson plans pending" value="—" icon={ClipboardList} tone="neutral" hint="Available after Lesson Plans module setup" />
+          </section>
+
+          <div className="rounded-lg border border-border bg-surface p-md">
+            <h2 className="mb-sm text-sm font-semibold text-foreground">Today&apos;s timeline</h2>
+            {myDay.timetable.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing scheduled today.</p>
+            ) : (
+              <ol className="flex flex-col gap-1">
+                {myDay.timetable.map((entry) => {
+                  const isCurrent = current?.timetableEntryId === entry.timetableEntryId;
+                  return (
+                    <li key={entry.timetableEntryId}>
+                      <Link
+                        href="/attendance/period"
+                        className={`flex items-center justify-between gap-sm rounded-md border p-sm text-sm ${isCurrent ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-secondary/60"}`}
+                      >
+                        <span className="min-w-0 truncate text-foreground">
+                          {entry.subject.name} — {entry.section.className}-{entry.section.name}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-xs text-xs text-muted-foreground">
+                          {entry.period.startTime}
+                          <Badge tone={entry.attendance.status === "not_marked" ? "warning" : entry.attendance.status === "draft" ? "warning" : "success"}>
+                            {ATTENDANCE_ACTION_LABEL[entry.attendance.status]}
+                          </Badge>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
+
+          {myDay.marks.actions.length > 0 && (
+            <div className="rounded-lg border border-border bg-surface p-md">
+              <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
+                <AlertTriangle className="size-4 text-warning" /> Marks pending
+              </h2>
+              <ul className="flex flex-col gap-sm">
+                {myDay.marks.actions.map((m) => (
+                  <li key={m.entryId} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{m.examName} · {m.subject.name}</p>
+                      <p className="text-xs text-muted-foreground">{m.section.className}-{m.section.name} · {m.enteredCount}/{m.totalStudents} entered</p>
+                    </div>
+                    <Badge tone={m.sheetStatus === "submitted" ? "info" : "warning"}>{m.sheetStatus}</Badge>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {myDay.upcomingExams.length > 0 && (
+            <div className="rounded-lg border border-border bg-surface p-md">
+              <h2 className="mb-sm text-sm font-semibold text-foreground">Upcoming exams</h2>
+              <ul className="flex flex-col gap-1">
+                {myDay.upcomingExams.map((e) => (
+                  <li key={`${e.examId}-${e.subject?.id ?? "x"}`} className="flex items-center justify-between text-sm">
+                    <span className="truncate text-foreground">{e.examName}{e.subject ? ` — ${e.subject.name}` : ""}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{e.examDate}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+            <div className="rounded-lg border border-border bg-surface p-md">
+              <div className="mb-sm flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground">Homework</h2>
+                <Link href="/academics/homework" className="text-xs font-medium text-primary hover:underline">
+                  View all
                 </Link>
-                <Badge tone={homeworkStatusTone[h.status]}>{h.status.replace("-", " ")}</Badge>
-              </li>
-            ))}
-            {myHomework.length === 0 && <p className="text-sm text-muted-foreground">No homework yet.</p>}
-          </ul>
-        </div>
+              </div>
+              <p className="text-sm text-muted-foreground">Homework data will be available after the Homework module (Phase 9B) is built.</p>
+            </div>
 
-        <div className="rounded-lg border border-border bg-surface p-md">
-          <div className="mb-sm flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Lesson plans</h2>
-            <Link href="/teacher/lesson-plans" className="text-xs font-medium text-primary hover:underline">
-              View all
-            </Link>
+            <div className="rounded-lg border border-border bg-surface p-md">
+              <div className="mb-sm flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground">Lesson plans</h2>
+                <Link href="/teacher/lesson-plans" className="text-xs font-medium text-primary hover:underline">
+                  View all
+                </Link>
+              </div>
+              <p className="text-sm text-muted-foreground">Lesson plan data will be available after the Lesson Plans module (Phase 9C) is built.</p>
+            </div>
           </div>
-          <ul className="flex flex-col gap-1">
-            {myLessonPlans.map((p) => (
-              <li key={p.id} className="flex items-center justify-between text-sm">
-                <span className="text-foreground">{formatDate(p.date)} · P{p.period}</span>
-                <Badge tone={lessonPlanStatusTone[p.status]}>{p.status}</Badge>
-              </li>
-            ))}
-            {myLessonPlans.length === 0 && <p className="text-sm text-muted-foreground">No lesson plans yet.</p>}
-          </ul>
-        </div>
-      </div>
 
-      <div className="rounded-lg border border-border bg-surface p-md">
-        <div className="mb-sm flex items-center justify-between">
-          <h2 className="flex items-center gap-1 text-sm font-semibold text-foreground">
-            <MessageSquare className="size-4" /> Messages
-          </h2>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/teacher/messages">Open</Link>
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">Send a quick update to a parent, or review recent messages.</p>
-      </div>
+          <div className="rounded-lg border border-border bg-surface p-md">
+            <div className="mb-sm flex items-center justify-between">
+              <h2 className="flex items-center gap-1 text-sm font-semibold text-foreground">
+                <MessageSquare className="size-4" /> Messages
+              </h2>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/teacher/messages">Open</Link>
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">Send a quick update to a parent, or review recent messages.</p>
+          </div>
+        </>
+      )}
 
       <DetailDrawer open={aiOpen !== null} onOpenChange={(open) => !open && setAiOpen(null)} title="AI assistant" description="Draft content you can review and edit before sending">
         <div className="flex flex-col gap-sm">
@@ -232,7 +248,7 @@ export default function TeacherMyDayPage() {
             className="self-start"
             onClick={() => {
               if (aiOpen === "message") setAiResult(draftParentMessage("your child", "general", aiTopic || "a quick update on recent progress"));
-              if (aiOpen === "summary") setAiResult(summarizeClassPerformance(aiTopic || "the class", 72, myAlerts.length));
+              if (aiOpen === "summary") setAiResult(summarizeClassPerformance(aiTopic || "the class", 72, 0));
               if (aiOpen === "revision") setAiResult(generateRevisionActivity("the subject", aiTopic || "the current topic"));
             }}
           >

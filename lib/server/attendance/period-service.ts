@@ -18,9 +18,11 @@ import {
 } from "./service";
 
 // Attendance date "YYYY-MM-DD" → Weekday enum (server-derived; never browser).
+// Exported — Phase 9A (Dashboard/My Day) reuses this exact mapping rather than
+// re-deriving "today's weekday" a third way.
 const DAY_ENUM: Weekday[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-const DAY_TO_DB: Record<Weekday, string> = { sunday: "SUNDAY", monday: "MONDAY", tuesday: "TUESDAY", wednesday: "WEDNESDAY", thursday: "THURSDAY", friday: "FRIDAY", saturday: "SATURDAY" };
-function weekdayOf(dateStr: string): Weekday {
+export const DAY_TO_DB: Record<Weekday, string> = { sunday: "SUNDAY", monday: "MONDAY", tuesday: "TUESDAY", wednesday: "WEDNESDAY", thursday: "THURSDAY", friday: "FRIDAY", saturday: "SATURDAY" };
+export function weekdayOf(dateStr: string): Weekday {
   return DAY_ENUM[parseAttendanceDate(dateStr).getUTCDay()];
 }
 const minutesToHhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;

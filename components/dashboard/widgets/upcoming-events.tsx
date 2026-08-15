@@ -1,125 +1,83 @@
 "use client";
 
-import {
-  CalendarDays,
-  Clock,
-  FileClock,
-  GraduationCap,
-  MapPin,
-  PartyPopper,
-  Sun,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+// Real PostgreSQL/API cutover (Phase 9A) — real upcoming ExamScheduleEntry
+// rows only (GET /api/dashboard). The old mock's holiday/meeting/celebration/
+// ptm/deadline event categories had no real backing and are dropped rather
+// than fabricated; this is honestly "Upcoming Exams" now, not a full campus
+// events calendar (no real Event/Calendar model exists yet — see AGENTS
+// notes for Phase 9A). Personalized to the actor's own teaching subjects when
+// they have a real teaching Staff profile, school-wide otherwise.
+import { CalendarDays, Clock, GraduationCap } from "lucide-react";
 import { useState } from "react";
-import type { EventCategory } from "../data/types";
-import { fetchUpcomingEvents } from "../data/mock-data";
+import type { UpcomingExamDto } from "@/lib/api/contracts";
+import { useSchoolDashboard } from "@/lib/hooks/api/use-dashboard-api";
 import { DetailDrawer } from "../detail-drawer";
-import { toneClasses } from "../tone";
-import { useWidgetData } from "../use-widget-data";
 import { WidgetShell } from "../widget-shell";
 
-const CATEGORY_LABEL: Record<EventCategory, string> = {
-  exam: "Exam",
-  holiday: "Holiday",
-  meeting: "Meeting",
-  celebration: "Celebration",
-  ptm: "Parent-teacher meeting",
-  deadline: "Deadline",
-};
-
-const CATEGORY_ICON: Record<EventCategory, LucideIcon> = {
-  exam: GraduationCap,
-  holiday: Sun,
-  meeting: Users,
-  celebration: PartyPopper,
-  ptm: Users,
-  deadline: FileClock,
-};
-
-const CATEGORY_TONE: Record<EventCategory, keyof typeof toneClasses> = {
-  exam: "info",
-  holiday: "success",
-  meeting: "neutral",
-  celebration: "warning",
-  ptm: "neutral",
-  deadline: "error",
-};
-
 export function UpcomingEventsWidget() {
-  const state = useWidgetData(fetchUpcomingEvents);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { data, loading, error } = useSchoolDashboard();
+  const status = loading ? "loading" : error ? "error" : "ready";
+  const [selected, setSelected] = useState<UpcomingExamDto | null>(null);
 
-  const events = state.status === "ready" ? state.data.events : [];
-  const selected = events.find((event) => event.id === selectedId) ?? null;
-  const SelectedIcon = selected ? CATEGORY_ICON[selected.category] : null;
+  const exams = data?.upcomingExams ?? [];
 
   return (
     <>
       <WidgetShell
-        title="Upcoming Events"
+        title="Upcoming Exams"
         icon={CalendarDays}
-        status={state.status}
-        error={state.status === "error" ? state.error : undefined}
-        onRetry={state.retry}
-        isEmpty={state.status === "ready" && events.length === 0}
-        emptyMessage="No events scheduled yet."
+        status={status}
+        error={error ? new Error(error) : undefined}
+        isEmpty={status === "ready" && exams.length === 0}
+        emptyMessage="No exams scheduled yet."
       >
         <ul className="flex h-full flex-col gap-0.5 overflow-y-auto">
-          {events.slice(0, 5).map((event) => {
-            const Icon = CATEGORY_ICON[event.category];
-            return (
-              <li key={event.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(event.id)}
-                  className="flex w-full min-h-11 items-center gap-sm rounded-md px-xs py-1 text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Icon className={`size-4 shrink-0 ${toneClasses[CATEGORY_TONE[event.category]].text}`} aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{event.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{event.date}</span>
-                </button>
-              </li>
-            );
-          })}
+          {exams.slice(0, 5).map((exam) => (
+            <li key={`${exam.examId}-${exam.subject?.id ?? "school"}`}>
+              <button
+                type="button"
+                onClick={() => setSelected(exam)}
+                className="flex w-full min-h-11 items-center gap-sm rounded-md px-xs py-1 text-left outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <GraduationCap className="size-4 shrink-0 text-info" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {exam.examName}
+                  {exam.subject ? ` — ${exam.subject.name}` : ""}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{exam.examDate}</span>
+              </button>
+            </li>
+          ))}
         </ul>
       </WidgetShell>
 
-      <DetailDrawer
-        open={selected !== null}
-        onOpenChange={(open) => !open && setSelectedId(null)}
-        title={selected?.title ?? "Event"}
-      >
+      <DetailDrawer open={selected !== null} onOpenChange={(open) => !open && setSelected(null)} title={selected?.examName ?? "Exam"}>
         {selected && (
           <div className="flex flex-col gap-md">
-            <span
-              className={`flex w-fit items-center gap-1 rounded-pill px-sm py-0.5 text-xs font-semibold uppercase tracking-wide ${toneClasses[CATEGORY_TONE[selected.category]].soft}`}
-            >
-              {SelectedIcon && <SelectedIcon className="size-3.5 shrink-0" aria-hidden="true" />}
-              {CATEGORY_LABEL[selected.category]}
+            <span className="flex w-fit items-center gap-1 rounded-pill bg-info/15 px-sm py-0.5 text-xs font-semibold uppercase tracking-wide text-info">
+              <GraduationCap className="size-3.5 shrink-0" aria-hidden="true" />
+              {selected.termName}
             </span>
             <dl className="flex flex-col gap-xs text-sm">
               <div className="flex justify-between border-b border-border py-xs">
                 <dt className="flex items-center gap-1 text-muted-foreground">
-                  <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />
+                  <Clock className="size-3.5 shrink-0" aria-hidden="true" />
                   Date
                 </dt>
-                <dd className="text-foreground">{selected.date}</dd>
+                <dd className="text-foreground">{selected.examDate}</dd>
               </div>
-              <div className="flex justify-between border-b border-border py-xs">
-                <dt className="flex items-center gap-1 text-muted-foreground">
-                  <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-                  Time
-                </dt>
-                <dd className="text-foreground">{selected.time}</dd>
-              </div>
-              <div className="flex justify-between border-b border-border py-xs">
-                <dt className="flex items-center gap-1 text-muted-foreground">
-                  <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
-                  Location
-                </dt>
-                <dd className="text-foreground">{selected.location}</dd>
-              </div>
+              {selected.section && (
+                <div className="flex justify-between border-b border-border py-xs">
+                  <dt className="text-muted-foreground">Class</dt>
+                  <dd className="text-foreground">{selected.section.className}-{selected.section.name}</dd>
+                </div>
+              )}
+              {selected.subject && (
+                <div className="flex justify-between border-b border-border py-xs">
+                  <dt className="text-muted-foreground">Subject</dt>
+                  <dd className="text-foreground">{selected.subject.name}</dd>
+                </div>
+              )}
             </dl>
           </div>
         )}
