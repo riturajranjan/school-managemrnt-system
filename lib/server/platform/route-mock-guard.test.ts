@@ -83,6 +83,14 @@ const MIGRATED_FILES = [
   // backing) stay mock, unlinked from the real per-exam page.
   "app/grading/schemes/page.tsx",
   "app/exams/[examId]/results/page.tsx",
+  // Phase 8D — real Report Cards: a presentation of the Phase 8C published
+  // result snapshot (no ReportCard/template/generation-job model, no second
+  // result-calculation engine). Fully backed by /api/report-cards/*
+  // (PostgreSQL). Must never reintroduce the mock report-card template/
+  // generation-job store or the mock report-card-readiness selector.
+  "app/report-cards/page.tsx",
+  "app/report-cards/[examId]/page.tsx",
+  "app/report-cards/[examId]/[studentId]/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -141,6 +149,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/result-processing-service", why: "mock result-processing service" },
   { marker: "selectors/grading-validation", why: "mock grading validation selector (deleted — dead import)" },
   { marker: "selectors/results-pipeline", why: "mock results pipeline selector" },
+  // Phase 8D — report-card mock authority (real surfaces must use hooks/api/use-report-cards-api).
+  { marker: "services/report-card-service", why: "mock report-card template/generation-job service (deleted — dead import)" },
+  { marker: "selectors/report-card-readiness", why: "mock report-card readiness selector (deleted — dead import)" },
+  { marker: "types/report-cards", why: "mock report-card template/job types (ReportCard/ReportCardTemplate)" },
 ];
 
 function collectSources(dir: string): string[] {

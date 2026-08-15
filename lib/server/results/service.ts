@@ -42,14 +42,24 @@ type StudentAgg = {
   entries: ScheduleEntryForResult[]; marks: Map<string, MarkForResult>;
 };
 
-async function resolveExamRoster(examId: string): Promise<Map<string, StudentAgg>> {
+/** The class/section a given ExamScheduleEntry was scheduled against — the
+ *  historically-stable "class/section context of the exam" (Phase 8D report
+ *  cards), independent of a student's later Enrollment changes. */
+export type SectionContext = { classId: string; className: string; sectionId: string; sectionName: string };
+
+async function resolveExamRoster(examId: string): Promise<{ roster: Map<string, StudentAgg>; sectionByEntryId: Map<string, SectionContext> }> {
   const entries = await prisma.examScheduleEntry.findMany({
     where: { examId },
     orderBy: [{ examDate: "asc" }],
-    select: { id: true, sectionId: true, subjectId: true, maxMarks: true, passingMarks: true, subject: { select: { name: true, code: true } } },
+    select: {
+      id: true, sectionId: true, subjectId: true, maxMarks: true, passingMarks: true, subject: { select: { name: true, code: true } },
+      section: { select: { id: true, name: true, classId: true, class: { select: { name: true } } } },
+    },
   });
   const roster = new Map<string, StudentAgg>();
-  if (entries.length === 0) return roster;
+  const sectionByEntryId = new Map<string, SectionContext>();
+  for (const e of entries) sectionByEntryId.set(e.id, { classId: e.section.classId, className: e.section.class.name, sectionId: e.section.id, sectionName: e.section.name });
+  if (entries.length === 0) return { roster, sectionByEntryId };
 
   const sectionIds = [...new Set(entries.map((e) => e.sectionId))];
   const entryIds = entries.map((e) => e.id);
@@ -98,7 +108,15 @@ async function resolveExamRoster(examId: string): Promise<Map<string, StudentAgg
       agg.marks.set(entry.id, { sheetStatus: m.markSheet.status as never, markStatus: MARK_STATUS_TO_UI[m.status], theoryMarks: m.theoryMarks, practicalMarks: m.practicalMarks, marksObtained: m.marksObtained });
     }
   }
-  return roster;
+  return { roster, sectionByEntryId };
+}
+
+/** The first schedule entry's section — normal case is every entry sharing one
+ *  section; if a student's marks span more than one (rare — mid-exam transfer),
+ *  the first (earliest exam date, per resolveExamRoster's ordering) wins. */
+function resolveSectionContext(agg: StudentAgg, sectionByEntryId: Map<string, SectionContext>): SectionContext | null {
+  const first = agg.entries[0];
+  return first ? (sectionByEntryId.get(first.id) ?? null) : null;
 }
 
 function computeLiveStudentResults(roster: Map<string, StudentAgg>, bands: GradingBandLike[]): StudentExamResultDto[] {
@@ -145,7 +163,7 @@ export async function getExamResults(scope: OrgScope, examId: string): Promise<E
   }
 
   const bands: GradingBandLike[] = exam.gradingScheme?.bands ?? [];
-  const roster = await resolveExamRoster(examId);
+  const { roster } = await resolveExamRoster(examId);
   const students = computeLiveStudentResults(roster, bands);
   return {
     examId, published: false, publishedAt: null, publishedByName: null,
@@ -161,7 +179,7 @@ export async function publishExamResults(scope: OrgScope, examId: string): Promi
   if (!exam.gradingScheme) throw new HttpError("GRADING_SCHEME_NOT_FOUND", "Assign a grading scheme to this exam before publishing results");
   const bands: GradingBandLike[] = exam.gradingScheme.bands;
 
-  const roster = await resolveExamRoster(examId);
+  const { roster, sectionByEntryId } = await resolveExamRoster(examId);
   if (roster.size === 0) throw new HttpError("RESULTS_INCOMPLETE", "No students are eligible for this exam yet");
   const students = computeLiveStudentResults(roster, bands);
 
@@ -188,11 +206,16 @@ export async function publishExamResults(scope: OrgScope, examId: string): Promi
         select: { id: true },
       });
       await tx.studentExamResult.createMany({
-        data: students.map((s) => ({
-          publicationId: pub.id, studentId: s.studentId, enrollmentId: s.enrollmentId,
-          totalMaxMarks: s.totalMaxMarks, totalMarksObtained: s.totalMarksObtained, percentage: s.percentage ?? 0, grade: s.grade,
-          status: s.status.toUpperCase() as never, subjectResults: s.subjects as unknown as Prisma.InputJsonValue,
-        })),
+        data: students.map((s) => {
+          const agg = roster.get(s.studentId)!;
+          const ctx = resolveSectionContext(agg, sectionByEntryId);
+          return {
+            publicationId: pub.id, studentId: s.studentId, enrollmentId: s.enrollmentId,
+            totalMaxMarks: s.totalMaxMarks, totalMarksObtained: s.totalMarksObtained, percentage: s.percentage ?? 0, grade: s.grade,
+            status: s.status.toUpperCase() as never, subjectResults: s.subjects as unknown as Prisma.InputJsonValue,
+            classId: ctx?.classId ?? null, className: ctx?.className ?? null, sectionId: ctx?.sectionId ?? null, sectionName: ctx?.sectionName ?? null,
+          };
+        }),
       });
       await recordAudit(tx, scope, "EXAM_RESULTS_PUBLISHED", "Exam", examId, { gradingSchemeId: exam.gradingScheme!.id, studentCount: students.length, publicationId: pub.id });
     });

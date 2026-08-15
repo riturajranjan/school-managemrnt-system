@@ -8,7 +8,8 @@
 // lib/server/results/engine.ts for the documented V1 pass/fail policy).
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, ShieldCheck, Users } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, FileStack, ShieldCheck, Users } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
@@ -62,6 +63,13 @@ export default function ExamResultsPage() {
             <Badge tone="success"><CheckCircle2 className="size-3" /> Published</Badge>
           ) : (
             <Badge tone="neutral">Preview — not published</Badge>
+          )}
+          {results.published && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/report-cards/${params.examId}`}>
+                <FileStack className="size-3.5" /> View report cards
+              </Link>
+            </Button>
           )}
           {!results.published && canPublish && (
             <Button size="sm" onClick={() => setConfirmPublish(true)} disabled={results.studentCount === 0}>

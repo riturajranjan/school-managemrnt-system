@@ -2564,6 +2564,17 @@ model StudentExamResult {
   status             ExamResultStatus
   subjectResults     Json // array of per-paper breakdowns — see ExamSubjectResultDto in lib/api/contracts.ts
 
+  // Phase 8D — Report Cards. The class/section context of the EXAM SCHEDULE at
+  // publish time (from ExamScheduleEntry.sectionId, not live Enrollment), frozen
+  // as plain scalars (no FK) so a later Class/Section rename, archive, or the
+  // student's own Enrollment changing section/withdrawing can never alter a
+  // published report card's historical class/section display. Null only for the
+  // rare student with zero schedule entries at publish time.
+  classId     String?
+  className   String?
+  sectionId   String?
+  sectionName String?
+
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 
   publication ExamResultPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)

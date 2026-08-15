@@ -1111,6 +1111,51 @@ export type ExamResultsDto = {
   students: StudentExamResultDto[];
 };
 
+// --- Phase 8D: Report Cards — a PRESENTATION of an already-published,
+// immutable StudentExamResult snapshot. No recomputation, no second result
+// engine: every field here is either read straight off the snapshot row or is
+// safe, non-academic display metadata (student name, school branding). Rank
+// and GPA/CGPA stay deferred (Phase 8C never computed them); attendance and
+// teacher/principal remarks stay deferred (no real date-scope / workflow
+// backing yet) rather than being fabricated. ---
+
+export type ReportCardExamSummaryDto = {
+  examId: string;
+  examName: string;
+  examCode: string;
+  termName: string;
+  startsOn: string; // YYYY-MM-DD
+  endsOn: string;
+  publishedAt: string;
+  publishedByName: string | null;
+  studentCount: number;
+};
+
+export type ReportCardRosterEntryDto = {
+  studentId: string;
+  admissionNumber: string;
+  rollNumber: string | null;
+  name: string;
+  className: string | null;
+  sectionName: string | null;
+  totalMaxMarks: number;
+  totalMarksObtained: number;
+  percentage: number | null;
+  grade: string | null;
+  status: ExamResultStatus;
+};
+
+export type ReportCardDto = {
+  exam: { id: string; name: string; code: string; type: ExamType; startsOn: string; endsOn: string; term: { id: string; name: string } };
+  publishedAt: string;
+  publishedByName: string | null;
+  school: { name: string; logoUrl: string | null };
+  student: { id: string; name: string; admissionNumber: string; rollNumber: string | null };
+  classContext: { className: string | null; sectionName: string | null };
+  subjects: ExamSubjectResultDto[];
+  summary: { totalMaxMarks: number; totalMarksObtained: number; percentage: number | null; grade: string | null; status: ExamResultStatus };
+};
+
 export type ExamMarksSaveRecord = {
   studentId: string;
   status: ExamMarkStatus;

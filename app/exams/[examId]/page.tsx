@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { AlertTriangle, CalendarClock, ChevronRight, ClipboardCheck, FileBadge, FileText, GraduationCap, Pencil, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, ClipboardCheck, FileBadge, FileStack, FileText, GraduationCap, Pencil, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -62,6 +62,7 @@ export default function ExamDetailPage() {
     { key: "attendance", label: "Attendance", href: `/exams/${exam.id}/attendance`, icon: ClipboardCheck, real: false, detail: "Not available yet" },
     { key: "marks", label: "Marks entry", href: `/marks/entry?examId=${exam.id}`, icon: FileBadge, real: true, detail: `${scheduleCount} paper${scheduleCount === 1 ? "" : "s"} scheduled` },
     { key: "results", label: "Results", href: `/exams/${exam.id}/results`, icon: GraduationCap, real: true, detail: "Live preview, publish when ready" },
+    { key: "report-cards", label: "Report cards", href: `/report-cards/${exam.id}`, icon: FileStack, real: true, detail: "Available once results are published" },
   ] as const;
 
   return (
