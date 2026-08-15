@@ -1,70 +1,79 @@
 "use client";
 
+// Create homework (Phase 9B) — real PostgreSQL/API cutover. Section/Subject
+// pickers are constrained to the actor's own real TeachingAssignment rows
+// (GET /api/homework/assignable) — never an arbitrary class/section/subject.
+// Max marks / submission type / allow-late / parent-acknowledgement were
+// mock-only fields tied to a submission workflow that doesn't exist yet (see
+// prisma/schema.prisma's Homework doc comment) and are dropped, not carried
+// forward.
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { schoolClasses } from "@/lib/data/seed/reference";
-import { useManagedClasses, useSubjects } from "@/lib/hooks/use-academics";
-import {
-  homeworkFormSchema,
-  type HomeworkFormValues,
-} from "@/lib/schemas/academics-form";
-import {
-  createHomework,
-  publishHomework,
-} from "@/lib/services/homework-service";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAssignableTeaching, createHomeworkRequest, publishHomeworkRequest } from "@/lib/hooks/api/use-homework-api";
 
-const submissionTypeOptions = [
-  "offline",
-  "text",
-  "file",
-  "image",
-  "link",
-  "quiz",
-  "mixed",
-] as const;
+const formSchema = z.object({
+  teachingAssignmentId: z.string().min(1, "Select a class/subject"),
+  title: z.string().trim().min(1, "Title is required"),
+  description: z.string().trim().min(1, "Description is required"),
+  instructions: z.string().trim().optional(),
+  dueDate: z.string().min(1, "Due date is required"),
+});
+type FormValues = z.infer<typeof formSchema>;
 
 export default function NewHomeworkPage() {
   const router = useRouter();
-  const classes = useManagedClasses();
-  const subjects = useSubjects();
-  const form = useForm<HomeworkFormValues>({
-    resolver: zodResolver(homeworkFormSchema),
-    defaultValues: {
-      maxMarks: 10,
-      submissionType: "file",
-      allowLateSubmission: true,
-      requireParentAcknowledgement: false,
-      dueDate: new Date().toISOString().slice(0, 10),
-    },
-  });
-  const classId = form.watch("classId");
-  const sections = schoolClasses.find((c) => c.id === classId)?.sections ?? [];
+  const { data: assignable, loading, error } = useAssignableTeaching();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function onSubmit(values: HomeworkFormValues, publish: boolean) {
-    const created = createHomework({
-      ...values,
-      teacherId: "teacher-1",
-      assignedDate: new Date().toISOString(),
-      visibility: "section",
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { dueDate: new Date().toISOString().slice(0, 10) },
+  });
+  const teachingAssignmentId = form.watch("teachingAssignmentId");
+  const chosen = useMemo(() => assignable.find((a) => a.teachingAssignmentId === teachingAssignmentId), [assignable, teachingAssignmentId]);
+
+  async function onSubmit(values: FormValues, publish: boolean) {
+    const assignment = assignable.find((a) => a.teachingAssignmentId === values.teachingAssignmentId);
+    if (!assignment) return;
+    setSaving(true);
+    setSaveError(null);
+    const res = await createHomeworkRequest({
+      sectionId: assignment.section.id, subjectId: assignment.subject.id,
+      title: values.title, description: values.description, instructions: values.instructions || undefined,
+      dueAt: values.dueDate,
     });
-    if (publish) publishHomework(created.id);
-    router.push(`/academics/homework/${created.id}`);
+    if (!res.success) {
+      setSaveError(res.error.message);
+      setSaving(false);
+      return;
+    }
+    if (publish) {
+      const pubRes = await publishHomeworkRequest(res.data.id);
+      if (!pubRes.success) {
+        setSaveError(pubRes.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+    router.push(`/academics/homework/${res.data.id}`);
+  }
+
+  if (loading) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
+  if (error) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>;
+  if (assignable.length === 0) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">You don&apos;t have any teaching assignments yet — ask your school admin to assign you to a section and subject first.</p>;
   }
 
   return (
-    <div className="mx-auto flex  flex-col gap-md">
+    <div className="mx-auto flex flex-col gap-md">
       <h1 className="text-lg font-semibold text-foreground">Create homework</h1>
       <form className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-md">
         <div>
@@ -77,156 +86,49 @@ export default function NewHomeworkPage() {
           <Textarea id="hw-desc" rows={2} {...form.register("description")} />
           <FieldError>{form.formState.errors.description?.message}</FieldError>
         </div>
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label>Class</Label>
-            <Controller
-              control={form.control}
-              name="classId"
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={(v) => {
-                    field.onChange(v);
-                    form.setValue("sectionId", "");
-                  }}>
-                  <SelectTrigger aria-label="Class">
-                    <SelectValue placeholder="Class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div>
-            <Label>Section</Label>
-            <Controller
-              control={form.control}
-              name="sectionId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger aria-label="Section">
-                    <SelectValue placeholder="Section" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sections.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-        </div>
         <div>
-          <Label>Subject</Label>
+          <Label>Class / section / subject</Label>
           <Controller
             control={form.control}
-            name="subjectId"
+            name="teachingAssignmentId"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger aria-label="Subject">
-                  <SelectValue placeholder="Subject" />
+                <SelectTrigger aria-label="Class, section and subject">
+                  <SelectValue placeholder="Select what you teach" />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
+                  {assignable.map((a) => (
+                    <SelectItem key={a.teachingAssignmentId} value={a.teachingAssignmentId}>
+                      {a.section.className}-{a.section.name} · {a.subject.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
           />
+          <FieldError>{form.formState.errors.teachingAssignmentId?.message}</FieldError>
         </div>
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label htmlFor="hw-due">Due date</Label>
-            <Input id="hw-due" type="date" {...form.register("dueDate")} />
-          </div>
-          <div>
-            <Label htmlFor="hw-marks">Max marks</Label>
-            <Input
-              id="hw-marks"
-              type="number"
-              {...form.register("maxMarks", { valueAsNumber: true })}
-            />
-          </div>
+        <div>
+          <Label htmlFor="hw-due">Due date</Label>
+          <Input id="hw-due" type="date" {...form.register("dueDate")} />
+          <FieldError>{form.formState.errors.dueDate?.message}</FieldError>
         </div>
         <div>
           <Label htmlFor="hw-instructions">Instructions</Label>
-          <Textarea
-            id="hw-instructions"
-            rows={2}
-            {...form.register("instructions")}
-          />
-          <FieldError>{form.formState.errors.instructions?.message}</FieldError>
-        </div>
-        <div>
-          <Label>Submission type</Label>
-          <Controller
-            control={form.control}
-            name="submissionType"
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger aria-label="Submission type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {submissionTypeOptions.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </div>
-        <div className="flex items-center justify-between rounded-md border border-border px-sm py-sm">
-          <span className="text-sm text-foreground">Allow late submission</span>
-          <Controller
-            control={form.control}
-            name="allowLateSubmission"
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
-        <div className="flex items-center justify-between rounded-md border border-border px-sm py-sm">
-          <span className="text-sm text-foreground">
-            Require parent acknowledgement
-          </span>
-          <Controller
-            control={form.control}
-            name="requireParentAcknowledgement"
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
+          <Textarea id="hw-instructions" rows={2} {...form.register("instructions")} />
         </div>
 
+        {saveError && <p className="text-sm text-error">{saveError}</p>}
+
         <div className="flex justify-end gap-sm border-t border-border pt-md">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={form.handleSubmit((v) => onSubmit(v, false))}>
+          <Button type="button" variant="outline" disabled={saving} onClick={form.handleSubmit((v) => onSubmit(v, false))}>
             Save draft
           </Button>
-          <Button
-            type="button"
-            onClick={form.handleSubmit((v) => onSubmit(v, true))}>
+          <Button type="button" disabled={saving} onClick={form.handleSubmit((v) => onSubmit(v, true))}>
             Publish
           </Button>
         </div>
+        {chosen && <p className="text-xs text-muted-foreground">Assigning to {chosen.section.className}-{chosen.section.name}, {chosen.subject.name}.</p>}
       </form>
     </div>
   );

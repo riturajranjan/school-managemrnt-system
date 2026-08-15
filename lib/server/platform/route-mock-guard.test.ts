@@ -115,6 +115,13 @@ const MIGRATED_FILES = [
   // widget data.
   "app/page.tsx",
   "app/teacher/my-day/page.tsx",
+  // Phase 9B — Homework/Assignments. Real Homework model, teacher ownership
+  // via TeachingAssignment, Draft/Published/Closed lifecycle. No mock
+  // homework-service, no mock teacherName/subjectName/classLabel authority.
+  "app/academics/homework/page.tsx",
+  "app/academics/homework/new/page.tsx",
+  "app/academics/homework/[homeworkId]/page.tsx",
+  "app/teacher/homework/page.tsx",
   // Phase 5B — the real Student Attendance surfaces (dashboard + reports +
   // marker). Fully backed by /api/attendance/* (PostgreSQL). They must never
   // reintroduce the student-attendance mock store/hooks/selectors/seed. Staff
@@ -181,6 +188,9 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/promotion-service", why: "mock promotion run/rule service (deleted — dead import)" },
   { marker: "selectors/promotion-readiness", why: "mock promotion readiness selector (deleted — dead import)" },
   { marker: "types/promotion", why: "mock promotion run/rule types (PromotionRun/PromotionRule)" },
+
+  { marker: '"@/lib/services/homework-service"', why: "mock homework service (still used by the deferred evaluations grading page — not by real surfaces)" },
+  { marker: "components/academics/homework", why: "deleted mock homework-meta helpers (dead import)" },
   // Phase 9A — dashboard/my-day mock authority (real surfaces must use hooks/api/use-dashboard-api, hooks/api/use-my-day-api).
   { marker: "dashboard/data/mock-data", why: "mock dashboard widget data generators (deleted — dead import)" },
   { marker: "selectors/teacher-day", why: "mock teacher-day selector (deleted — dead import)" },

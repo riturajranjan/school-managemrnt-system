@@ -1444,6 +1444,57 @@ export type UpcomingExamDto = {
   subject: { id: string; code: string; name: string; color: string } | null;
 };
 
+// --- Phase 9B: Homework / Assignments — one Homework targets exactly one
+// real Section; teacher authorship is a real Staff + TeachingAssignment for
+// (sectionId, subjectId). Submissions/grading/attachments/parent
+// acknowledgement are deliberately not modeled (see prisma/schema.prisma's
+// Homework doc comment) — no submissionSummary field exists because there is
+// nothing real to summarize. ---
+
+export type HomeworkStatusDto = "draft" | "published" | "closed";
+
+export type HomeworkListItemDto = {
+  id: string;
+  title: string;
+  status: HomeworkStatusDto;
+  dueAt: string; // YYYY-MM-DD
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+  teacher: { id: string; name: string };
+  studentCount: number; // real, from Enrollment(status=ENROLLED) in the section
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HomeworkDetailDto = HomeworkListItemDto & {
+  description: string;
+  instructions: string | null;
+};
+
+export type CreateHomeworkRequest = {
+  sectionId: string;
+  subjectId: string;
+  title: string;
+  description: string;
+  instructions?: string;
+  dueAt: string; // YYYY-MM-DD
+};
+
+export type UpdateHomeworkRequest = {
+  title?: string;
+  description?: string;
+  instructions?: string | null;
+  dueAt?: string; // YYYY-MM-DD
+};
+
+/** A real (section, subject) the actor may create homework for — their own
+ *  real TeachingAssignment, never an arbitrary/offered-but-unassigned pair. */
+export type AssignableTeachingDto = {
+  teachingAssignmentId: string;
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+};
+
 export type MyDayDto = {
   date: string; // YYYY-MM-DD, server-derived
   weekday: Weekday;
@@ -1458,7 +1509,11 @@ export type MyDayDto = {
     actions: MyDayMarksActionDto[];
   };
   upcomingExams: UpcomingExamDto[];
-  homework: { available: false };
+  homework: {
+    draftCount: number; // this teacher's own DRAFT homework
+    dueTodayOrOverdueCount: number; // this teacher's own PUBLISHED homework due today or earlier
+    items: HomeworkListItemDto[]; // up to 5, this teacher's own PUBLISHED homework, soonest due first
+  };
   lessonPlans: { available: false };
 };
 

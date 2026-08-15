@@ -24,6 +24,7 @@ import { seedTimetable } from "./seed-timetable";
 import { seedExams } from "./seed-exams";
 import { seedAttendance } from "./seed-attendance";
 import { seedPromotionTargetSession } from "./seed-promotion";
+import { seedHomework } from "./seed-homework";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
 
@@ -308,6 +309,11 @@ async function main() {
   // so Promotion has a real next session to promote/retain students into.
   // =========================================================================
   await seedPromotionTargetSession(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
+
+  // =========================================================================
+  // Phase 9B — real Homework on the seeded TeachingAssignment
+  // =========================================================================
+  await seedHomework(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

@@ -1,43 +1,40 @@
 "use client";
 
+// Homework detail (Phase 9B) — real PostgreSQL/API cutover. The old page's
+// "student submission" panel read `db.students[0]` — not a real logged-in
+// student's identity (no student self-context/portal exists yet) — so it's
+// removed rather than carried forward as a fake self-view; homework.view-only
+// visitors now see the same real detail read-only. Submissions/grading were
+// mock-only and are dropped (see prisma/schema.prisma's Homework doc comment).
 import Link from "next/link";
-import { use, useState } from "react";
-import { CalendarClock, CheckCircle2, Copy, Send } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useParams } from "next/navigation";
+import { useState } from "react";
+import { CalendarClock, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
-import { Input, Textarea } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { submissionTypeLabels } from "@/components/academics/homework/homework-meta";
+import { Input } from "@/components/ui/input";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { findClass, findSection } from "@/lib/data/seed/reference";
-import { teacherById } from "@/lib/data/seed/academics";
-import { useHomeworkList, useHomeworkSubmissions, useSubjects } from "@/lib/hooks/use-academics";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { closeHomework, duplicateHomework, extendDeadline, gradeSubmission, publishHomework, requestResubmission, submitHomework } from "@/lib/services/homework-service";
-import { homeworkStatusTone, submissionStatusTone, type HomeworkSubmission } from "@/lib/types/academics";
-import { formatDate, initialsOf } from "@/lib/utils";
+import { useHomework, closeHomeworkRequest, duplicateHomeworkRequest, publishHomeworkRequest, updateHomeworkRequest } from "@/lib/hooks/api/use-homework-api";
+import type { HomeworkStatusDto } from "@/lib/api/contracts";
+import { formatDate } from "@/lib/utils";
 
-export default function HomeworkDetailPage({ params }: { params: Promise<{ homeworkId: string }> }) {
-  const { homeworkId } = use(params);
-  const homeworkList = useHomeworkList();
-  const subjects = useSubjects();
-  const submissions = useHomeworkSubmissions(homeworkId);
-  const db = useSisStore();
+const statusTone: Record<HomeworkStatusDto, "neutral" | "info" | "success"> = { draft: "neutral", published: "info", closed: "success" };
+
+export default function HomeworkDetailPage() {
+  const params = useParams<{ homeworkId: string }>();
   const { can } = usePermissions();
-  const [grading, setGrading] = useState<HomeworkSubmission | null>(null);
-  const [marks, setMarks] = useState("");
-  const [feedback, setFeedback] = useState("");
+  const { data: homework, loading, error, reload } = useHomework(params.homeworkId);
   const [extendOpen, setExtendOpen] = useState(false);
   const [newDueDate, setNewDueDate] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const homework = homeworkList.find((h) => h.id === homeworkId);
-
-  if (!homework) {
+  if (loading) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
+  if (error || !homework) {
     return (
       <div className="flex flex-col items-center gap-sm py-2xl text-center">
-        <p className="text-sm font-medium text-foreground">Homework not found</p>
+        <p className="text-sm font-medium text-foreground">{error ?? "Homework not found"}</p>
         <Button asChild variant="outline">
           <Link href="/academics/homework">Back to Homework</Link>
         </Button>
@@ -45,8 +42,16 @@ export default function HomeworkDetailPage({ params }: { params: Promise<{ homew
     );
   }
 
-  const studentsInSection = db.students.filter((s) => s.sectionId === homework.sectionId);
-  const submittedCount = submissions.filter((s) => s.status !== "not-submitted").length;
+  const canManage = can("homework.manage");
+
+  async function run(action: () => Promise<{ success: boolean; error?: { message: string } }>) {
+    setBusy(true);
+    setActionError(null);
+    const res = await action();
+    if (!res.success) setActionError(res.error?.message ?? "Something went wrong");
+    else reload();
+    setBusy(false);
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -54,36 +59,44 @@ export default function HomeworkDetailPage({ params }: { params: Promise<{ homew
         <div>
           <div className="flex items-center gap-xs">
             <h1 className="text-base font-semibold text-foreground">{homework.title}</h1>
-            <Badge tone={homeworkStatusTone[homework.status]}>{homework.status.replace("-", " ")}</Badge>
+            <Badge tone={statusTone[homework.status]}>{homework.status}</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            {subjects.find((s) => s.id === homework.subjectId)?.name} · {findClass(homework.classId)?.name}-{findSection(homework.sectionId)?.section.name} ·{" "}
-            {teacherById(homework.teacherId)?.name}
+            {homework.subject.name} · {homework.section.className}-{homework.section.name} · {homework.teacher.name}
           </p>
           <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-            <CalendarClock className="size-3" /> Due {formatDate(homework.dueDate)} · Max marks {homework.maxMarks} · {submissionTypeLabels[homework.submissionType]}
+            <CalendarClock className="size-3" /> Due {formatDate(homework.dueAt)} · {homework.studentCount} student{homework.studentCount === 1 ? "" : "s"}
           </p>
           <p className="mt-1 text-sm text-foreground">{homework.description}</p>
+          {homework.instructions && <p className="mt-1 text-sm text-muted-foreground">{homework.instructions}</p>}
         </div>
 
-        {can("homework.manage") && (
+        {canManage && (
           <div className="flex flex-wrap gap-xs">
             {homework.status === "draft" && (
-              <Button size="sm" onClick={() => publishHomework(homework.id)}>
+              <Button size="sm" disabled={busy} onClick={() => run(() => publishHomeworkRequest(homework.id))}>
                 Publish
               </Button>
             )}
-            {(homework.status === "published" || homework.status === "due-soon" || homework.status === "overdue") && (
+            {homework.status === "published" && (
               <>
-                <Button size="sm" variant="outline" onClick={() => setExtendOpen(true)}>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => { setNewDueDate(homework.dueAt); setExtendOpen(true); }}>
                   Extend deadline
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => closeHomework(homework.id)}>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => closeHomeworkRequest(homework.id))}>
                   Close
                 </Button>
               </>
             )}
-            <Button size="sm" variant="ghost" onClick={() => duplicateHomework(homework.id)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => run(async () => {
+                const res = await duplicateHomeworkRequest(homework.id);
+                return res;
+              })}
+            >
               <Copy className="size-3.5" />
               Duplicate
             </Button>
@@ -91,136 +104,25 @@ export default function HomeworkDetailPage({ params }: { params: Promise<{ homew
         )}
       </div>
 
-      {can("homework.manage") ? (
-        <div className="rounded-lg border border-border bg-surface">
-          <div className="flex items-center justify-between border-b border-border p-sm">
-            <h2 className="text-sm font-semibold text-foreground">Submissions</h2>
-            <span className="text-xs text-muted-foreground">
-              {submittedCount}/{studentsInSection.length} submitted
-            </span>
-          </div>
-          <ul className="divide-y divide-border">
-            {studentsInSection.map((student) => {
-              const submission = submissions.find((s) => s.studentId === student.id);
-              return (
-                <li key={student.id} className="flex items-center gap-sm p-sm">
-                  <Avatar className="size-8">
-                    <AvatarFallback>{initialsOf(student.profile.firstName, student.profile.lastName)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {student.profile.firstName} {student.profile.lastName}
-                    </p>
-                    {submission?.marksObtained !== undefined && <p className="text-xs text-muted-foreground">{submission.marksObtained}/{homework.maxMarks}</p>}
-                  </div>
-                  <Badge tone={submissionStatusTone[submission?.status ?? "not-submitted"]}>{(submission?.status ?? "not-submitted").replace("-", " ")}</Badge>
-                  {submission && submission.status !== "not-submitted" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setGrading(submission);
-                        setMarks(String(submission.marksObtained ?? ""));
-                        setFeedback(submission.feedback ?? "");
-                      }}
-                    >
-                      Review
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : (
-        <StudentSubmissionPanel homeworkId={homework.id} maxMarks={homework.maxMarks} />
-      )}
-
-      <DetailDrawer open={grading !== null} onOpenChange={(open) => !open && setGrading(null)} title="Grade submission" description="Assign marks and feedback">
-        {grading && (
-          <div className="flex flex-col gap-sm">
-            {grading.content && <p className="rounded-md bg-surface-secondary p-sm text-sm text-foreground">{grading.content}</p>}
-            {grading.fileNames.length > 0 && <p className="text-xs text-muted-foreground">Files: {grading.fileNames.join(", ")}</p>}
-            <div>
-              <Label htmlFor="grade-marks">Marks (out of {homework.maxMarks})</Label>
-              <Input id="grade-marks" type="number" value={marks} onChange={(e) => setMarks(e.target.value)} max={homework.maxMarks} />
-            </div>
-            <div>
-              <Label htmlFor="grade-feedback">Feedback</Label>
-              <Textarea id="grade-feedback" rows={3} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
-            </div>
-            <div className="flex gap-sm">
-              <Button
-                onClick={() => {
-                  gradeSubmission(grading.id, Number(marks) || 0, feedback);
-                  setGrading(null);
-                }}
-              >
-                <CheckCircle2 className="size-3.5" />
-                Save grade
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  requestResubmission(grading.id, feedback || "Please review and resubmit.");
-                  setGrading(null);
-                }}
-              >
-                Request resubmission
-              </Button>
-            </div>
-          </div>
-        )}
-      </DetailDrawer>
+      {actionError && <p className="rounded-md border border-error/30 bg-error/10 p-sm text-xs text-error">{actionError}</p>}
 
       <DetailDrawer open={extendOpen} onOpenChange={setExtendOpen} title="Extend deadline" description="Choose a new due date">
         <div className="flex flex-col gap-sm">
           <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
           <Button
-            disabled={!newDueDate}
-            onClick={() => {
-              extendDeadline(homework.id, new Date(newDueDate).toISOString());
-              setExtendOpen(false);
-            }}
+            disabled={!newDueDate || busy}
+            onClick={() =>
+              run(async () => {
+                const res = await updateHomeworkRequest(homework.id, { dueAt: newDueDate });
+                if (res.success) setExtendOpen(false);
+                return res;
+              })
+            }
           >
             Extend
           </Button>
         </div>
       </DetailDrawer>
-    </div>
-  );
-}
-
-function StudentSubmissionPanel({ homeworkId, maxMarks }: { homeworkId: string; maxMarks: number }) {
-  const db = useSisStore();
-  const submissions = useHomeworkSubmissions(homeworkId);
-  const student = db.students[0];
-  const mySubmission = submissions.find((s) => s.studentId === student?.id);
-  const [content, setContent] = useState(mySubmission?.content ?? "");
-
-  return (
-    <div className="rounded-lg border border-border bg-surface p-md">
-      <h2 className="mb-sm text-sm font-semibold text-foreground">Your submission</h2>
-      {mySubmission?.status === "evaluated" ? (
-        <div className="flex flex-col gap-sm">
-          <Badge tone="success">Evaluated — {mySubmission.marksObtained}/{maxMarks}</Badge>
-          {mySubmission.feedback && <p className="text-sm text-muted-foreground">{mySubmission.feedback}</p>}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-sm">
-          {mySubmission && <Badge tone={submissionStatusTone[mySubmission.status]}>{mySubmission.status.replace("-", " ")}</Badge>}
-          <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Type your answer or notes here…" rows={4} />
-          <Button
-            className="self-start"
-            onClick={() => {
-              if (student) submitHomework(homeworkId, student.id, content, []);
-            }}
-          >
-            <Send className="size-3.5" />
-            Submit
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

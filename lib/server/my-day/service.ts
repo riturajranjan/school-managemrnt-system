@@ -1,9 +1,10 @@
-// My Day (Phase 9A) — the teacher's real daily operating view. User → real
+// My Day (Phase 9A/9B) — the teacher's real daily operating view. User → real
 // Staff.userId → today's real TimetableEntry rows, each enriched with its real
 // PERIOD AttendanceSession state; real pending ExamMarkSheet actions (via real
-// TeachingAssignment ownership); real upcoming exam papers. Homework and
-// Lesson Plans stay explicitly `{ available: false }` — those backends don't
-// exist yet (Phase 9B/9C). No fabricated counts anywhere in this file.
+// TeachingAssignment ownership); real upcoming exam papers; real Homework
+// (Phase 9B). Lesson Plans stays explicitly `{ available: false }` — that
+// backend doesn't exist yet (Phase 9C). No fabricated counts anywhere in this
+// file.
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import type { OrgScope } from "@/lib/server/api/scope";
@@ -14,6 +15,7 @@ import { getCurrentStaffProfile } from "@/lib/server/staff/service";
 import { getTeacherEntriesForWeekday } from "@/lib/server/timetable/entries-service";
 import { listMarksSummary } from "@/lib/server/exams/marks-service";
 import { listUpcomingExams } from "@/lib/server/exams/upcoming-service";
+import { getMyDayHomeworkSummary } from "@/lib/server/homework/service";
 
 function requireSession(scope: OrgScope): string {
   if (!scope.academicSessionId) throw new HttpError("INVALID_SESSION", "Select an academic session first");
@@ -63,16 +65,17 @@ export async function getMyDay(scope: OrgScope): Promise<MyDayDto> {
       attendance: { pendingCount: 0, completedCount: 0 },
       marks: { pendingCount: 0, actions: [] },
       upcomingExams: [],
-      homework: { available: false },
+      homework: { draftCount: 0, dueTodayOrOverdueCount: 0, items: [] },
       lessonPlans: { available: false },
     };
   }
 
-  const [timetable, marksSummary, upcomingExams, assignments] = await Promise.all([
+  const [timetable, marksSummary, upcomingExams, assignments, homework] = await Promise.all([
     getEnrichedDayTimetable(scope, staff.id, weekday),
     listMarksSummary(scope),
     listUpcomingExams(scope, { staffId: staff.id }),
     prisma.teachingAssignment.findMany({ where: { staffId: staff.id, schoolId: scope.schoolId }, select: { sectionId: true, subjectId: true } }),
+    getMyDayHomeworkSummary(scope, staff.id, today),
   ]);
 
   const owned = new Set(assignments.map((a) => `${a.sectionId}::${a.subjectId}`));
@@ -88,7 +91,7 @@ export async function getMyDay(scope: OrgScope): Promise<MyDayDto> {
     attendance: { pendingCount: pendingAttendance, completedCount: timetable.length - pendingAttendance },
     marks: { pendingCount: marksActions.length, actions: marksActions },
     upcomingExams,
-    homework: { available: false },
+    homework,
     lessonPlans: { available: false },
   };
 }

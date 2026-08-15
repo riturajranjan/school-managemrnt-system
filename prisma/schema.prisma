@@ -1741,6 +1741,7 @@ model Section {
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
   examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
   targetPromotions    StudentPromotion[] // Phase 8E — promotions targeting this section
+  homework            Homework[] // Phase 9B — homework/assignments
 
   // One section name per class.
   @@unique([classId, name])
@@ -1953,6 +1954,7 @@ model Subject {
   teachingAssignments TeachingAssignment[] // Phase 6A — teacher ↔ section+subject
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
   examScheduleEntries ExamScheduleEntry[] // Phase 8A — exam schedule
+  homework            Homework[] // Phase 9B — homework/assignments
 
   // One subject code per school (catalogue is school-wide, reused across sessions).
   @@unique([schoolId, code])
@@ -2037,6 +2039,7 @@ model Staff {
   teachingAssignments TeachingAssignment[]
   timetableEntries    TimetableEntry[] // Phase 7 — timetable
   examInvigilations   ExamScheduleEntry[] // Phase 8A — optional invigilator
+  homework            Homework[] // Phase 9B — homework/assignments
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2070,6 +2073,7 @@ model TeachingAssignment {
   subject          Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   staff            Staff            @relation(fields: [staffId], references: [id], onDelete: Cascade)
   timetableEntries TimetableEntry[] // Phase 7 — timetable (Restrict: can't remove a scheduled assignment)
+  homework         Homework[] // Phase 9B — homework (Restrict: can't remove an assignment with homework attached)
 
   @@unique([sectionId, subjectId, staffId])
   @@index([tenantId])
@@ -2671,4 +2675,65 @@ model StudentPromotion {
   @@index([targetClassId])
   @@index([targetSectionId])
   @@map("student_promotions")
+}
+
+// ===========================================================================
+// Phase 9B — Homework / Assignments. One Homework targets exactly ONE real
+// Section (Preferred V1 per the phase spec — no multi-section targeting, no
+// per-student rows); students see it through real Enrollment(status=ENROLLED)
+// in that section, never a duplicated per-student assignment row. Submissions/
+// grading/attachments/parent-acknowledgement are deliberately NOT built here —
+// no real student self-context or file-storage layer exists yet, and the
+// phase spec explicitly excludes parent acknowledgement — so scoring/
+// submissionType fields from the old mock are dropped, not carried forward.
+//
+// Authorship is a REAL Staff row with a REAL TeachingAssignment for
+// (sectionId, subjectId) — teachingAssignmentId is Restrict (mirrors
+// TimetableEntry's exact pattern) so removing that assignment while homework
+// still references it fails closed instead of orphaning history.
+// ===========================================================================
+
+enum HomeworkStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+model Homework {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  sectionId            String
+  subjectId            String
+  staffId              String
+  teachingAssignmentId String
+
+  title        String
+  description  String
+  instructions String?
+
+  dueAt  DateTime       @db.Date
+  status HomeworkStatus @default(DRAFT)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  section            Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject            Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staff              Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([sectionId])
+  @@index([subjectId])
+  @@index([staffId])
+  @@index([status])
+  @@map("homework")
 }

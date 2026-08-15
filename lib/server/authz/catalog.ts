@@ -52,6 +52,14 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "promotion.view", module: "promotion", action: "view", description: "View promotion candidates & history" },
   { key: "promotion.manage", module: "promotion", action: "manage", description: "Process student promotion/retention decisions" },
 
+  // Phase 9B — Homework. Distinct from academics.* (which owns Class/Section/
+  // Subject/TeachingAssignment CRUD): homework.manage covers create/edit/
+  // publish/close, granted broadly to TEACHER too (like marks.enter) — actual
+  // authorship is still constrained server-side to the actor's own real
+  // TeachingAssignment.
+  { key: "homework.view", module: "homework", action: "view", description: "View homework" },
+  { key: "homework.manage", module: "homework", action: "manage", description: "Create, edit, publish and close homework" },
+
   { key: "fees.view", module: "fees", action: "view", description: "View fees" },
   { key: "fees.collect", module: "fees", action: "collect", description: "Collect fees" },
   { key: "fees.refund", module: "fees", action: "refund", description: "Refund fees" },
@@ -170,6 +178,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "marks.enter", "marks.verify",
     "results.view", "results.publish",
     "promotion.view", "promotion.manage",
+    "homework.view", "homework.manage",
     "fees.view", "fees.collect", "fees.refund",
     "transport.view",
     "library.view",
@@ -190,6 +199,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "marks.verify",
     "results.view", "results.publish",
     "promotion.view", "promotion.manage",
+    "homework.view", "homework.manage",
     "fees.view",
     "communication.view", "communication.send",
     "documents.view",
@@ -206,6 +216,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "marks.enter",
     "results.view",
     "promotion.view",
+    "homework.view", "homework.manage",
     "communication.send",
     "documents.view",
   ],

@@ -156,7 +156,8 @@ describe.skipIf(!dbReady)("getMyDay — timetable + attendance action (DB)", () 
     const day = await getMyDay(scopeAdmin);
     expect(day.staff).toBeNull();
     expect(day.timetable).toEqual([]);
-    expect(day.homework).toEqual({ available: false });
+    // Phase 9B — homework is real now, even for an actor with no Staff profile.
+    expect(day.homework).toEqual({ draftCount: 0, dueTodayOrOverdueCount: 0, items: [] });
     expect(day.lessonPlans).toEqual({ available: false });
   });
 

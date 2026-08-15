@@ -110,6 +110,7 @@ export type Permission =
   | "academics.manageCurriculum"
   | "lessonPlans.create"
   | "lessonPlans.approve"
+  | "homework.view" // Phase 9B — aligned with the real RBAC catalog's homework.view key
   | "homework.manage"
   | "homework.submit"
   | "attendance.markOwn"
@@ -632,6 +633,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "communication.send",
     "academics.view",
     "lessonPlans.approve",
+    "homework.view",
     "homework.manage",
     "attendance.viewAny",
     "attendance.configureRules",
@@ -837,6 +839,9 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "reportCards.view",
     "reportCards.generate",
     "promotion.view",
+    "promotion.manage", // Phase 9B fix: administrator IS the real SCHOOL_ADMIN's UI role (DB_ROLE_TO_UI) — this was missing since Phase 8E
+    "homework.view",
+    "homework.manage",
     ...HR_OPERATE,
     "comm.view",
     "comm.message",
@@ -874,6 +879,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "communication.send",
     "academics.view",
     "lessonPlans.create",
+    "homework.view",
     "homework.manage",
     "attendance.markOwn",
     "attendance.viewOwn",

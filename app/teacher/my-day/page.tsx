@@ -29,6 +29,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { useMyDay } from "@/lib/hooks/api/use-my-day-api";
 import { draftParentMessage, generateRevisionActivity, summarizeClassPerformance } from "@/lib/services/teacher-ai-service";
 import type { MyDayTimetableEntryDto } from "@/lib/api/contracts";
+import { formatDate } from "@/lib/utils";
 
 const ATTENDANCE_ACTION_LABEL: Record<MyDayTimetableEntryDto["attendance"]["status"], string> = {
   not_marked: "Not marked", draft: "Draft", submitted: "Submitted", locked: "Locked",
@@ -120,7 +121,7 @@ export default function TeacherMyDayPage() {
           <section className="grid grid-cols-2 gap-sm sm:grid-cols-4">
             <StatTile label="Classes today" value={String(myDay.timetable.length)} icon={ClipboardList} tone="info" />
             <StatTile label="Attendance pending" value={String(myDay.attendance.pendingCount)} icon={CalendarCheck} tone={myDay.attendance.pendingCount > 0 ? "warning" : "success"} />
-            <StatTile label="Homework to review" value="—" icon={BookOpenCheck} tone="neutral" hint="Available after Homework module setup" />
+            <StatTile label="Homework due/overdue" value={String(myDay.homework.dueTodayOrOverdueCount)} icon={BookOpenCheck} tone={myDay.homework.dueTodayOrOverdueCount > 0 ? "warning" : "success"} />
             <StatTile label="Lesson plans pending" value="—" icon={ClipboardList} tone="neutral" hint="Available after Lesson Plans module setup" />
           </section>
 
@@ -196,7 +197,21 @@ export default function TeacherMyDayPage() {
                   View all
                 </Link>
               </div>
-              <p className="text-sm text-muted-foreground">Homework data will be available after the Homework module (Phase 9B) is built.</p>
+              {myDay.homework.items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No published homework due soon.</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {myDay.homework.items.map((h) => (
+                    <li key={h.id} className="flex items-center justify-between text-sm">
+                      <Link href={`/academics/homework/${h.id}`} className="truncate text-foreground hover:underline">
+                        {h.title}
+                      </Link>
+                      <span className="shrink-0 text-xs text-muted-foreground">Due {formatDate(h.dueAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {myDay.homework.draftCount > 0 && <p className="mt-xs text-xs text-muted-foreground">{myDay.homework.draftCount} draft{myDay.homework.draftCount === 1 ? "" : "s"} not yet published.</p>}
             </div>
 
             <div className="rounded-lg border border-border bg-surface p-md">
