@@ -323,7 +323,16 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/income-expense-service", why: "mock income/expense service (deleted — dead import)" },
   { marker: "services/cashier-shift-service", why: "mock cashier-shift service (deleted — dead import)" },
   { marker: '"@/lib/services/journal-service"', why: "mock journal-posting service (deleted Phase 9H once its last consumer, the mock payroll-run-service, was deleted — dead import)" },
-  { marker: "selectors/finance-reports", why: "mock trial-balance/income-statement/cash-flow selectors (deleted Phase 9G — dead import)" },
+  { marker: "selectors/finance-reports", why: "mock trial-balance/income-statement/cash-flow/payroll-cost/tax-withheld selectors (deleted Phase 9G/9H — dead import)" },
+  // Phase 9H — payroll mock authority (real surfaces must use hooks/api/use-payroll-api).
+  { marker: "services/payroll-run-service", why: "mock payroll-run service (deleted — dead import)" },
+  { marker: "services/salary-structure-service", why: "mock salary-structure service (deleted — dead import)" },
+  { marker: "services/loan-advance-service", why: "mock employee loan/advance service (deleted — dead import)" },
+  { marker: "selectors/salary-calc", why: "mock salary proration/resolution selector (deleted — dead import)" },
+  { marker: "selectors/finance-pulse", why: "mock Finance Pulse score selector (deleted Phase 9H — dead import)" },
+  { marker: "selectors/finance-brief", why: "mock finance exceptions/daily-brief selector (deleted Phase 9H — dead import)" },
+  { marker: "finance/finance-pulse-gauge", why: "mock Finance Pulse gauge component (deleted Phase 9H — dead import)" },
+  { marker: '"@/lib/types/payroll"', why: "mock Payroll types (SalaryStructure/PayrollRun/Payslip/EmployeeLoan) — real surfaces use lib/api/contracts.ts DTOs instead" },
 ];
 
 function collectSources(dir: string): string[] {
