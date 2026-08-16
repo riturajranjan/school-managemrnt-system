@@ -191,6 +191,26 @@ const MIGRATED_FILES = [
   "app/fees/reminders/page.tsx",
   "app/fees/reports/page.tsx",
   "components/students/profile/student-profile.tsx",
+  // Phase 9G — Accounting / General Ledger. Real AccountingAccount/
+  // JournalEntry/JournalLine via /api/accounting/* (PostgreSQL). Fee payments
+  // and refunds post automatically and idempotently (source-event uniqueness).
+  // Must never reintroduce db.chartOfAccounts/journalEntries/ledgerEntries/
+  // bankAccounts/cashAccounts/cashierShifts/bankTransactions/expenses or the
+  // deleted mock chart-of-accounts/income-expense/cashier-shift services.
+  // journal-service.ts still exists (still consumed by the mock Payroll
+  // run service) so it is guarded individually rather than deleted.
+  // Vendors/Purchase-Orders/Budgets pages stay mock (out of Phase 9G scope) —
+  // not guarded here.
+  "app/accounting/page.tsx",
+  "app/accounting/accounts/page.tsx",
+  "app/accounting/journals/page.tsx",
+  "app/accounting/ledger/page.tsx",
+  "app/accounting/reports/page.tsx",
+  "app/accounting/dashboard/page.tsx",
+  "app/accounting/income/page.tsx",
+  "app/accounting/expenses/page.tsx",
+  "app/accounting/expenses/new/page.tsx",
+  "app/accounting/bank-reconciliation/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -283,6 +303,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/dues-insights", why: "mock dues aging/metrics selector (deleted — dead import)" },
   { marker: "hooks/use-finance\"", why: "mock fees hooks (deleted from use-finance.ts — use hooks/api/use-fees-api)" },
   { marker: "simulateGatewayCallback", why: "fake payment-gateway checkout simulation (deleted — dead import)" },
+  // Phase 9G — accounting mock authority (real surfaces must use hooks/api/use-accounting-api).
+  { marker: "services/chart-of-accounts-service", why: "mock chart-of-accounts service (deleted — dead import)" },
+  { marker: "services/income-expense-service", why: "mock income/expense service (deleted — dead import)" },
+  { marker: "services/cashier-shift-service", why: "mock cashier-shift service (deleted — dead import)" },
+  { marker: '"@/lib/services/journal-service"', why: "mock journal-posting service (still used by the mock Payroll run service — not by real surfaces)" },
+  { marker: "selectors/finance-reports", why: "mock trial-balance/income-statement/cash-flow selectors (deleted Phase 9G — dead import)" },
 ];
 
 function collectSources(dir: string): string[] {

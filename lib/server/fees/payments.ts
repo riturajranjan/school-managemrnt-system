@@ -25,6 +25,7 @@ import { computeCharge } from "./balance";
 import { dec } from "./money";
 import { nextReceiptNumber } from "./receipt-number";
 import { isBroadFeeManager } from "./access";
+import { postFeePaymentToAccounting } from "@/lib/server/accounting/fee-posting";
 
 const METHOD_TO_DB: Record<FeePaymentMethodDto, string> = { cash: "CASH", upi: "UPI", card: "CARD", bank_transfer: "BANK_TRANSFER", cheque: "CHEQUE", other: "OTHER" };
 const methodToUi = (m: string): FeePaymentMethodDto => m.toLowerCase() as FeePaymentMethodDto;
@@ -135,6 +136,12 @@ export async function recordFeePayment(scope: OrgScope, raw: unknown): Promise<F
     });
     await tx.feePaymentAllocation.createMany({ data: input.allocations.map((a) => ({ paymentId: payment.id, chargeId: a.chargeId, amount: a.amount })) });
     await recordAudit(tx, scope, "FEE_PAYMENT_RECORDED", "FeePayment", payment.id, { receiptNumber, amount });
+
+    // Real accounting effect (Phase 9G), same transaction — either both commit or neither does.
+    await postFeePaymentToAccounting(tx, scope, {
+      id: payment.id, amount: new Prisma.Decimal(amount), method: METHOD_TO_DB[input.method], paymentDate,
+      allocations: input.allocations.map((a) => ({ chargeId: a.chargeId, amount: new Prisma.Decimal(a.amount) })),
+    });
     return payment.id;
   });
   return getFeePayment(scope, created);

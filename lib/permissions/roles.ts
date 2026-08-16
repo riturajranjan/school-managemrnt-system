@@ -181,6 +181,9 @@ export type Permission =
   | "fees.viewOwn"
   | "fees.payOwn"
   | "accounting.view"
+  | "accounting.manage" // Phase 9G — aligned with the real RBAC catalog's accounting.manage key
+  | "accounting.post" // Phase 9G — aligned with the real RBAC catalog's accounting.post key
+  | "accounting.reverse" // Phase 9G — aligned with the real RBAC catalog's accounting.reverse key
   | "accounting.manageIncome"
   | "accounting.manageExpenses"
   | "accounting.approveExpenses"
@@ -866,6 +869,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "fees.manage",
     "fees.collect",
     "fees.refund",
+    "accounting.view", // Phase 9G — aligned with the real RBAC catalog's accounting.view/manage/post/reverse keys
+    "accounting.manage",
+    "accounting.post",
+    "accounting.reverse",
     ...HR_OPERATE,
     "comm.view",
     "comm.message",

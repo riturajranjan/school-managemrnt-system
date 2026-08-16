@@ -1,42 +1,37 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9G) — header stats now read
+// GET /api/accounting/dashboard (ledger-derived) and the real Phase 9F Fees
+// dashboard for fee income, instead of the mock db.incomes/db.expenses/
+// db.payments store. Vendors, Purchase Orders and Budgets stay on their
+// existing mock pages — out of this phase's scope (no real backend; see the
+// final report's Deferred Items) — their quick-link cards are unchanged.
 import Link from "next/link";
 import { BookOpen, Boxes, Calculator, ClipboardList, Gauge, Landmark, PiggyBank, Receipt, ScrollText, Store, TrendingUp, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { addMoney, formatMoney, sumMoney } from "@/lib/finance/money";
+import { useAccountingDashboard } from "@/lib/hooks/api/use-accounting-api";
+import { useFeeDashboard } from "@/lib/hooks/api/use-fees-api";
+import { formatCurrency } from "@/lib/utils";
 
 const quickLinks = [
   { href: "/accounting/income", label: "Income", description: "Donations, grants, sponsorships and other income", icon: TrendingUp },
-  { href: "/accounting/expenses", label: "Expenses", description: "Submit, approve and pay school expenses", icon: Receipt },
+  { href: "/accounting/expenses", label: "Expenses", description: "Record school expenses", icon: Receipt },
   { href: "/accounting/vendors", label: "Vendors", description: "Vendor directory and categories", icon: Store },
   { href: "/accounting/purchase-orders", label: "Purchase orders", description: "PO workflow linked to expenses", icon: ClipboardList },
   { href: "/accounting/accounts", label: "Chart of accounts", description: "Asset, liability, income and expense accounts", icon: Boxes },
   { href: "/accounting/journals", label: "Journals", description: "Every posted double-entry journal", icon: BookOpen },
-  { href: "/accounting/ledger", label: "Ledger", description: "Running balance per account, student or vendor", icon: ScrollText },
-  { href: "/accounting/bank-reconciliation", label: "Bank & cash", description: "Bank accounts, cash registers, cashier shifts", icon: Landmark },
+  { href: "/accounting/ledger", label: "Ledger", description: "Running balance per account", icon: ScrollText },
+  { href: "/accounting/bank-reconciliation", label: "Bank & cash", description: "Real asset-account balances", icon: Landmark },
   { href: "/accounting/budgets", label: "Budgets", description: "Planned vs actual by category", icon: PiggyBank },
-  { href: "/accounting/reports", label: "Reports", description: "Income statement, cash flow, trial balance", icon: Calculator },
+  { href: "/accounting/reports", label: "Reports", description: "Income statement and trial balance", icon: Calculator },
 ];
 
 export default function AccountingHubPage() {
-  const db = useSisStore();
+  const { data: accounting } = useAccountingDashboard();
+  const { data: fees } = useFeeDashboard();
 
-  const totalIncome = sumMoney(
-    db.incomes.map((i) => i.amount),
-    "INR",
-  );
-  const feeIncome = sumMoney(
-    db.payments.filter((p) => p.status === "successful").map((p) => p.amount),
-    "INR",
-  );
-  const totalExpense = sumMoney(
-    db.expenses.filter((e) => e.status === "paid").map((e) => addMoney(e.amount, e.tax)),
-    "INR",
-  );
-  const netCashFlow = addMoney(addMoney(totalIncome, feeIncome), { minorUnits: -totalExpense.minorUnits, currency: "INR" });
-  const pendingApprovals = db.expenses.filter((e) => e.status === "submitted" || e.status === "under-review").length;
+  const netCashFlow = accounting ? accounting.netIncome + (fees?.collectedThisMonth ?? 0) : null;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -54,22 +49,11 @@ export default function AccountingHubPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Fee income" value={formatMoney(feeIncome, { compact: true })} icon={Wallet} tone="success" />
-        <StatTile label="Other income" value={formatMoney(totalIncome, { compact: true })} icon={TrendingUp} tone="info" />
-        <StatTile label="Expenses (paid)" value={formatMoney(totalExpense, { compact: true })} icon={Receipt} tone="neutral" />
-        <StatTile label="Net cash flow" value={formatMoney(netCashFlow, { compact: true })} tone={netCashFlow.minorUnits >= 0 ? "success" : "error"} />
+        <StatTile label="Fee income (this month)" value={fees ? formatCurrency(fees.collectedThisMonth) : "—"} icon={Wallet} tone="success" />
+        <StatTile label="Other income (MTD)" value={accounting ? formatCurrency(accounting.totalIncome) : "—"} icon={TrendingUp} tone="info" />
+        <StatTile label="Expenses (MTD)" value={accounting ? formatCurrency(accounting.totalExpense) : "—"} icon={Receipt} tone="neutral" />
+        <StatTile label="Net cash flow (MTD)" value={netCashFlow !== null ? formatCurrency(netCashFlow) : "—"} tone={netCashFlow !== null && netCashFlow >= 0 ? "success" : "error"} />
       </div>
-
-      {pendingApprovals > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-warning/30 bg-warning/8 p-sm text-sm text-warning">
-          <span>
-            {pendingApprovals} expense{pendingApprovals === 1 ? "" : "s"} pending approval
-          </span>
-          <Link href="/accounting/expenses" className="underline underline-offset-2">
-            Review
-          </Link>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">
         {quickLinks.map(({ href, label, description, icon: Icon }) => (

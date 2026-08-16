@@ -1,44 +1,42 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9G) — reads GET /api/accounting/reports/
+// income-expense and GET /api/accounting/trial-balance, both derived from
+// POSTED journal lines only. The mock's "Cash flow" tab is dropped — it
+// duplicated a per-account view the real Ledger page already provides for
+// the CASH/BANK accounts, and Balance Sheet/P&L beyond income-expense are
+// honestly deferred (no opening-equity/current-earnings policy exists yet).
 import { useState } from "react";
 import Papa from "papaparse";
 import { BookOpen, Download, Scale, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { formatMoney, type Money } from "@/lib/finance/money";
-import { cashFlowSummary, incomeStatement, trialBalance } from "@/lib/selectors/finance-reports";
-import { chartOfAccountTypeLabels } from "@/lib/types/accounting";
-import { downloadTextFile } from "@/lib/utils";
+import { useIncomeExpenseReport, useTrialBalance } from "@/lib/hooks/api/use-accounting-api";
+import { downloadTextFile, formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
-type Tab = "income-statement" | "cash-flow" | "trial-balance";
-
+type Tab = "income-statement" | "trial-balance";
 const tabs: { key: Tab; label: string }[] = [
   { key: "income-statement", label: "Income statement" },
-  { key: "cash-flow", label: "Cash flow" },
   { key: "trial-balance", label: "Trial balance" },
 ];
+const typeLabels: Record<string, string> = { asset: "Asset", liability: "Liability", equity: "Equity", income: "Income", expense: "Expense" };
 
 export default function AccountingReportsPage() {
-  const db = useSisStore();
   const { can } = usePermissions();
-  const canExport = can("accounting.viewReports");
+  const canExport = can("accounting.view");
   const [tab, setTab] = useState<Tab>("income-statement");
 
-  const statement = incomeStatement(db);
-  const cashFlow = cashFlowSummary(db);
-  const trial = trialBalance(db);
+  const { data: statement } = useIncomeExpenseReport();
+  const { data: trial } = useTrialBalance();
 
   function exportCsv() {
-    if (tab === "income-statement") {
-      const rows = [...statement.incomeByAccount.map((r) => ({ Type: "Income", Account: r.name, Amount: formatMoney(r.amount) })), ...statement.expenseByAccount.map((r) => ({ Type: "Expense", Account: r.name, Amount: formatMoney(r.amount) }))];
+    if (tab === "income-statement" && statement) {
+      const rows = [...statement.incomeByAccount.map((r) => ({ Type: "Income", Account: r.name, Amount: formatCurrency(r.amount) })), ...statement.expenseByAccount.map((r) => ({ Type: "Expense", Account: r.name, Amount: formatCurrency(r.amount) }))];
       downloadTextFile("income-statement.csv", Papa.unparse(rows));
-    } else if (tab === "cash-flow") {
-      downloadTextFile("cash-flow.csv", Papa.unparse(cashFlow.map((r) => ({ Account: r.name, Inflow: formatMoney(r.inflow), Outflow: formatMoney(r.outflow) }))));
-    } else {
-      downloadTextFile("trial-balance.csv", Papa.unparse(trial.map((r) => ({ Code: r.code, Account: r.name, Type: chartOfAccountTypeLabels[r.type as keyof typeof chartOfAccountTypeLabels], Balance: formatMoney(r.balance) }))));
+    } else if (trial) {
+      downloadTextFile("trial-balance.csv", Papa.unparse(trial.rows.map((r) => ({ Code: r.code, Account: r.name, Type: typeLabels[r.type], Balance: formatCurrency(r.balance) }))));
     }
   }
 
@@ -47,7 +45,7 @@ export default function AccountingReportsPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Accounting reports</h1>
-          <p className="text-xs text-muted-foreground">Income statement, cash flow and trial balance — all derived live from the posted ledger</p>
+          <p className="text-xs text-muted-foreground">Income statement and trial balance — derived live from the posted ledger</p>
         </div>
         {canExport && (
           <Button size="sm" variant="outline" onClick={exportCsv}>
@@ -57,11 +55,13 @@ export default function AccountingReportsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-sm">
-        <StatTile label="Total income" value={formatMoney(statement.totalIncome, { compact: true })} icon={TrendingUp} tone="success" />
-        <StatTile label="Total expense" value={formatMoney(statement.totalExpense, { compact: true })} icon={TrendingDown} tone="neutral" />
-        <StatTile label="Net income" value={formatMoney(statement.netIncome, { compact: true })} icon={Scale} tone={statement.netIncome.minorUnits >= 0 ? "success" : "error"} />
-      </div>
+      {statement && (
+        <div className="grid grid-cols-3 gap-sm">
+          <StatTile label="Total income" value={formatCurrency(statement.totalIncome)} icon={TrendingUp} tone="success" />
+          <StatTile label="Total expense" value={formatCurrency(statement.totalExpense)} icon={TrendingDown} tone="neutral" />
+          <StatTile label="Net income" value={formatCurrency(statement.netIncome)} icon={Scale} tone={statement.netIncome >= 0 ? "success" : "error"} />
+        </div>
+      )}
 
       <div className="flex items-center gap-1 rounded-md bg-surface-secondary p-1">
         {tabs.map((t) => (
@@ -71,7 +71,7 @@ export default function AccountingReportsPage() {
         ))}
       </div>
 
-      {tab === "income-statement" && (
+      {tab === "income-statement" && statement && (
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
           <div className="surface-3d rounded-lg border border-border bg-surface p-md">
             <h2 className="mb-sm text-sm font-semibold text-foreground">Income</h2>
@@ -84,39 +84,14 @@ export default function AccountingReportsPage() {
         </div>
       )}
 
-      {tab === "cash-flow" && (
+      {tab === "trial-balance" && trial && (
         <div className="surface-3d rounded-lg border border-border bg-surface p-md">
-          <h2 className="mb-sm text-sm font-semibold text-foreground">Cash & bank movement</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[360px] text-sm">
-              <thead className="text-xs text-muted-foreground">
-                <tr>
-                  <th className="p-xs text-left">Account</th>
-                  <th className="p-xs text-right">Inflow</th>
-                  <th className="p-xs text-right">Outflow</th>
-                  <th className="p-xs text-right">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cashFlow.map((row) => (
-                  <tr key={row.accountId} className="border-t border-border">
-                    <td className="p-xs text-foreground">{row.name}</td>
-                    <td className="p-xs text-right text-success">{formatMoney(row.inflow)}</td>
-                    <td className="p-xs text-right text-error">{formatMoney(row.outflow)}</td>
-                    <td className="p-xs text-right font-medium text-foreground">{formatMoney({ minorUnits: row.inflow.minorUnits - row.outflow.minorUnits, currency: "INR" })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === "trial-balance" && (
-        <div className="surface-3d rounded-lg border border-border bg-surface p-md">
-          <div className="mb-sm flex items-center gap-1.5 text-sm font-semibold text-foreground">
-            <BookOpen className="size-4" />
-            Trial balance
+          <div className="mb-sm flex items-center justify-between gap-sm">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <BookOpen className="size-4" />
+              Trial balance
+            </div>
+            <span className={cn("text-xs font-medium", trial.balanced ? "text-success" : "text-error")}>{trial.balanced ? "Debits = Credits" : "OUT OF BALANCE"}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[360px] text-sm">
@@ -129,15 +104,26 @@ export default function AccountingReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {trial.map((row) => (
+                {trial.rows.map((row) => (
                   <tr key={row.accountId} className="border-t border-border">
                     <td className="p-xs text-muted-foreground">{row.code}</td>
                     <td className="p-xs text-foreground">{row.name}</td>
-                    <td className="p-xs text-muted-foreground">{chartOfAccountTypeLabels[row.type as keyof typeof chartOfAccountTypeLabels]}</td>
-                    <td className="p-xs text-right font-medium text-foreground">{formatMoney(row.balance)}</td>
+                    <td className="p-xs text-muted-foreground">{typeLabels[row.type]}</td>
+                    <td className="p-xs text-right font-medium text-foreground">{formatCurrency(row.balance)}</td>
                   </tr>
                 ))}
+                {trial.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-sm text-center text-muted-foreground">No posted activity yet.</td>
+                  </tr>
+                )}
               </tbody>
+              <tfoot>
+                <tr className="border-t border-border font-medium text-foreground">
+                  <td className="p-xs" colSpan={3}>Total</td>
+                  <td className="p-xs text-right">{formatCurrency(trial.totalDebit)} Dr / {formatCurrency(trial.totalCredit)} Cr</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -146,7 +132,7 @@ export default function AccountingReportsPage() {
   );
 }
 
-function ReportTable({ rows }: { rows: { name: string; amount: Money }[] }) {
+function ReportTable({ rows }: { rows: { name: string; amount: number }[] }) {
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">No entries.</p>;
   return (
     <table className="w-full text-sm">
@@ -154,7 +140,7 @@ function ReportTable({ rows }: { rows: { name: string; amount: Money }[] }) {
         {rows.map((row) => (
           <tr key={row.name} className="border-t border-border first:border-t-0">
             <td className="py-1 text-foreground">{row.name}</td>
-            <td className="py-1 text-right font-medium text-foreground">{formatMoney(row.amount)}</td>
+            <td className="py-1 text-right font-medium text-foreground">{formatCurrency(row.amount)}</td>
           </tr>
         ))}
       </tbody>

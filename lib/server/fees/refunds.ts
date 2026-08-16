@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { FeeRefundDto } from "@/lib/api/contracts";
 import { dec } from "./money";
+import { postFeeRefundToAccounting } from "@/lib/server/accounting/fee-posting";
 
 function toDto(r: { id: string; paymentId: string; amount: Prisma.Decimal; reason: string; refundedByName: string | null; refundedAt: Date }): FeeRefundDto {
   return { id: r.id, paymentId: r.paymentId, amount: dec(r.amount), reason: r.reason, refundedByName: r.refundedByName, refundedAt: r.refundedAt.toISOString() };
@@ -51,6 +52,9 @@ export async function createFeeRefund(scope: OrgScope, paymentId: string, raw: u
       data: { tenantId: scope.tenantId, schoolId: scope.schoolId, paymentId, amount: input.amount, reason: input.reason, refundedByUserId: scope.actor.id, refundedByName: scope.actor.name },
     });
     await recordAudit(tx, scope, "FEE_REFUND_CREATED", "FeePayment", paymentId, { refundId: row.id, amount: input.amount });
+
+    // Real accounting effect (Phase 9G), same transaction.
+    await postFeeRefundToAccounting(tx, scope, { id: row.id, paymentId, amount: new Prisma.Decimal(input.amount), refundedAt: row.refundedAt });
     return row;
   });
   return toDto(created);

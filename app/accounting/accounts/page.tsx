@@ -1,5 +1,9 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9G) — reads/writes the live
+// /api/accounting/accounts endpoint. Balances are server-derived from
+// POSTED journal lines (lib/server/accounting/accounts.ts), never
+// reconstructed client-side.
 import { useState } from "react";
 import { Boxes, Plus } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -11,27 +15,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useChartOfAccounts, useLedgerEntries } from "@/lib/hooks/use-finance";
-import { formatMoney } from "@/lib/finance/money";
-import { accountBalance } from "@/lib/selectors/ledger";
-import { createChartOfAccount } from "@/lib/services/chart-of-accounts-service";
-import { chartOfAccountTypeLabels, type ChartOfAccount, type ChartOfAccountType } from "@/lib/types/accounting";
+import { createAccountingAccountRequest, useAccountingAccounts } from "@/lib/hooks/api/use-accounting-api";
+import type { AccountingAccountDto, AccountingAccountTypeDto } from "@/lib/api/contracts";
+import { formatCurrency } from "@/lib/utils";
 
-const ACTOR = { name: "Finance Administrator", role: "Finance Administrator" };
-const typeOptions = Object.keys(chartOfAccountTypeLabels) as ChartOfAccountType[];
+const typeLabels: Record<AccountingAccountTypeDto, string> = { asset: "Asset", liability: "Liability", equity: "Equity", income: "Income", expense: "Expense" };
+const typeOptions = Object.keys(typeLabels) as AccountingAccountTypeDto[];
 
 export default function ChartOfAccountsPage() {
-  const accounts = useChartOfAccounts();
-  const ledgerEntries = useLedgerEntries();
+  const { data: accounts, loading, error, reload } = useAccountingAccounts();
   const { can } = usePermissions();
-  const canManage = can("accounting.manageChartOfAccounts");
+  const canManage = can("accounting.manage");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<ChartOfAccountType>("expense");
+  const [type, setType] = useState<AccountingAccountTypeDto>("expense");
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const columns: ColumnDef<ChartOfAccount>[] = [
+  const columns: ColumnDef<AccountingAccountDto>[] = [
     {
       id: "name",
       header: "Account",
@@ -44,15 +46,9 @@ export default function ChartOfAccountsPage() {
         </div>
       ),
     },
-    { id: "type", header: "Type", cell: (a) => <Badge tone="info">{chartOfAccountTypeLabels[a.type]}</Badge> },
-    {
-      id: "balance",
-      header: "Balance",
-      align: "right",
-      sortValue: (a) => accountBalance(ledgerEntries, a.id).minorUnits,
-      cell: (a) => <span className="text-sm font-medium text-foreground">{formatMoney(accountBalance(ledgerEntries, a.id))}</span>,
-    },
-    { id: "status", header: "Status", align: "right", cell: (a) => <Badge tone={a.status === "active" ? "success" : "neutral"}>{a.status === "active" ? "Active" : "Inactive"}</Badge> },
+    { id: "type", header: "Type", cell: (a) => <Badge tone="info">{typeLabels[a.type]}</Badge> },
+    { id: "balance", header: "Balance", align: "right", sortValue: (a) => a.balance, cell: (a) => <span className="text-sm font-medium text-foreground">{formatCurrency(a.balance)}</span> },
+    { id: "status", header: "Status", align: "right", cell: (a) => <Badge tone={a.status === "active" ? "success" : "neutral"}>{a.status === "active" ? "Active" : "Archived"}</Badge> },
   ];
 
   return (
@@ -70,9 +66,12 @@ export default function ChartOfAccountsPage() {
         )}
       </div>
 
+      {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
+      {loading && accounts.length === 0 && <p className="text-xs text-muted-foreground">Loading…</p>}
+
       <DataTable
         columns={columns}
-        rows={[...accounts].sort((a, b) => a.code.localeCompare(b.code))}
+        rows={accounts}
         getRowId={(a) => a.id}
         caption="Chart of accounts"
         renderMobileCard={(a) => (
@@ -80,10 +79,10 @@ export default function ChartOfAccountsPage() {
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">{a.name}</p>
               <p className="text-xs text-muted-foreground">
-                {a.code} · {chartOfAccountTypeLabels[a.type]}
+                {a.code} · {typeLabels[a.type]}
               </p>
             </div>
-            <span className="shrink-0 text-sm font-medium text-foreground">{formatMoney(accountBalance(ledgerEntries, a.id))}</span>
+            <span className="shrink-0 text-sm font-medium text-foreground">{formatCurrency(a.balance)}</span>
           </div>
         )}
         emptyIcon={Boxes}
@@ -102,26 +101,33 @@ export default function ChartOfAccountsPage() {
           </div>
           <div>
             <Label>Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as ChartOfAccountType)}>
+            <Select value={type} onValueChange={(v) => setType(v as AccountingAccountTypeDto)}>
               <SelectTrigger aria-label="Account type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {typeOptions.map((t) => (
                   <SelectItem key={t} value={t}>
-                    {chartOfAccountTypeLabels[t]}
+                    {typeLabels[t]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          {formError && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{formError}</p>}
           <Button
             disabled={!code.trim() || !name.trim()}
-            onClick={() => {
-              createChartOfAccount({ code: code.trim(), name: name.trim(), type }, ACTOR);
+            onClick={async () => {
+              setFormError(null);
+              const res = await createAccountingAccountRequest({ code: code.trim(), name: name.trim(), type });
+              if (!res.success) {
+                setFormError(res.error.message);
+                return;
+              }
               setCreateOpen(false);
               setCode("");
               setName("");
+              reload();
             }}
           >
             Create account

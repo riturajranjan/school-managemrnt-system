@@ -29,6 +29,7 @@ import { seedCurriculum } from "./seed-curriculum";
 import { seedLessonPlans } from "./seed-lesson-plans";
 import { seedStaffAttendanceLeave } from "./seed-staff-attendance-leave";
 import { seedFees } from "./seed-fees";
+import { seedAccounting } from "./seed-accounting";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
 
@@ -338,6 +339,11 @@ async function main() {
   // Phase 9F — real Fees & Collections
   // =========================================================================
   await seedFees(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
+
+  // =========================================================================
+  // Phase 9G — real Accounting / General Ledger
+  // =========================================================================
+  await seedAccounting(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

@@ -1,5 +1,14 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9G) — a thin "quick entry" UI over the
+// SAME real /api/accounting/journals endpoint the Journals page uses (Debit
+// a real Cash/Bank asset account, Credit the selected real Income account) —
+// not a parallel income ledger. The mock's fixed IncomeCategory enum is
+// replaced by a real Income-type Chart-of-Accounts account picker (never a
+// fake category); "Received via" now picks a real ASSET account (the
+// CASH/BANK system accounts always exist — see accounts.ts's
+// ensureCoreSystemAccounts — plus any other real asset account the school
+// has created).
 import { useState } from "react";
 import { Plus, TrendingUp } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -11,45 +20,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { formatMoney, moneyFromMajor, sumMoney } from "@/lib/finance/money";
-import { recordIncome } from "@/lib/services/income-expense-service";
-import { incomeCategoryLabels, type Income, type IncomeCategory } from "@/lib/types/accounting";
-import { formatDate } from "@/lib/utils";
-
-const ACTOR = { name: "Accountant", role: "Accountant" };
-const categoryOptions = Object.keys(incomeCategoryLabels) as IncomeCategory[];
+import { createAndPostJournalEntryRequest, useAccountingAccounts, useJournalEntries } from "@/lib/hooks/api/use-accounting-api";
+import type { JournalEntryListItemDto } from "@/lib/api/contracts";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function IncomePage() {
-  const db = useSisStore();
+  const { data: entries, loading, error, reload } = useJournalEntries({ sourceType: "manual", pageSize: 100 });
+  const incomeEntries = entries.filter((e) => e.status === "posted");
+  const { data: incomeAccounts } = useAccountingAccounts({ type: "income", status: "active" });
+  const { data: assetAccounts } = useAccountingAccounts({ type: "asset", status: "active" });
   const { can } = usePermissions();
-  const canManage = can("accounting.manageIncome");
+  const canManage = can("accounting.manage");
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [category, setCategory] = useState<IncomeCategory>("donations");
+  const [accountId, setAccountId] = useState("");
+  const [cashOrBankAccountId, setCashOrBankAccountId] = useState("");
   const [source, setSource] = useState("");
   const [amount, setAmount] = useState(1000);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [description, setDescription] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const total = sumMoney(db.incomes.map((i) => i.amount), "INR");
+  const total = incomeEntries.reduce((s, e) => s + e.totalAmount, 0);
+  const defaultCashOrBank = cashOrBankAccountId || assetAccounts.find((a) => a.systemKey === "BANK")?.id || assetAccounts[0]?.id || "";
 
-  const columns: ColumnDef<Income>[] = [
-    {
-      id: "source",
-      header: "Source",
-      alwaysVisible: true,
-      sortValue: (i) => i.source,
-      cell: (i) => (
-        <div>
-          <p className="text-sm font-medium text-foreground">{i.source}</p>
-          {i.description && <p className="text-xs text-muted-foreground">{i.description}</p>}
-        </div>
-      ),
-    },
-    { id: "category", header: "Category", cell: (i) => <Badge tone="info">{incomeCategoryLabels[i.category]}</Badge> },
-    { id: "date", header: "Date", sortValue: (i) => i.date, cell: (i) => <span className="text-sm text-muted-foreground">{formatDate(i.date)}</span> },
-    { id: "amount", header: "Amount", align: "right", sortValue: (i) => i.amount.minorUnits, cell: (i) => <span className="text-sm font-medium text-foreground">{formatMoney(i.amount)}</span> },
+  const columns: ColumnDef<JournalEntryListItemDto>[] = [
+    { id: "description", header: "Source", alwaysVisible: true, sortValue: (e) => e.entryDate, cell: (e) => <p className="text-sm font-medium text-foreground">{e.description}</p> },
+    { id: "entryNumber", header: "Entry", cell: (e) => <Badge tone="info">{e.entryNumber}</Badge> },
+    { id: "date", header: "Date", sortValue: (e) => e.entryDate, cell: (e) => <span className="text-sm text-muted-foreground">{formatDate(e.entryDate)}</span> },
+    { id: "amount", header: "Amount", align: "right", sortValue: (e) => e.totalAmount, cell: (e) => <span className="text-sm font-medium text-foreground">{formatCurrency(e.totalAmount)}</span> },
   ];
 
   return (
@@ -57,7 +56,7 @@ export default function IncomePage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Income</h1>
-          <p className="text-xs text-muted-foreground">Non-fee income — donations, grants, sponsorships and more · Total {formatMoney(total)}</p>
+          <p className="text-xs text-muted-foreground">Non-fee income — donations, grants, sponsorships and more · Total {formatCurrency(total)}</p>
         </div>
         {canManage && (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -67,48 +66,48 @@ export default function IncomePage() {
         )}
       </div>
 
+      {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
+
       <DataTable
         columns={columns}
-        rows={[...db.incomes].sort((a, b) => (a.date < b.date ? 1 : -1))}
-        getRowId={(i) => i.id}
+        rows={incomeEntries}
+        getRowId={(e) => e.id}
         caption="Income"
-        renderMobileCard={(i) => (
+        renderMobileCard={(e) => (
           <div className="surface-3d flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">{i.source}</p>
-              <p className="text-xs text-muted-foreground">
-                {incomeCategoryLabels[i.category]} · {formatDate(i.date)}
-              </p>
+              <p className="truncate text-sm font-semibold text-foreground">{e.description}</p>
+              <p className="text-xs text-muted-foreground">{e.entryNumber} · {formatDate(e.entryDate)}</p>
             </div>
-            <span className="shrink-0 text-sm font-medium text-foreground">{formatMoney(i.amount)}</span>
+            <span className="shrink-0 text-sm font-medium text-foreground">{formatCurrency(e.totalAmount)}</span>
           </div>
         )}
         emptyIcon={TrendingUp}
-        emptyTitle="No income recorded yet"
+        emptyTitle={loading ? "Loading…" : "No income recorded yet"}
       />
 
-      <DetailDrawer open={createOpen} onOpenChange={setCreateOpen} title="Record income" description="Posts a journal entry crediting the matching income account">
+      <DetailDrawer open={createOpen} onOpenChange={setCreateOpen} title="Record income" description="Posts a journal entry crediting the selected income account">
         <div className="flex flex-col gap-sm">
           <div>
             <Label htmlFor="income-source">Source</Label>
             <Input id="income-source" value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Alumni donation" />
           </div>
           <div>
-            <Label>Category</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as IncomeCategory)}>
-              <SelectTrigger aria-label="Category">
-                <SelectValue />
+            <Label>Income account</Label>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger aria-label="Income account">
+                <SelectValue placeholder="Select account" />
               </SelectTrigger>
               <SelectContent>
-                {categoryOptions.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {incomeCategoryLabels[c]}
+                {incomeAccounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-sm">
+          <div className="grid grid-cols-3 gap-sm">
             <div>
               <Label htmlFor="income-amount">Amount (₹)</Label>
               <Input id="income-amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
@@ -117,18 +116,41 @@ export default function IncomePage() {
               <Label htmlFor="income-date">Date</Label>
               <Input id="income-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
+            <div>
+              <Label>Received via</Label>
+              <Select value={defaultCashOrBank} onValueChange={setCashOrBankAccountId}>
+                <SelectTrigger aria-label="Received via">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {assetAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="income-desc">Description</Label>
-            <Input id="income-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
-          </div>
+          {formError && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{formError}</p>}
           <Button
-            disabled={!source.trim() || amount <= 0}
-            onClick={() => {
-              recordIncome({ category, amount: moneyFromMajor(amount, "INR"), date, source: source.trim(), branch: "main", description: description.trim() || undefined }, ACTOR);
+            disabled={!source.trim() || !accountId || !defaultCashOrBank || amount <= 0 || saving}
+            onClick={async () => {
+              setFormError(null);
+              setSaving(true);
+              const res = await createAndPostJournalEntryRequest({
+                entryDate: date, description: source.trim(),
+                lines: [{ accountId, credit: amount }, { accountId: defaultCashOrBank, debit: amount }],
+              });
+              setSaving(false);
+              if (!res.success) {
+                setFormError(res.error.message);
+                return;
+              }
               setCreateOpen(false);
               setSource("");
-              setDescription("");
+              setAmount(1000);
+              reload();
             }}
           >
             Record income

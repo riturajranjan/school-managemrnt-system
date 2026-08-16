@@ -160,7 +160,13 @@ export type AuditAction =
   | "FEE_SCHOLARSHIP_APPLIED"
   | "FEE_LATE_FEE_APPLIED"
   | "FEE_REFUND_CREATED"
-  | "FEE_PAYMENT_RECONCILED";
+  | "FEE_PAYMENT_RECONCILED"
+  | "ACCOUNT_CREATED"
+  | "ACCOUNT_UPDATED"
+  | "ACCOUNT_STATUS_CHANGED"
+  | "JOURNAL_CREATED"
+  | "JOURNAL_POSTED"
+  | "JOURNAL_REVERSED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

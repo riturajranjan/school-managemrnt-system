@@ -1958,6 +1958,80 @@ export type FeeReconciliationReportDto = { unreconciled: number; reconciled: num
 
 export type FeeDashboardDto = { collectedToday: number; outstanding: number; overdue: number; collectedThisMonth: number };
 
+// --- Phase 9G: Accounting / General Ledger. Money is a plain number,
+// always Prisma.Decimal-derived server-side (lib/server/fees/money.ts's
+// dec() helper, reused as-is). CASH basis — see the schema doc comment on
+// AccountingAccount for the full policy. ---
+
+export type AccountingAccountTypeDto = "asset" | "liability" | "equity" | "income" | "expense";
+export type AccountingAccountStatusDto = "active" | "archived";
+export type AccountingAccountDto = {
+  id: string;
+  code: string;
+  name: string;
+  type: AccountingAccountTypeDto;
+  parentId: string | null;
+  description: string | null;
+  status: AccountingAccountStatusDto;
+  systemKey: string | null;
+  balance: number;
+};
+export type CreateAccountingAccountRequest = { code: string; name: string; type: AccountingAccountTypeDto; parentId?: string; description?: string };
+export type UpdateAccountingAccountRequest = { name?: string; description?: string; parentId?: string | null; status?: AccountingAccountStatusDto };
+
+export type JournalEntryStatusDto = "draft" | "posted" | "reversed";
+export type JournalSourceTypeDto = "manual" | "fee_payment" | "fee_refund";
+export type JournalLineDto = { id: string; accountId: string; accountCode: string; accountName: string; debit: number; credit: number; description: string | null };
+export type JournalEntryListItemDto = {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  description: string;
+  status: JournalEntryStatusDto;
+  sourceType: JournalSourceTypeDto;
+  sourceId: string | null;
+  totalAmount: number; // sum of debits (== sum of credits once posted)
+  reversalOfId: string | null;
+  isReversed: boolean; // true if some other entry reverses this one
+};
+export type JournalEntryDetailDto = JournalEntryListItemDto & { lines: JournalLineDto[]; createdByName: string | null; postedAt: string | null };
+export type CreateJournalEntryRequest = { entryDate: string; description: string; lines: { accountId: string; debit?: number; credit?: number; description?: string }[] };
+export type ReverseJournalEntryRequest = { reason: string };
+
+export type LedgerEntryDto = {
+  id: string;
+  journalEntryId: string;
+  entryNumber: string;
+  entryDate: string;
+  description: string;
+  sourceType: JournalSourceTypeDto;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+};
+export type AccountLedgerDto = { account: AccountingAccountDto; openingBalance: number; entries: LedgerEntryDto[]; closingBalance: number };
+
+export type TrialBalanceRowDto = { accountId: string; code: string; name: string; type: AccountingAccountTypeDto; debit: number; credit: number; balance: number };
+export type TrialBalanceDto = { rows: TrialBalanceRowDto[]; totalDebit: number; totalCredit: number; balanced: boolean };
+
+export type IncomeExpenseReportDto = {
+  totalIncome: number;
+  totalExpense: number;
+  netIncome: number;
+  incomeByAccount: { accountId: string; name: string; amount: number }[];
+  expenseByAccount: { accountId: string; name: string; amount: number }[];
+};
+
+export type AccountingDashboardDto = {
+  totalIncome: number;
+  totalExpense: number;
+  netIncome: number;
+  cashAndBankBalance: number;
+  unreconciledFeeCollections: number; // count, sourced from the real Phase 9F reconciliation status
+  recentJournals: JournalEntryListItemDto[];
+  trialBalanceOk: boolean; // debits == credits across all POSTED lines
+};
+
 export type MyDayDto = {
   date: string; // YYYY-MM-DD, server-derived
   weekday: Weekday;

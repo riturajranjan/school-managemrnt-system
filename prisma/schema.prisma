@@ -3621,3 +3621,169 @@ model FeeReceiptCounter {
 
   @@map("fee_receipt_counters")
 }
+
+// ===========================================================================
+// Phase 9G — Accounting / General Ledger. Conventional double-entry: every
+// AccountingAccount has a type (ASSET/LIABILITY/EQUITY/INCOME/EXPENSE);
+// every JournalEntry carries >=2 JournalLine rows whose debits equal credits
+// once POSTED (enforced server-side in lib/server/accounting/journals.ts,
+// never trusted from the client). Posted entries are immutable — a
+// correction is always a new reversal entry with every line's debit/credit
+// swapped, never an edit.
+//
+// ACCOUNTING BASIS: CASH basis. No Fee Receivable is recognized at charge/
+// assignment time — Phase 9F's dues/outstanding tracking is an operational
+// AR sub-ledger, not a formal accounting receivable, and inventing accrual
+// recognition here would silently diverge from how the product already
+// behaves. A journal is posted only at the two real cash-moving Fee events:
+// FeePayment and FeeRefund. Discount/Scholarship/LateFee still get their own
+// traceable ledger lines (not silently netted in a report) by prorating each
+// payment's amount across its settled charge(s)' own gross/discount/
+// scholarship/lateFee composition at that moment — see
+// lib/server/accounting/fee-posting.ts's doc comment for the exact formula.
+// A charge that is never paid (e.g. a 100% waiver) therefore never produces
+// an accounting entry — a known, documented cash-basis limitation.
+//
+// FEES REMAIN AUTHORITATIVE: this domain never re-implements or overrides
+// FeePayment/FeeAdjustment/FeeRefund/reconciliation — it only records their
+// accounting EFFECT, via a real sourceType+sourceId+sourceEventId trail.
+// Automatic posting is idempotent: sourceEventId is DB-unique per school, so
+// two concurrent attempts to post the same Fee event can never create two
+// journals (the loser's insert fails the constraint and is treated as
+// already-posted, not an error).
+// ===========================================================================
+
+enum AccountingAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum AccountingAccountStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/** systemKey identifies an account a real posting rule depends on (e.g. the
+ * generic cash-receipt account) — stable and never matched by name. Nullable
+ * (Postgres allows multiple NULLs under a unique index) since most accounts
+ * are ordinary user-created ledger accounts with no system role. */
+model AccountingAccount {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String?
+
+  code        String
+  name        String
+  type        AccountingAccountType
+  parentId    String?
+  description String?
+  status      AccountingAccountStatus @default(ACTIVE)
+  systemKey   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  parent   AccountingAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children AccountingAccount[] @relation("AccountHierarchy")
+  lines    JournalLine[]
+
+  // One code per school; systemKey (when set) is also unique per school.
+  @@unique([schoolId, code])
+  @@unique([schoolId, systemKey])
+  @@index([tenantId])
+  @@index([schoolId, type, status])
+  @@map("accounting_accounts")
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum JournalSourceType {
+  MANUAL
+  FEE_PAYMENT
+  FEE_REFUND
+}
+
+/** One accounting transaction. `sourceEventId` (school-unique when set) is
+ * the idempotency key for automatic Fee postings — see the domain doc
+ * comment above. `reversalOfId` is DB-unique so a given entry can be
+ * reversed at most once, even under a concurrent double-click. */
+model JournalEntry {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String?
+
+  entryNumber String
+  entryDate   DateTime @db.Date
+  description String
+  status      JournalEntryStatus @default(POSTED)
+
+  sourceType    JournalSourceType
+  sourceId      String?
+  sourceEventId String?
+
+  reversalOfId String?
+
+  createdByUserId String
+  createdByName   String?
+  postedAt        DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  lines      JournalLine[]
+  reversalOf JournalEntry?  @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversedBy JournalEntry[] @relation("Reversal")
+
+  @@unique([schoolId, entryNumber])
+  @@unique([schoolId, sourceEventId])
+  @@unique([reversalOfId])
+  @@index([tenantId])
+  @@index([schoolId, entryDate])
+  @@index([schoolId, sourceType, sourceId])
+  @@index([status])
+  @@map("journal_entries")
+}
+
+/** A line can never have both debit and credit > 0, nor both zero — enforced
+ * in lib/server/accounting/journals.ts (a DB CHECK is not expressible for
+ * "exactly one of two Decimal columns is positive" without a raw migration
+ * addition, so the invariant is enforced at the single write path instead —
+ * there is no other way to create a JournalLine). */
+model JournalLine {
+  id             String @id @default(cuid())
+  journalEntryId String
+  accountId      String
+
+  debit  Decimal @default(0) @db.Decimal(12, 2)
+  credit Decimal @default(0) @db.Decimal(12, 2)
+
+  description String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  journalEntry JournalEntry      @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      AccountingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+/** Race-safe, school-scoped journal-entry sequence — same atomic
+ * `UPDATE ... RETURNING` strategy as FeeReceiptCounter. */
+model AccountingEntryCounter {
+  schoolId String @id
+  counter  Int    @default(0)
+
+  @@map("accounting_entry_counters")
+}
