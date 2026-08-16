@@ -99,6 +99,8 @@ export type Permission =
   | "documents.upload"
   | "fees.view"
   | "fees.record"
+  | "fees.manage" // Phase 9F — aligned with the real RBAC catalog's fees.manage key
+  | "fees.collect" // Phase 9F — aligned with the real RBAC catalog's fees.collect key
   | "parents.view"
   | "parents.manage"
   | "parents.managePortal"
@@ -860,6 +862,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "curriculum.manage",
     "lessonPlans.view",
     "lessonPlans.manage",
+    "fees.view", // Phase 9F — aligned with the real RBAC catalog's fees.view/manage/collect/refund keys
+    "fees.manage",
+    "fees.collect",
+    "fees.refund",
     ...HR_OPERATE,
     "comm.view",
     "comm.message",

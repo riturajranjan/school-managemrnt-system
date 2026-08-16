@@ -1,34 +1,26 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9F) — reads GET /api/fees/payments.
+// A receipt IS the FeePayment (see the schema doc comment) — it is
+// immutable, so there is no cancel/reissue/refund-status filter here; a
+// refund is a separate real FeeRefund record against the payment, visible
+// on the receipt detail page.
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { Receipt as ReceiptIcon } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
-import { useStudents } from "@/lib/hooks/use-students";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { formatMoney } from "@/lib/finance/money";
-import { paymentMethodLabels, receiptStatusLabels, type Receipt, type ReceiptStatus } from "@/lib/types/payments";
-import { formatDateTime } from "@/lib/utils";
+import { useFeePayments } from "@/lib/hooks/api/use-fees-api";
+import type { FeePaymentDto } from "@/lib/api/contracts";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 
-const statusFilters: (ReceiptStatus | "all")[] = ["all", "issued", "cancelled", "refunded", "partially-refunded", "replaced"];
+const methodLabels: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank transfer", cheque: "Cheque", other: "Other" };
 
 export default function ReceiptsPage() {
   const router = useRouter();
-  const db = useSisStore();
-  const students = useStudents();
-  const [statusFilter, setStatusFilter] = useState<ReceiptStatus | "all">("all");
+  const { data: payments, loading, error } = useFeePayments({ pageSize: 100 });
 
-  function studentName(studentId: string) {
-    const s = students.find((st) => st.id === studentId);
-    return s ? `${s.profile.firstName} ${s.profile.lastName}` : studentId;
-  }
-
-  const rows = [...db.receipts].sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1));
-  const filtered = statusFilter === "all" ? rows : rows.filter((r) => r.status === statusFilter);
-
-  const columns: ColumnDef<Receipt>[] = [
+  const columns: ColumnDef<FeePaymentDto>[] = [
     {
       id: "receiptNumber",
       header: "Receipt",
@@ -37,39 +29,29 @@ export default function ReceiptsPage() {
       cell: (r) => (
         <div>
           <p className="text-sm font-medium text-foreground">{r.receiptNumber}</p>
-          <p className="text-xs text-muted-foreground">{studentName(r.studentId)}</p>
+          <p className="text-xs text-muted-foreground">{r.studentName}</p>
         </div>
       ),
     },
-    { id: "method", header: "Method", cell: (r) => <span className="text-sm text-foreground">{paymentMethodLabels[r.method]}</span> },
-    { id: "issuedAt", header: "Issued", sortValue: (r) => r.issuedAt, cell: (r) => <span className="text-sm text-muted-foreground">{formatDateTime(r.issuedAt)}</span> },
-    { id: "amount", header: "Total", align: "right", sortValue: (r) => r.total.minorUnits, cell: (r) => <span className="text-sm font-medium text-foreground">{formatMoney(r.total)}</span> },
-    { id: "status", header: "Status", align: "right", cell: (r) => <Badge tone={r.status === "issued" ? "success" : r.status === "cancelled" || r.status === "refunded" ? "error" : "neutral"}>{receiptStatusLabels[r.status]}</Badge> },
+    { id: "method", header: "Method", cell: (r) => <span className="text-sm text-foreground">{methodLabels[r.method]}</span> },
+    { id: "issuedAt", header: "Issued", sortValue: (r) => r.createdAt, cell: (r) => <span className="text-sm text-muted-foreground">{formatDateTime(r.createdAt)}</span> },
+    { id: "amount", header: "Total", align: "right", sortValue: (r) => r.amount, cell: (r) => <span className="text-sm font-medium text-foreground">{formatCurrency(r.amount)}</span> },
+    { id: "reconciliation", header: "Reconciliation", align: "right", cell: (r) => <Badge tone={r.reconciliationStatus === "reconciled" ? "success" : r.reconciliationStatus === "mismatch" ? "error" : "neutral"}>{r.reconciliationStatus}</Badge> },
   ];
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">Receipts</h1>
-        <p className="text-xs text-muted-foreground">Every receipt issued, cancelled, refunded or reissued</p>
+        <p className="text-xs text-muted-foreground">Every fee payment recorded</p>
       </div>
 
-      <div className="scrollbar-none flex items-center gap-1 overflow-x-auto rounded-md bg-surface-secondary p-1">
-        {statusFilters.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatusFilter(s)}
-            className={`min-h-9 shrink-0 rounded-md px-sm text-xs font-medium capitalize transition-colors ${statusFilter === s ? "bg-surface shadow-card text-foreground" : "text-muted-foreground"}`}
-          >
-            {s === "all" ? "All" : receiptStatusLabels[s]}
-          </button>
-        ))}
-      </div>
+      {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
+      {loading && payments.length === 0 && <p className="text-xs text-muted-foreground">Loading…</p>}
 
       <DataTable
         columns={columns}
-        rows={filtered}
+        rows={payments}
         getRowId={(r) => r.id}
         caption="Receipts"
         onRowClick={(r) => router.push(`/fees/receipts/${r.id}`)}
@@ -81,11 +63,11 @@ export default function ReceiptsPage() {
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">{r.receiptNumber}</p>
-              <p className="truncate text-xs text-muted-foreground">{studentName(r.studentId)}</p>
+              <p className="truncate text-xs text-muted-foreground">{r.studentName}</p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-0.5">
-              <span className="text-sm font-medium text-foreground">{formatMoney(r.total)}</span>
-              <Badge tone={r.status === "issued" ? "success" : "neutral"}>{receiptStatusLabels[r.status]}</Badge>
+              <span className="text-sm font-medium text-foreground">{formatCurrency(r.amount)}</span>
+              <Badge tone={r.reconciliationStatus === "reconciled" ? "success" : "neutral"}>{r.reconciliationStatus}</Badge>
             </div>
           </button>
         )}

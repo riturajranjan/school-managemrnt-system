@@ -95,7 +95,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "leave.submit", module: "leave", action: "submit", description: "Submit and manage own leave requests" },
   { key: "leave.approve", module: "leave", action: "approve", description: "Review, approve and reject staff leave requests" },
 
-  { key: "fees.view", module: "fees", action: "view", description: "View fees" },
+  { key: "fees.view", module: "fees", action: "view", description: "View fees, dues and reports" },
+  // Phase 9F — categories/structures/assignment/discounts/scholarships/late
+  // fees/reconciliation are all broad-manager actions under one key, matching
+  // the catalog's existing compact-foundation philosophy (like curriculum.manage
+  // covering several sub-actions) rather than a dozen granular fee permissions.
+  { key: "fees.manage", module: "fees", action: "manage", description: "Manage fee categories, structures, assignments, discounts, scholarships, late fees and reconciliation" },
   { key: "fees.collect", module: "fees", action: "collect", description: "Collect fees" },
   { key: "fees.refund", module: "fees", action: "refund", description: "Refund fees" },
 
@@ -219,7 +224,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "calendar.view", "calendar.manage",
     "staffAttendance.view", "staffAttendance.manage",
     "leave.submit", "leave.approve",
-    "fees.view", "fees.collect", "fees.refund",
+    "fees.view", "fees.manage", "fees.collect", "fees.refund",
     "transport.view",
     "library.view",
     "hr.view",

@@ -689,6 +689,9 @@ model Student {
   examMarks         ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
   examResults       StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
   promotions        StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
+  feeAssignments    StudentFeeAssignment[] // Phase 9F — fee billing
+  feeCharges        FeeCharge[] // Phase 9F — billable fee items
+  feePayments       FeePayment[] // Phase 9F — fee collections
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -1714,6 +1717,7 @@ model Class {
   examClasses      ExamClass[] // Phase 8A — exam applicability
   targetPromotions StudentPromotion[] // Phase 8E — promotions targeting this class
   curricula        Curriculum[] // Phase 9C.1 — curriculum/syllabus tracking
+  feeStructures    FeeStructureClass[] // Phase 9F — fee structures targeting this class
 
   // One class name per school + academic session.
   @@unique([schoolId, academicSessionId, name])
@@ -1782,6 +1786,7 @@ model Enrollment {
   // enrollment is historical truth and must never be deleted out from under it.
   promotionsFrom    StudentPromotion[]  @relation("PromotionFromEnrollment")
   promotionsTo      StudentPromotion[]  @relation("PromotionNewEnrollment")
+  feeAssignments    StudentFeeAssignment[] // Phase 9F — traceability only, never re-validated after the fact
 
   // One enrollment row per student per academic session; a student appears at
   // most once in a given section.
@@ -3243,4 +3248,376 @@ model LeaveRequest {
   @@index([staffId, startDate, endDate])
   @@index([status])
   @@map("leave_requests")
+}
+
+// ===========================================================================
+// Phase 9F — Fees & Collections. Money is Prisma Decimal(12,2) end to end
+// (never a JS float, matching the Super Admin billing domain's Invoice/
+// Payment precedent) — arithmetic happens with Prisma.Decimal.plus/minus in
+// the service layer, and every DTO serializes to a plain number only at the
+// API boundary. `currency` is a per-row ISO-4217 snapshot defaulting to the
+// school's own currency (same pattern as Invoice/Subscription).
+//
+// SCOPE: this is a deliberately smaller, flatter model than a full ERP fee
+// engine. One FeeStructureItem already carries its own dueDate, so it is
+// simultaneously "the fee type" and "the installment" — there is no separate
+// component/installment split, no tax/proration/versioning layer. Discount,
+// Scholarship and Late Fee all reduce/increase a FeeCharge through the SAME
+// FeeAdjustment table (kind discriminates them) — one canonical balance
+// formula, never three parallel ones. See lib/server/fees/service.ts's doc
+// comment for the exact formula and for what was deliberately deferred
+// (credit balances/advance payment, reminder automation, payment gateways,
+// bank-feed reconciliation) and why.
+//
+// HISTORICAL SAFETY: FeeCharge snapshots categoryName/itemName/amount/dueDate
+// at assignment time — renaming/archiving a FeeCategory or editing a
+// FeeStructureItem later never rewrites an already-billed student's history.
+// FeeCharge is scoped by studentId + academicSessionId (not by Enrollment),
+// so a later class/section transfer never touches it either.
+// ===========================================================================
+
+enum FeeCategoryStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model FeeCategory {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  name        String
+  code        String
+  description String?
+  status      FeeCategoryStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  items FeeStructureItem[]
+
+  // One category code per school. Archival (not delete) is the only lifecycle —
+  // historical FeeStructureItem/FeeCharge snapshots survive either way.
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("fee_categories")
+}
+
+enum FeeStructureStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model FeeStructure {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  name        String
+  description String?
+  currency    String             @default("INR")
+  status      FeeStructureStatus @default(DRAFT)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  items       FeeStructureItem[]
+  classes     FeeStructureClass[]
+  assignments StudentFeeAssignment[]
+
+  @@unique([schoolId, academicSessionId, name])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId, status])
+  @@map("fee_structures")
+}
+
+/** Real Class targeting — never a class name/label. Empty (no rows) is not a
+ * valid state for an ACTIVE structure; the service requires at least one. */
+model FeeStructureClass {
+  id             String @id @default(cuid())
+  feeStructureId String
+  classId        String
+
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([feeStructureId, classId])
+  @@index([classId])
+  @@map("fee_structure_classes")
+}
+
+model FeeStructureItem {
+  id             String @id @default(cuid())
+  feeStructureId String
+  categoryId     String
+
+  name    String?
+  amount  Decimal  @db.Decimal(12, 2)
+  dueDate DateTime @db.Date
+  order   Int      @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  category     FeeCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  charges      FeeCharge[]
+
+  @@index([feeStructureId])
+  @@index([categoryId])
+  @@map("fee_structure_items")
+}
+
+enum FeeAssignmentStatus {
+  ACTIVE
+  WITHDRAWN
+}
+
+/** The billing act itself — links one real Student to one real FeeStructure
+ * for its session. Generates one FeeCharge per FeeStructureItem (idempotent —
+ * see the unique constraint on FeeCharge below). enrollmentId is the real
+ * Enrollment the assignment was resolved against when targeting a class/
+ * section in bulk (optional: an individual assignment may not go through a
+ * section-bulk flow), kept for traceability only — never re-validated after
+ * the fact, since a later transfer must not retroactively invalidate history. */
+model StudentFeeAssignment {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  studentId      String
+  enrollmentId   String?
+  feeStructureId String
+
+  status FeeAssignmentStatus @default(ACTIVE)
+
+  assignedByUserId String
+  assignedByName   String?
+  assignedAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment?  @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Restrict)
+  charges      FeeCharge[]
+
+  // Idempotent bulk assignment: re-running the same structure+student is a
+  // no-op, never a duplicate.
+  @@unique([studentId, feeStructureId])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([studentId])
+  @@map("student_fee_assignments")
+}
+
+/** The finest-grained billable unit — real Student, real snapshot amount/
+ * dueDate/category name (never re-read live from FeeCategory/FeeStructureItem,
+ * so an edit or archive there can never rewrite an already-billed student's
+ * history). No persisted balance/status column — see
+ * lib/server/fees/service.ts's chargeBalance() for the single canonical
+ * derivation from amount + adjustments + allocations. */
+model FeeCharge {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  assignmentId       String
+  studentId          String
+  feeStructureItemId String?
+
+  categoryName String
+  itemName     String?
+  amount       Decimal  @db.Decimal(12, 2)
+  dueDate      DateTime @db.Date
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  assignment       StudentFeeAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student          Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructureItem FeeStructureItem?    @relation(fields: [feeStructureItemId], references: [id], onDelete: SetNull)
+  adjustments      FeeAdjustment[]
+  allocations      FeePaymentAllocation[]
+
+  // One charge per structure item per assignment — the idempotency guarantee
+  // for bulk assignment.
+  @@unique([assignmentId, feeStructureItemId])
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([studentId, dueDate])
+  @@map("fee_charges")
+}
+
+enum FeeAdjustmentKind {
+  DISCOUNT
+  SCHOLARSHIP
+  LATE_FEE
+}
+
+enum FeeAdjustmentAmountType {
+  FIXED
+  PERCENTAGE
+}
+
+/** The ONE canonical adjustment engine for discounts, scholarships and late
+ * fees — `kind` discriminates the business concept (and its sign: DISCOUNT/
+ * SCHOLARSHIP reduce the balance, LATE_FEE increases it — see chargeBalance()),
+ * `computedAmount` is the resolved absolute amount snapshotted at apply time
+ * (so a later change to `value`/amountType is impossible — there is no
+ * update endpoint, only apply). Never silently mutates FeeCharge.amount. */
+model FeeAdjustment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  chargeId String
+  kind     FeeAdjustmentKind
+
+  amountType     FeeAdjustmentAmountType
+  value          Decimal @db.Decimal(12, 2) // the fixed amount, or the percentage number (e.g. 10 for 10%)
+  computedAmount Decimal @db.Decimal(12, 2) // resolved absolute amount at apply time
+
+  reason String
+
+  appliedByUserId String
+  appliedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  charge FeeCharge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([chargeId])
+  @@index([schoolId, kind])
+  @@map("fee_adjustments")
+}
+
+enum FeePaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+enum FeeReconciliationStatus {
+  UNRECONCILED
+  RECONCILED
+  MISMATCH
+}
+
+/** A real collection event. receiptNumber IS the receipt — there is no
+ * separate Receipt model (a payment always has exactly one, immutable). All
+ * non-CASH methods here are manually RECORDED (no gateway ever touches this
+ * row) — see the service doc comment. */
+model FeePayment {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  studentId String
+
+  receiptNumber String   @unique
+  amount        Decimal  @db.Decimal(12, 2)
+  currency      String   @default("INR")
+  method        FeePaymentMethod
+  paymentDate   DateTime @db.Date
+
+  reference    String?
+  chequeNumber String?
+  chequeDate   DateTime? @db.Date
+  bankName     String?
+  notes        String?
+
+  receivedByUserId String
+  receivedByName   String?
+
+  reconciliationStatus FeeReconciliationStatus @default(UNRECONCILED)
+  reconciledByUserId   String?
+  reconciledByName     String?
+  reconciledAt         DateTime?                @db.Timestamptz(6)
+  reconciliationNote   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student     Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  allocations FeePaymentAllocation[]
+  refunds     FeeRefund[]
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId])
+  @@index([studentId])
+  @@index([schoolId, paymentDate])
+  @@index([reconciliationStatus])
+  @@map("fee_payments")
+}
+
+/** Connects a payment to the real charge(s) it settles — a payment may cover
+ * multiple charges, and a charge may be settled across multiple payments
+ * (partial payments). */
+model FeePaymentAllocation {
+  id        String @id @default(cuid())
+  paymentId String
+  chargeId  String
+
+  amount Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  payment FeePayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  charge  FeeCharge  @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, chargeId])
+  @@index([chargeId])
+  @@map("fee_payment_allocations")
+}
+
+model FeeRefund {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  paymentId String
+  amount    Decimal @db.Decimal(12, 2)
+  reason    String
+
+  refundedByUserId String
+  refundedByName   String?
+  refundedAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  payment FeePayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([paymentId])
+  @@map("fee_refunds")
+}
+
+/** Race-safe, school-scoped receipt sequence. `UPDATE ... SET counter =
+ * counter + 1 RETURNING counter` is atomic in Postgres — no separate row
+ * lock needed, unlike the balance-mutation transactions elsewhere in this
+ * domain. */
+model FeeReceiptCounter {
+  schoolId String @id
+  counter  Int    @default(0)
+
+  @@map("fee_receipt_counters")
 }

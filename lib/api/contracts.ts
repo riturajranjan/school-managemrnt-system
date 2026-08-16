@@ -1801,6 +1801,163 @@ export type LeaveRequestDto = {
 export type CreateLeaveRequestRequest = { staffId?: string; leaveTypeId: string; startDate: string; endDate: string; halfDay?: boolean; reason: string };
 export type RejectLeaveRequestRequest = { reviewNote: string };
 
+// --- Phase 9F: Fees & Collections. Money is a plain number in every DTO —
+// always Decimal-derived server-side (lib/server/fees/money.ts), never
+// client arithmetic authority. See lib/server/fees/balance.ts for the one
+// canonical charge-balance formula every screen below reads through. ---
+
+export type FeeCategoryStatusDto = "active" | "archived";
+export type FeeCategoryDto = { id: string; name: string; code: string; description: string | null; status: FeeCategoryStatusDto };
+export type CreateFeeCategoryRequest = { name: string; code: string; description?: string };
+export type UpdateFeeCategoryRequest = { name?: string; description?: string; status?: FeeCategoryStatusDto };
+
+export type FeeStructureStatusDto = "draft" | "active" | "archived";
+export type FeeStructureItemDto = { id: string; categoryId: string; categoryName: string; name: string | null; amount: number; dueDate: string; order: number };
+export type FeeStructureListItemDto = { id: string; name: string; academicSessionId: string; status: FeeStructureStatusDto; currency: string; totalAmount: number; classIds: string[]; classNames: string[] };
+export type FeeStructureDetailDto = FeeStructureListItemDto & { description: string | null; items: FeeStructureItemDto[] };
+export type CreateFeeStructureRequest = {
+  name: string;
+  description?: string;
+  classIds: string[];
+  items: { categoryId: string; name?: string; amount: number; dueDate: string; order?: number }[];
+};
+export type UpdateFeeStructureRequest = Partial<Omit<CreateFeeStructureRequest, "classIds" | "items">> & { classIds?: string[]; items?: CreateFeeStructureRequest["items"] };
+
+export type FeeAssignmentTargetDto = { type: "student"; studentId: string } | { type: "section"; sectionId: string } | { type: "class"; classId: string };
+export type AssignFeeStructureRequest = { feeStructureId: string; target: FeeAssignmentTargetDto };
+export type AssignFeeStructureResultDto = { assigned: number; alreadyAssigned: number; ineligible: { studentId: string; reason: string }[] };
+
+export type FeeChargeStatusDto = "unpaid" | "partially_paid" | "paid" | "overdue";
+export type FeeChargeDto = {
+  id: string;
+  studentId: string;
+  categoryName: string;
+  itemName: string | null;
+  dueDate: string;
+  billedAmount: number;
+  discountAmount: number;
+  scholarshipAmount: number;
+  lateFeeAmount: number;
+  netAmount: number;
+  paidAmount: number;
+  balance: number;
+  status: FeeChargeStatusDto;
+};
+
+export type FeeAdjustmentKindDto = "discount" | "scholarship" | "late_fee";
+export type FeeAdjustmentAmountTypeDto = "fixed" | "percentage";
+export type FeeAdjustmentDto = {
+  id: string;
+  chargeId: string;
+  kind: FeeAdjustmentKindDto;
+  amountType: FeeAdjustmentAmountTypeDto;
+  value: number;
+  computedAmount: number;
+  reason: string;
+  appliedByName: string | null;
+  createdAt: string;
+};
+export type ApplyFeeAdjustmentRequest = { chargeId: string; kind: FeeAdjustmentKindDto; amountType: FeeAdjustmentAmountTypeDto; value: number; reason: string };
+
+export type FeePaymentMethodDto = "cash" | "upi" | "card" | "bank_transfer" | "cheque" | "other";
+export type FeeReconciliationStatusDto = "unreconciled" | "reconciled" | "mismatch";
+export type FeePaymentAllocationDto = { chargeId: string; categoryName: string; itemName: string | null; amount: number };
+export type FeePaymentDto = {
+  id: string;
+  receiptNumber: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  className: string | null;
+  sectionName: string | null;
+  amount: number;
+  currency: string;
+  method: FeePaymentMethodDto;
+  paymentDate: string;
+  reference: string | null;
+  chequeNumber: string | null;
+  chequeDate: string | null;
+  bankName: string | null;
+  notes: string | null;
+  receivedByName: string | null;
+  reconciliationStatus: FeeReconciliationStatusDto;
+  reconciledByName: string | null;
+  reconciledAt: string | null;
+  reconciliationNote: string | null;
+  allocations: FeePaymentAllocationDto[];
+  refundedAmount: number;
+  createdAt: string;
+};
+export type RecordFeePaymentRequest = {
+  studentId: string;
+  allocations: { chargeId: string; amount: number }[];
+  method: FeePaymentMethodDto;
+  paymentDate?: string;
+  reference?: string;
+  chequeNumber?: string;
+  chequeDate?: string;
+  bankName?: string;
+  notes?: string;
+};
+
+export type FeeRefundDto = { id: string; paymentId: string; amount: number; reason: string; refundedByName: string | null; refundedAt: string };
+export type FeeRefundListItemDto = FeeRefundDto & { receiptNumber: string; studentName: string };
+export type CreateFeeRefundRequest = { amount: number; reason: string };
+
+export type ReconcilePaymentRequest = { status: "reconciled" | "mismatch"; note?: string };
+
+export type StudentFeeLedgerDto = {
+  studentId: string;
+  assignments: { id: string; feeStructureId: string; feeStructureName: string; status: "active" | "withdrawn"; assignedAt: string }[];
+  charges: FeeChargeDto[];
+  payments: FeePaymentDto[];
+  totals: { billed: number; adjustments: number; paid: number; balance: number };
+};
+
+export type StudentDuesRowDto = {
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  className: string | null;
+  sectionName: string | null;
+  outstanding: number;
+  overdue: number;
+  oldestOverdueDays: number;
+};
+export type DuesAgingBucketDto = { bucket: "current" | "1-15" | "16-30" | "31-60" | "61-90" | "90-plus"; amount: number; count: number };
+export type DuesSummaryDto = {
+  totalOutstanding: number;
+  totalOverdue: number;
+  dueThisWeek: number;
+  dueThisMonth: number;
+  studentsOverdue: number;
+  aging: DuesAgingBucketDto[];
+};
+
+export type FeeReminderCandidateDto = {
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  overdueAmount: number;
+  oldestOverdueDays: number;
+  guardianName: string | null;
+  guardianPhone: string | null;
+  deliverable: false; // Student/Guardian have no linked User account — always false, see lib/server/fees/reminders.ts
+};
+
+export type FeeCollectionReportDto = {
+  totalCollected: number;
+  byMethod: { method: FeePaymentMethodDto; amount: number; count: number }[];
+  byCategory: { categoryName: string; amount: number }[];
+  byDay: { date: string; amount: number }[];
+};
+export type FeeOutstandingReportDto = { totalOutstanding: number; totalOverdue: number; byClass: { classId: string; className: string; outstanding: number; overdue: number }[] };
+export type FeeAdjustmentReportDto = { totalDiscounts: number; totalScholarships: number; totalLateFees: number; count: number };
+export type FeeRefundReportDto = { totalRefunded: number; count: number };
+export type FeeReconciliationReportDto = { unreconciled: number; reconciled: number; mismatch: number; unreconciledAmount: number };
+
+export type FeeDashboardDto = { collectedToday: number; outstanding: number; overdue: number; collectedThisMonth: number };
+
 export type MyDayDto = {
   date: string; // YYYY-MM-DD, server-derived
   weekday: Weekday;

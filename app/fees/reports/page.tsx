@@ -1,28 +1,31 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9F) — every total here reuses the same
+// canonical DB-derived reports (GET /api/fees/reports/*) that Collection and
+// Dues read — no separate frontend formula.
 import Papa from "papaparse";
 import { Coins, Download, Gift, PiggyBank, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { formatMoney } from "@/lib/finance/money";
-import { collectionSummaryByMethod, totalCollected, totalOutstanding, waiverSummary } from "@/lib/selectors/finance-reports";
-import { paymentMethodLabels } from "@/lib/types/payments";
-import { downloadTextFile } from "@/lib/utils";
+import { useFeeAdjustmentReport, useFeeCollectionReport, useFeeOutstandingReport, useFeeRefundReport } from "@/lib/hooks/api/use-fees-api";
+import { downloadTextFile, formatCurrency } from "@/lib/utils";
 
 export default function FeeReportsPage() {
-  const db = useSisStore();
   const { can } = usePermissions();
-  const canExport = can("fees.viewReports") || can("fees.manageStructures");
+  const { data: collection } = useFeeCollectionReport();
+  const { data: outstanding } = useFeeOutstandingReport();
+  const { data: discounts } = useFeeAdjustmentReport("discount");
+  const { data: scholarships } = useFeeAdjustmentReport("scholarship");
+  const { data: refunds } = useFeeRefundReport();
 
-  const collected = totalCollected(db);
-  const outstanding = totalOutstanding(db);
-  const byMethod = collectionSummaryByMethod(db);
-  const waivers = waiverSummary(db);
+  if (!can("fees.view")) {
+    return <p className="py-2xl text-center text-sm text-muted-foreground">You don&apos;t have permission to view fee reports.</p>;
+  }
 
-  function exportCsv() {
-    const csv = Papa.unparse(byMethod.map((m) => ({ Method: paymentMethodLabels[m.method], "Transactions": m.count, "Total collected": formatMoney(m.total) })));
+  function exportCollectionCsv() {
+    if (!collection) return;
+    const csv = Papa.unparse(collection.byMethod.map((m) => ({ Method: m.method, Amount: formatCurrency(m.amount), Count: m.count })));
     downloadTextFile("fee-collection-by-method.csv", csv);
   }
 
@@ -31,53 +34,79 @@ export default function FeeReportsPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Fee reports</h1>
-          <p className="text-xs text-muted-foreground">Collection, dues and waiver summaries</p>
+          <p className="text-xs text-muted-foreground">Collection, dues, adjustments and refunds — all DB-derived</p>
         </div>
-        {canExport && (
-          <Button size="sm" variant="outline" onClick={exportCsv}>
-            <Download className="size-3.5" />
-            Export CSV
-          </Button>
-        )}
+        <Button size="sm" variant="outline" onClick={exportCollectionCsv} disabled={!collection}>
+          <Download className="size-3.5" />
+          Export
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Total collected" value={formatMoney(collected, { compact: true })} icon={Wallet} tone="success" />
-        <StatTile label="Total outstanding" value={formatMoney(outstanding, { compact: true })} icon={Coins} tone={outstanding.minorUnits > 0 ? "warning" : "success"} />
-        <StatTile label="Discounts + concessions" value={formatMoney({ minorUnits: waivers.discounts.minorUnits + waivers.concessions.minorUnits, currency: "INR" }, { compact: true })} icon={Gift} tone="neutral" />
-        <StatTile label="Scholarships" value={formatMoney(waivers.scholarships, { compact: true })} icon={PiggyBank} tone="neutral" />
+        <StatTile label="Total collected" value={collection ? formatCurrency(collection.totalCollected) : "—"} icon={Wallet} tone="success" />
+        <StatTile label="Total outstanding" value={outstanding ? formatCurrency(outstanding.totalOutstanding) : "—"} tone="neutral" />
+        <StatTile label="Total discounts" value={discounts ? formatCurrency(discounts.totalDiscounts) : "—"} icon={Coins} tone="neutral" />
+        <StatTile label="Total scholarships" value={scholarships ? formatCurrency(scholarships.totalScholarships) : "—"} icon={Gift} tone="neutral" />
       </div>
 
-      <div className="surface-3d rounded-lg border border-border bg-surface p-md">
-        <h2 className="mb-sm text-sm font-semibold text-foreground">Collection by payment method</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[360px] text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr>
-                <th className="p-xs text-left">Method</th>
-                <th className="p-xs text-right">Transactions</th>
-                <th className="p-xs text-right">Total collected</th>
-              </tr>
-            </thead>
-            <tbody>
-              {byMethod.map((row) => (
-                <tr key={row.method} className="border-t border-border">
-                  <td className="p-xs text-foreground">{paymentMethodLabels[row.method]}</td>
-                  <td className="p-xs text-right text-muted-foreground">{row.count}</td>
-                  <td className="p-xs text-right font-medium text-foreground">{formatMoney(row.total)}</td>
-                </tr>
-              ))}
-              {byMethod.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="p-md text-center text-muted-foreground">
-                    No collections recorded yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {collection && (
+        <div className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Collection by method</h2>
+          <div className="flex flex-col gap-1">
+            {collection.byMethod.map((m) => (
+              <div key={m.method} className="flex items-center justify-between text-sm">
+                <span className="capitalize text-foreground">{m.method.replace("_", " ")}</span>
+                <span className="text-muted-foreground">
+                  {m.count} payment{m.count === 1 ? "" : "s"} · <span className="font-medium text-foreground">{formatCurrency(m.amount)}</span>
+                </span>
+              </div>
+            ))}
+            {collection.byMethod.length === 0 && <p className="text-sm text-muted-foreground">No payments recorded yet.</p>}
+          </div>
         </div>
-      </div>
+      )}
+
+      {collection && collection.byCategory.length > 0 && (
+        <div className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Collection by category</h2>
+          <div className="flex flex-col gap-1">
+            {collection.byCategory.map((c) => (
+              <div key={c.categoryName} className="flex items-center justify-between text-sm">
+                <span className="text-foreground">{c.categoryName}</span>
+                <span className="font-medium text-foreground">{formatCurrency(c.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {outstanding && outstanding.byClass.length > 0 && (
+        <div className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Outstanding by class</h2>
+          <div className="flex flex-col gap-1">
+            {outstanding.byClass.map((c) => (
+              <div key={c.classId} className="flex items-center justify-between text-sm">
+                <span className="text-foreground">{c.className}</span>
+                <span className="flex gap-sm text-xs text-muted-foreground">
+                  <span>Overdue {formatCurrency(c.overdue)}</span>
+                  <span className="font-medium text-foreground">{formatCurrency(c.outstanding)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {refunds && (
+        <div className="rounded-lg border border-border bg-surface p-md">
+          <h2 className="mb-sm flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <PiggyBank className="size-4" /> Refunds
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {refunds.count} refund{refunds.count === 1 ? "" : "s"} · <span className="font-medium text-foreground">{formatCurrency(refunds.totalRefunded)}</span> total
+          </p>
+        </div>
+      )}
     </div>
   );
 }

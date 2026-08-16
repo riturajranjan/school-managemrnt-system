@@ -1,191 +1,132 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9F) — POSTs to /api/fees/adjustments
+// (kind: "discount"), the same canonical adjustment engine Scholarships and
+// Late Fees use. Applies against real, student-specific FeeCharge rows —
+// never a broad "applicable component" rule against the whole structure.
 import { useState } from "react";
-import { Check, Coins, Plus, X, XCircle } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import type { ColumnDef, RowAction } from "@/components/data-table/types";
+import { Coins } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatTile } from "@/components/ui/stat-tile";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useDiscounts, useFeeStructures } from "@/lib/hooks/use-finance";
-import { useStudents } from "@/lib/hooks/use-students";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { formatMoney } from "@/lib/finance/money";
-import { CURRENT_SESSION } from "@/lib/data/seed/reference";
-import { approveWaiver, rejectWaiver, requestDiscount, revokeWaiver } from "@/lib/services/waiver-approval-service";
-import { approvalWorkflowStatusLabels, discountTypeLabels, type Discount, type DiscountType } from "@/lib/types/fees";
-import { formatDate } from "@/lib/utils";
-
-const ACTOR = { name: "Finance Administrator", role: "Finance Administrator" };
-const typeOptions = Object.keys(discountTypeLabels) as DiscountType[];
+import { useStudentList } from "@/lib/hooks/api/use-students";
+import { applyFeeAdjustmentRequest, useFeeAdjustmentReport, useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
+import type { FeeAdjustmentAmountTypeDto } from "@/lib/api/contracts";
+import { formatCurrency } from "@/lib/utils";
 
 export default function DiscountsPage() {
-  const discounts = useDiscounts();
-  const students = useStudents();
-  const structures = useFeeStructures();
-  const db = useSisStore();
   const { can } = usePermissions();
-  const canManage = can("fees.manageDiscounts");
+  const canManage = can("fees.manage");
+  const { data: report } = useFeeAdjustmentReport("discount");
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [studentId, setStudentId] = useState("");
-  const [name, setName] = useState("");
-  const [type, setType] = useState<DiscountType>("custom");
-  const [percent, setPercent] = useState(10);
+  const [search, setSearch] = useState("");
+  const { data: students } = useStudentList({ search: search.trim() || undefined, pageSize: 10, status: ["active"] });
+  const [studentId, setStudentId] = useState<string | null>(null);
+  const { data: ledger, reload } = useStudentFeeLedger(studentId);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [amountType, setAmountType] = useState<FeeAdjustmentAmountTypeDto>("percentage");
+  const [value, setValue] = useState("");
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function studentName(id: string) {
-    const s = students.find((st) => st.id === id);
-    return s ? `${s.profile.firstName} ${s.profile.lastName}` : id;
+  if (!canManage) {
+    return (
+      <div className="flex flex-col items-center gap-sm py-2xl text-center">
+        <Coins className="size-6 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage discounts.</p>
+      </div>
+    );
   }
 
-  function applicableComponentIdsFor(sid: string) {
-    const assignment = db.studentFeeAssignments.find((a) => a.studentId === sid && a.status === "active");
-    const structure = structures.find((s) => s.id === assignment?.structureId);
-    return structure?.components.map((c) => c.id) ?? [];
+  const charges = (ledger?.charges ?? []).filter((c) => c.status !== "paid");
+
+  async function apply() {
+    setError(null);
+    if (selected.size === 0) return setError("Select at least one fee item.");
+    if (!value || Number(value) <= 0) return setError("Enter a positive value.");
+    if (!reason.trim()) return setError("A reason is required.");
+    setSaving(true);
+    for (const chargeId of selected) {
+      const res = await applyFeeAdjustmentRequest({ chargeId, kind: "discount", amountType, value: Number(value), reason: reason.trim() });
+      if (!res.success) {
+        setError(res.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+    setSaving(false);
+    setSelected(new Set());
+    setValue("");
+    setReason("");
+    reload();
   }
-
-  const columns: ColumnDef<Discount>[] = [
-    {
-      id: "name",
-      header: "Discount",
-      alwaysVisible: true,
-      sortValue: (d) => d.name,
-      cell: (d) => (
-        <div>
-          <p className="text-sm font-medium text-foreground">{d.name}</p>
-          <p className="text-xs text-muted-foreground">{studentName(d.studentId)}</p>
-        </div>
-      ),
-    },
-    { id: "type", header: "Type", cell: (d) => <Badge tone="info">{discountTypeLabels[d.type]}</Badge> },
-    { id: "value", header: "Value", cell: (d) => <span className="text-sm text-foreground">{d.percent ? `${d.percent}%` : d.amount ? formatMoney(d.amount) : "—"}</span> },
-    { id: "effective", header: "Effective from", cell: (d) => <span className="text-sm text-muted-foreground">{formatDate(d.effectiveFrom)}</span>, defaultVisible: false },
-    {
-      id: "status",
-      header: "Status",
-      align: "right",
-      cell: (d) => <Badge tone={d.status === "active" ? "success" : d.status === "rejected" || d.status === "revoked" ? "error" : "neutral"}>{approvalWorkflowStatusLabels[d.status]}</Badge>,
-    },
-  ];
-
-  const rowActions: RowAction<Discount>[] = canManage
-    ? [
-        { key: "approve", label: "Approve", icon: <Check className="size-3.5" />, hidden: (d) => d.status !== "submitted" && d.status !== "under-review", onSelect: (d) => approveWaiver("discount", d.id, ACTOR) },
-        { key: "reject", label: "Reject", icon: <X className="size-3.5" />, hidden: (d) => d.status !== "submitted" && d.status !== "under-review", onSelect: (d) => rejectWaiver("discount", d.id, "Not approved", ACTOR) },
-        { key: "revoke", label: "Revoke", icon: <XCircle className="size-3.5" />, hidden: (d) => d.status !== "active", destructive: true, onSelect: (d) => revokeWaiver("discount", d.id, "Revoked by finance", ACTOR) },
-      ]
-    : [];
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
-      <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Discounts</h1>
-          <p className="text-xs text-muted-foreground">Sibling, merit, promotional and other fee discounts</p>
-        </div>
-        {canManage && (
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-3.5" />
-            Request discount
-          </Button>
-        )}
+      <div>
+        <h1 className="text-lg font-semibold text-foreground">Discounts</h1>
+        <p className="text-xs text-muted-foreground">Apply a fixed or percentage discount to a student&apos;s fee items</p>
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={discounts}
-        getRowId={(d) => d.id}
-        caption="Discounts"
-        rowActions={rowActions}
-        renderMobileCard={(d) => (
-          <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-            <div className="flex items-center justify-between gap-xs">
-              <p className="truncate text-sm font-semibold text-foreground">{d.name}</p>
-              <Badge tone={d.status === "active" ? "success" : "neutral"}>{approvalWorkflowStatusLabels[d.status]}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {studentName(d.studentId)} · {d.percent ? `${d.percent}%` : d.amount ? formatMoney(d.amount) : "—"}
-            </p>
+      {report && (
+        <div className="grid grid-cols-2 gap-sm sm:grid-cols-2">
+          <StatTile label="Total discounts applied" value={formatCurrency(report.totalDiscounts)} tone="neutral" />
+          <StatTile label="Discounts count" value={String(report.count)} tone="neutral" />
+        </div>
+      )}
+
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <Label htmlFor="student-search">Student</Label>
+        <Input id="student-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or admission number" />
+        {search.trim() && !studentId && (
+          <div className="mt-sm flex flex-col gap-1">
+            {students.map((s) => (
+              <button key={s.id} type="button" onClick={() => { setStudentId(s.id); setSearch(`${s.firstName} ${s.lastName}`); }} className="flex items-center justify-between rounded-md px-sm py-1.5 text-left text-sm hover:bg-surface-secondary/60">
+                <span>{s.firstName} {s.lastName}</span>
+                <span className="text-xs text-muted-foreground">{s.admissionNumber}</span>
+              </button>
+            ))}
           </div>
         )}
-        emptyIcon={Coins}
-        emptyTitle="No discounts recorded"
-      />
 
-      <DetailDrawer
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (!open) setError(null);
-        }}
-        title="Request a discount"
-        description="Submitted for approval before it reduces the student's fee items"
-      >
-        <div className="flex flex-col gap-sm">
-          {error && <p className="text-xs text-error">{error}</p>}
-          <div>
-            <Label>Student</Label>
-            <Select value={studentId} onValueChange={setStudentId}>
-              <SelectTrigger aria-label="Student">
-                <SelectValue placeholder="Select student" />
-              </SelectTrigger>
-              <SelectContent>
-                {students
-                  .filter((s) => s.status === "active")
-                  .slice(0, 100)
-                  .map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.profile.firstName} {s.profile.lastName}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+        {studentId && ledger && (
+          <div className="mt-sm flex flex-col gap-sm">
+            <div className="flex flex-col gap-1">
+              {charges.map((c) => (
+                <label key={c.id} className="flex items-center gap-sm rounded-md border border-border px-sm py-1.5 text-sm">
+                  <input type="checkbox" checked={selected.has(c.id)} onChange={() => setSelected((prev) => { const next = new Set(prev); if (next.has(c.id)) next.delete(c.id); else next.add(c.id); return next; })} />
+                  <span className="min-w-0 flex-1 truncate text-foreground">{c.itemName || c.categoryName}</span>
+                  <span className="text-xs text-muted-foreground">{formatCurrency(c.netAmount)}</span>
+                </label>
+              ))}
+              {charges.length === 0 && <p className="text-sm text-muted-foreground">No unpaid fee items for this student.</p>}
+            </div>
+
+            <div className="grid grid-cols-1 gap-sm sm:grid-cols-3">
+              <Select value={amountType} onValueChange={(v) => setAmountType(v as FeeAdjustmentAmountTypeDto)}>
+                <SelectTrigger aria-label="Type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage</SelectItem>
+                  <SelectItem value="fixed">Fixed amount</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input type="number" min={0} value={value} onChange={(e) => setValue(e.target.value)} placeholder={amountType === "percentage" ? "e.g. 10" : "e.g. 2000"} />
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (e.g. Sibling discount)" />
+            </div>
+            {error && <Badge tone="error">{error}</Badge>}
+            <Button disabled={saving} onClick={apply} className="self-start">
+              Apply discount
+            </Button>
           </div>
-          <div>
-            <Label htmlFor="disc-name">Name</Label>
-            <Input id="disc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sibling discount" />
-          </div>
-          <div>
-            <Label>Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as DiscountType)}>
-              <SelectTrigger aria-label="Discount type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {typeOptions.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {discountTypeLabels[t]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="disc-percent">Percent off</Label>
-            <Input id="disc-percent" type="number" min={0} max={100} value={percent} onChange={(e) => setPercent(Number(e.target.value))} />
-          </div>
-          <Button
-            disabled={!studentId || !name.trim()}
-            onClick={() => {
-              const result = requestDiscount({ studentId, name: name.trim(), type, percent, applicableComponentIds: applicableComponentIdsFor(studentId), session: CURRENT_SESSION, effectiveFrom: new Date().toISOString() }, ACTOR);
-              if (!result.ok) {
-                setError(result.errors.join(" "));
-                return;
-              }
-              setCreateOpen(false);
-              setName("");
-              setStudentId("");
-            }}
-          >
-            Submit for approval
-          </Button>
-        </div>
-      </DetailDrawer>
+        )}
+      </div>
     </div>
   );
 }

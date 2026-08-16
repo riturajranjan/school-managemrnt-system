@@ -26,12 +26,13 @@ import {
   useStudentDetail,
 } from "@/lib/hooks/api/use-students";
 import { useStudentAttendance } from "@/lib/hooks/api/use-attendance";
+import { useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
-import { initialsOf } from "@/lib/utils";
+import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can } = usePermissions();
@@ -67,6 +68,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="guardians">Guardians</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="fees">Fees</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -81,6 +83,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="attendance" className="mt-md">
           <AttendanceSection studentId={student.id} />
+        </TabsContent>
+        <TabsContent value="fees" className="mt-md">
+          <FeesSection studentId={student.id} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -97,10 +102,10 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         onConfirm={() => void onArchive()}
       />
 
-      {/* Deliberately no fees / academics sections — those are owned by future
-          module phases and are not faked against this real record. */}
+      {/* Deliberately no academics/transport/health sections — those are owned
+          by future module phases and are not faked against this real record. */}
       <p className="text-xs text-muted-foreground">
-        Fees, academics, transport and health for this student appear once those modules are migrated.
+        Academics, transport and health for this student appear once those modules are migrated.
       </p>
     </div>
   );
@@ -405,6 +410,80 @@ function AttendanceSection({ studentId }: { studentId: string }) {
           {data.recent.length === 0 && <p className="text-sm text-muted-foreground">No attendance recorded yet.</p>}
         </ul>
       </div>
+    </div>
+  );
+}
+
+// Real PostgreSQL/API cutover (Phase 9F) — reads GET /api/fees/students/[id]/ledger.
+function FeesSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentFeeLedger(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading fees…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  const statusTone: Record<string, "success" | "warning" | "error" | "neutral"> = { paid: "success", partially_paid: "warning", overdue: "error", unpaid: "neutral" };
+
+  if (data.assignments.length === 0) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">No fee structure has been assigned to this student yet.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Billed</p>
+          <p className="text-lg font-semibold text-foreground">{formatCurrency(data.totals.billed)}</p>
+        </div>
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Paid</p>
+          <p className="text-lg font-semibold text-success">{formatCurrency(data.totals.paid)}</p>
+        </div>
+        <div className="rounded-lg border border-border p-sm">
+          <p className="text-xs text-muted-foreground">Balance</p>
+          <p className={`text-lg font-semibold ${data.totals.balance > 0 ? "text-error" : "text-foreground"}`}>{formatCurrency(data.totals.balance)}</p>
+        </div>
+        <div className="rounded-lg border border-border p-sm">
+          <Link href={`/fees/collection/new?studentId=${studentId}`} className="flex h-full items-center justify-center text-sm font-medium text-primary hover:underline">
+            Record payment
+          </Link>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Fee items</h2>
+        <ul className="flex flex-col gap-sm">
+          {data.charges.map((c) => (
+            <li key={c.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+              <div className="min-w-0">
+                <p className="truncate text-foreground">{c.itemName || c.categoryName}</p>
+                <p className="text-xs text-muted-foreground">Due {new Date(c.dueDate).toLocaleDateString("en-IN")}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-sm">
+                <span className="font-medium text-foreground">{formatCurrency(c.balance)}</span>
+                <Badge tone={statusTone[c.status] ?? "neutral"}>{c.status.replace("_", " ")}</Badge>
+              </div>
+            </li>
+          ))}
+          {data.charges.length === 0 && <p className="text-sm text-muted-foreground">No fee items yet.</p>}
+        </ul>
+      </div>
+
+      {data.payments.length > 0 && (
+        <div className="rounded-lg border border-border p-sm">
+          <h2 className="mb-sm text-sm font-semibold text-foreground">Payments</h2>
+          <ul className="flex flex-col gap-sm">
+            {data.payments.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+                <Link href={`/fees/receipts/${p.id}`} className="min-w-0 truncate text-primary hover:underline">
+                  {p.receiptNumber}
+                </Link>
+                <span className="shrink-0 font-medium text-foreground">{formatCurrency(p.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

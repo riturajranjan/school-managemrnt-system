@@ -164,6 +164,33 @@ const MIGRATED_FILES = [
   "components/shell/notification-center.tsx",
   "components/shell/notification-trigger.tsx",
   "components/shell/shell-context.tsx",
+  // Phase 9F — Fees & Collections. Real FeeCategory/FeeStructure/
+  // StudentFeeAssignment/FeeCharge/FeeAdjustment/FeePayment/FeeRefund via
+  // /api/fees/* (PostgreSQL). Must never reintroduce db.feeCategories/
+  // feeStructures/studentFeeItems/payments/receipts/discounts/scholarships/
+  // reminderRules or lib/hooks/use-finance's deleted fee-specific hooks.
+  // /fees/dashboard and /fees/concessions are honest redirects (no page body
+  // of their own to guard); app/pay/[linkId] is an honest deferred stub.
+  // /hr/* stays on the separate, still-mock Employee/HR domain — not guarded.
+  "app/fees/page.tsx",
+  "app/fees/categories/page.tsx",
+  "app/fees/structures/page.tsx",
+  "app/fees/structures/new/page.tsx",
+  "app/fees/structures/[structureId]/page.tsx",
+  "app/fees/assignments/page.tsx",
+  "app/fees/collection/page.tsx",
+  "app/fees/collection/new/page.tsx",
+  "app/fees/dues/page.tsx",
+  "app/fees/receipts/page.tsx",
+  "app/fees/receipts/[receiptId]/page.tsx",
+  "app/fees/discounts/page.tsx",
+  "app/fees/scholarships/page.tsx",
+  "app/fees/fines/page.tsx",
+  "app/fees/refunds/page.tsx",
+  "app/fees/reconciliation/page.tsx",
+  "app/fees/reminders/page.tsx",
+  "app/fees/reports/page.tsx",
+  "components/students/profile/student-profile.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -243,6 +270,19 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/staff-attendance-service", why: "mock staff-attendance service (deleted — dead import)" },
   { marker: '"@/lib/services/leave-service"', why: "mock staff/student leave-request service (deleted — dead import)" },
   { marker: "db.staffAttendance", why: "mock staff-attendance store slice (deleted — dead import)" },
+  // Phase 9F — fees mock authority (real surfaces must use hooks/api/use-fees-api).
+  { marker: "services/fee-category-service", why: "mock fee-category service (deleted — dead import)" },
+  { marker: "services/fee-structure-service", why: "mock fee-structure service (deleted — dead import)" },
+  { marker: "services/fee-assignment-service", why: "mock fee-assignment service (deleted — dead import)" },
+  { marker: '"@/lib/services/student-fee-service"', why: "mock discount/scholarship/concession service (deleted — dead import)" },
+  { marker: '"@/lib/services/payment-service"', why: "mock fee-payment service (deleted — dead import)" },
+  { marker: "services/receipt-service", why: "mock receipt service (deleted — dead import)" },
+  { marker: '"@/lib/services/reminder-service"', why: "mock fee-reminder send service (deleted — dead import)" },
+  { marker: "services/reminder-rule-service", why: "mock reminder-rule service (deleted — dead import)" },
+  { marker: "services/payment-link-service", why: "mock payment-link/gateway-simulation service (deleted — dead import)" },
+  { marker: "selectors/dues-insights", why: "mock dues aging/metrics selector (deleted — dead import)" },
+  { marker: "hooks/use-finance\"", why: "mock fees hooks (deleted from use-finance.ts — use hooks/api/use-fees-api)" },
+  { marker: "simulateGatewayCallback", why: "fake payment-gateway checkout simulation (deleted — dead import)" },
 ];
 
 function collectSources(dir: string): string[] {
