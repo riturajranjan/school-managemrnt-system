@@ -13,7 +13,7 @@ import { getAccountingAccount } from "./accounts";
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 const parseDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
 const dateToUi = (d: Date) => d.toISOString().slice(0, 10);
-const SOURCE_TO_UI: Record<string, JournalSourceTypeDto> = { MANUAL: "manual", FEE_PAYMENT: "fee_payment", FEE_REFUND: "fee_refund" };
+const SOURCE_TO_UI: Record<string, JournalSourceTypeDto> = { MANUAL: "manual", FEE_PAYMENT: "fee_payment", FEE_REFUND: "fee_refund", PAYROLL_PAYMENT: "payroll_payment" };
 
 function normalBalance(type: string, debit: number, credit: number): number {
   return type === "ASSET" || type === "EXPENSE" ? debit - credit : credit - debit;

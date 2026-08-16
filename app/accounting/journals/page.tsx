@@ -19,7 +19,7 @@ import { createAndPostJournalEntryRequest, reverseJournalEntryRequest, useAccoun
 import type { JournalEntryListItemDto, JournalSourceTypeDto } from "@/lib/api/contracts";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-const sourceLabels: Record<JournalSourceTypeDto, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund" };
+const sourceLabels: Record<JournalSourceTypeDto, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund", payroll_payment: "Payroll payment" };
 
 type DraftLine = { accountId: string; side: "debit" | "credit"; amount: number };
 function blankLine(): DraftLine {

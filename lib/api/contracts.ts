@@ -1980,7 +1980,7 @@ export type CreateAccountingAccountRequest = { code: string; name: string; type:
 export type UpdateAccountingAccountRequest = { name?: string; description?: string; parentId?: string | null; status?: AccountingAccountStatusDto };
 
 export type JournalEntryStatusDto = "draft" | "posted" | "reversed";
-export type JournalSourceTypeDto = "manual" | "fee_payment" | "fee_refund";
+export type JournalSourceTypeDto = "manual" | "fee_payment" | "fee_refund" | "payroll_payment";
 export type JournalLineDto = { id: string; accountId: string; accountCode: string; accountName: string; debit: number; credit: number; description: string | null };
 export type JournalEntryListItemDto = {
   id: string;
@@ -2030,6 +2030,180 @@ export type AccountingDashboardDto = {
   unreconciledFeeCollections: number; // count, sourced from the real Phase 9F reconciliation status
   recentJournals: JournalEntryListItemDto[];
   trialBalanceOk: boolean; // debits == credits across all POSTED lines
+};
+
+// --- Phase 9H: Payroll ---
+
+export type SalaryComponentTypeDto = "earning" | "deduction";
+export type SalaryComponentCalcTypeDto = "fixed" | "percentage";
+export type SalaryComponentStatusDto = "active" | "archived";
+
+export type SalaryComponentDto = {
+  id: string;
+  code: string;
+  name: string;
+  type: SalaryComponentTypeDto;
+  calcType: SalaryComponentCalcTypeDto;
+  description: string | null;
+  status: SalaryComponentStatusDto;
+};
+
+export type CreateSalaryComponentRequest = {
+  code: string;
+  name: string;
+  type: SalaryComponentTypeDto;
+  calcType: SalaryComponentCalcTypeDto;
+  description?: string;
+};
+export type UpdateSalaryComponentRequest = { name?: string; description?: string | null; status?: SalaryComponentStatusDto };
+
+export type SalaryStructureStatusDto = "active" | "archived";
+
+export type SalaryStructureComponentLineDto = {
+  id: string;
+  componentId: string;
+  componentCode: string;
+  componentName: string;
+  type: SalaryComponentTypeDto;
+  calcType: SalaryComponentCalcTypeDto;
+  amount: number | null;
+  percent: number | null;
+  percentOfLineId: string | null;
+};
+
+export type SalaryStructureListItemDto = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: SalaryStructureStatusDto;
+  componentCount: number;
+  assignmentCount: number; // >0 means structurally locked
+};
+
+export type SalaryStructureDetailDto = SalaryStructureListItemDto & {
+  components: SalaryStructureComponentLineDto[];
+};
+
+export type CreateSalaryStructureComponentInput = { componentId: string; amount?: number; percent?: number; percentOfComponentId?: string };
+export type CreateSalaryStructureRequest = { name: string; description?: string; components: CreateSalaryStructureComponentInput[] };
+export type UpdateSalaryStructureRequest = { name?: string; description?: string | null; components?: CreateSalaryStructureComponentInput[] };
+export type SetSalaryStructureStatusRequest = { status: SalaryStructureStatusDto };
+
+export type StaffSalaryAssignmentDto = {
+  id: string;
+  staffId: string;
+  employeeCode: string;
+  staffName: string;
+  salaryStructureId: string;
+  salaryStructureName: string;
+  effectiveFrom: string; // YYYY-MM-DD
+  effectiveTo: string | null;
+  createdByName: string | null;
+  createdAt: string;
+};
+export type CreateStaffSalaryAssignmentRequest = { staffId: string; salaryStructureId: string; effectiveFrom: string; effectiveTo?: string };
+
+export type PayrollRunStatusDto = "draft" | "calculated" | "finalized" | "paid";
+
+export type PayrollRunListItemDto = {
+  id: string;
+  year: number;
+  month: number;
+  period: string; // "YYYY-MM"
+  status: PayrollRunStatusDto;
+  staffCount: number;
+  totalGross: number;
+  totalDeductions: number;
+  totalNet: number;
+  calculatedAt: string | null;
+  finalizedAt: string | null;
+  paidAt: string | null;
+};
+
+export type PayrollRunItemComponentDto = {
+  id: string;
+  componentId: string | null;
+  componentName: string;
+  type: SalaryComponentTypeDto;
+  amount: number;
+  source: "structure" | "manual";
+  manualReason: string | null;
+};
+
+export type PayrollRunItemDto = {
+  id: string;
+  staffId: string;
+  employeeCode: string;
+  staffName: string;
+  salaryStructureId: string | null;
+  salaryStructureName: string | null;
+  grossEarnings: number;
+  totalDeductions: number;
+  netPay: number;
+  attendance: { present: number; absent: number; late: number; halfDay: number; onLeave: number; notMarked: number; paidLeave: number; unpaidLeave: number };
+  components: PayrollRunItemComponentDto[];
+};
+
+export type PayrollRunDetailDto = PayrollRunListItemDto & {
+  items: PayrollRunItemDto[];
+  staffWithoutAssignment: { staffId: string; employeeCode: string; staffName: string }[];
+};
+
+export type CreatePayrollRunRequest = { year: number; month: number };
+export type AddManualPayrollAdjustmentRequest = { componentId: string; amount: number; reason: string };
+
+export type PayrollPaymentMethodDto = "cash" | "upi" | "card" | "bank_transfer" | "cheque" | "other";
+export type PayrollPaymentDto = {
+  id: string;
+  payrollRunId: string;
+  amount: number;
+  paymentDate: string;
+  method: PayrollPaymentMethodDto;
+  reference: string | null;
+  createdByName: string | null;
+  createdAt: string;
+};
+export type RecordPayrollPaymentRequest = { paymentDate: string; method: PayrollPaymentMethodDto; reference?: string };
+
+export type PayslipDto = {
+  id: string; // PayrollRunItem id
+  payrollRunId: string;
+  period: string; // "YYYY-MM"
+  runStatus: PayrollRunStatusDto;
+  school: string;
+  employeeCode: string;
+  staffName: string;
+  earnings: { label: string; amount: number }[];
+  deductions: { label: string; amount: number }[];
+  grossEarnings: number;
+  totalDeductions: number;
+  netPay: number;
+  attendance: PayrollRunItemDto["attendance"];
+  paymentStatus: "unpaid" | "paid";
+  paidOn: string | null;
+  generatedAt: string;
+};
+
+export type PayrollComponentBreakdownDto = { componentId: string | null; name: string; type: SalaryComponentTypeDto; amount: number };
+export type PayrollEarningsDeductionsReportDto = {
+  totalGross: number;
+  totalDeductions: number;
+  totalNet: number;
+  runCount: number;
+  byComponent: PayrollComponentBreakdownDto[];
+};
+
+export type PayrollDashboardDto = {
+  currentPeriod: { year: number; month: number; period: string } | null;
+  currentRunStatus: PayrollRunStatusDto | null;
+  currentRunGross: number;
+  currentRunNet: number;
+  currentRunStaffCount: number;
+  yearToDateGross: number;
+  yearToDateNet: number;
+  activeStructures: number;
+  staffWithoutAssignment: number;
+  recentRuns: PayrollRunListItemDto[];
 };
 
 export type MyDayDto = {

@@ -197,8 +197,8 @@ const MIGRATED_FILES = [
   // Must never reintroduce db.chartOfAccounts/journalEntries/ledgerEntries/
   // bankAccounts/cashAccounts/cashierShifts/bankTransactions/expenses or the
   // deleted mock chart-of-accounts/income-expense/cashier-shift services.
-  // journal-service.ts still exists (still consumed by the mock Payroll
-  // run service) so it is guarded individually rather than deleted.
+  // journal-service.ts was retained here pending its last consumer (the mock
+  // Payroll run service) — Phase 9H deleted both together, see below.
   // Vendors/Purchase-Orders/Budgets pages stay mock (out of Phase 9G scope) —
   // not guarded here.
   "app/accounting/page.tsx",
@@ -211,6 +211,21 @@ const MIGRATED_FILES = [
   "app/accounting/expenses/page.tsx",
   "app/accounting/expenses/new/page.tsx",
   "app/accounting/bank-reconciliation/page.tsx",
+  // Phase 9H — Payroll. Real SalaryComponent/SalaryStructure/
+  // StaffSalaryAssignment/PayrollRun/PayrollRunItem/PayrollPayment via
+  // /api/payroll/* (PostgreSQL), posting to the REAL Phase 9G Accounting
+  // ledger (no parallel journal engine). Must never reintroduce
+  // db.payrollRuns/salaryStructures/payslips/employeeLoans/employeeAdvances
+  // or the deleted mock payroll-run/salary-structure/loan-advance/journal
+  // services. Uses the real Staff model — no second Employee model.
+  // Loans/Advances/Tax pages are honest deferred stubs (no real policy).
+  "app/payroll/page.tsx",
+  "app/payroll/dashboard/page.tsx",
+  "app/payroll/structures/page.tsx",
+  "app/payroll/run/page.tsx",
+  "app/payroll/history/page.tsx",
+  "app/payroll/payslips/page.tsx",
+  "app/payroll/payslips/[payslipId]/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -307,7 +322,7 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/chart-of-accounts-service", why: "mock chart-of-accounts service (deleted — dead import)" },
   { marker: "services/income-expense-service", why: "mock income/expense service (deleted — dead import)" },
   { marker: "services/cashier-shift-service", why: "mock cashier-shift service (deleted — dead import)" },
-  { marker: '"@/lib/services/journal-service"', why: "mock journal-posting service (still used by the mock Payroll run service — not by real surfaces)" },
+  { marker: '"@/lib/services/journal-service"', why: "mock journal-posting service (deleted Phase 9H once its last consumer, the mock payroll-run-service, was deleted — dead import)" },
   { marker: "selectors/finance-reports", why: "mock trial-balance/income-statement/cash-flow selectors (deleted Phase 9G — dead import)" },
 ];
 

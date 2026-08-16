@@ -203,6 +203,10 @@ export type Permission =
   | "payroll.approve"
   | "payroll.viewPayslips"
   | "payroll.manageLoans"
+  // Phase 9H — aligned with the real RBAC catalog's payroll.view/manage/finalize/pay keys
+  | "payroll.manage"
+  | "payroll.finalize"
+  | "payroll.pay"
   // Phase 6 — transport and fleet operations
   | "transport.view"
   | "transport.manageRoutes"
@@ -873,6 +877,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "accounting.manage",
     "accounting.post",
     "accounting.reverse",
+    "payroll.view", // Phase 9H — aligned with the real RBAC catalog's payroll.view/manage/finalize/pay keys
+    "payroll.manage",
+    "payroll.finalize",
+    "payroll.pay",
     ...HR_OPERATE,
     "comm.view",
     "comm.message",

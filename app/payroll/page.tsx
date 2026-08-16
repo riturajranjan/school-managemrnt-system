@@ -1,37 +1,34 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9H). Loans/Advances/Tax quick links
+// stay (nav shape preserved) but their pages are now honest deferred stubs —
+// no real lending or statutory-tax policy exists in this repo.
 import Link from "next/link";
 import { Banknote, CalendarClock, FileText, Gauge, HandCoins, History, Percent, Receipt, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
-import { usePayrollRuns, usePayslips, useSalaryStructures } from "@/lib/hooks/use-finance";
-import { formatMoney } from "@/lib/finance/money";
+import { usePayrollDashboard } from "@/lib/hooks/api/use-payroll-api";
+import { formatCurrency } from "@/lib/utils";
 
 const quickLinks = [
-  { href: "/payroll/structures", label: "Salary structures", description: "Earning and deduction components per employee", icon: Users },
-  { href: "/payroll/run", label: "Run payroll", description: "Draft, review, approve and lock a monthly run", icon: HandCoins },
-  { href: "/payroll/history", label: "Payroll history", description: "Every past run with its status and journal", icon: History },
-  { href: "/payroll/payslips", label: "Payslips", description: "Generated payslips, one per employee per period", icon: FileText },
-  { href: "/payroll/tax", label: "Tax summary", description: "Statutory deductions withheld per period", icon: Percent },
-  { href: "/payroll/loans", label: "Loans", description: "Employee loans and monthly recovery schedule", icon: Banknote },
-  { href: "/payroll/advances", label: "Advances", description: "Salary and emergency advances", icon: Receipt },
+  { href: "/payroll/structures", label: "Salary structures", description: "Components, reusable structures and staff assignments", icon: Users },
+  { href: "/payroll/run", label: "Run payroll", description: "Calculate, finalize and pay a monthly run", icon: HandCoins },
+  { href: "/payroll/history", label: "Payroll history", description: "Every past run with its status", icon: History },
+  { href: "/payroll/payslips", label: "Payslips", description: "Generated payslips, one per staff member per period", icon: FileText },
+  { href: "/payroll/tax", label: "Tax summary", description: "Not available — no statutory tax policy configured", icon: Percent },
+  { href: "/payroll/loans", label: "Loans", description: "Not available — no lending policy configured", icon: Banknote },
+  { href: "/payroll/advances", label: "Advances", description: "Not available — no advance policy configured", icon: Receipt },
 ];
 
 export default function PayrollHubPage() {
-  const structures = useSalaryStructures();
-  const runs = usePayrollRuns();
-  const payslips = usePayslips();
-
-  const activeStructures = structures.filter((s) => s.status === "active").length;
-  const lastRun = [...runs].sort((a, b) => (a.period < b.period ? 1 : -1))[0];
-  const pendingRuns = runs.filter((r) => r.status === "draft" || r.status === "calculating" || r.status === "review").length;
+  const { data } = usePayrollDashboard();
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Payroll</h1>
-          <p className="text-xs text-muted-foreground">Salary structures, monthly runs, payslips, loans and advances</p>
+          <p className="text-xs text-muted-foreground">Salary structures, monthly runs, payslips and payments</p>
         </div>
         <Button asChild size="sm">
           <Link href="/payroll/dashboard">
@@ -42,13 +39,11 @@ export default function PayrollHubPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Active structures" value={String(activeStructures)} icon={Users} tone="neutral" />
-        <StatTile label="Last run" value={lastRun ? lastRun.period : "—"} icon={CalendarClock} tone="neutral" />
-        <StatTile label="Last net pay" value={lastRun ? formatMoney(lastRun.totalNet, { compact: true }) : "—"} icon={HandCoins} tone="success" />
-        <StatTile label="Runs pending" value={String(pendingRuns)} icon={History} tone={pendingRuns > 0 ? "warning" : "success"} />
+        <StatTile label="Active structures" value={String(data?.activeStructures ?? "—")} icon={Users} tone="neutral" />
+        <StatTile label="Current period" value={data?.currentPeriod?.period ?? "—"} icon={CalendarClock} tone="neutral" />
+        <StatTile label="Current period net" value={formatCurrency(data?.currentRunNet ?? 0)} icon={HandCoins} tone="success" />
+        <StatTile label="Runs this year" value={String(data?.recentRuns.length ?? "—")} icon={History} tone="neutral" />
       </div>
-
-      <p className="text-xs text-muted-foreground">{payslips.length} payslip(s) generated to date.</p>
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">
         {quickLinks.map(({ href, label, description, icon: Icon }) => (

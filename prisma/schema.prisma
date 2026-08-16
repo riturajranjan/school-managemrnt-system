@@ -2055,6 +2055,8 @@ model Staff {
   lessonPlans             LessonPlan[] // Phase 9C.2 — lesson plans
   attendanceRecords       StaffAttendanceRecord[] // Phase 9E.1 — own daily attendance
   leaveRequests           LeaveRequest[] // Phase 9E.2 — own leave requests
+  salaryAssignments       StaffSalaryAssignment[] // Phase 9H — effective-dated salary assignments
+  payrollItems            PayrollRunItem[] // Phase 9H — payroll snapshots
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3709,6 +3711,7 @@ enum JournalSourceType {
   MANUAL
   FEE_PAYMENT
   FEE_REFUND
+  PAYROLL_PAYMENT
 }
 
 /** One accounting transaction. `sourceEventId` (school-unique when set) is
@@ -3786,4 +3789,346 @@ model AccountingEntryCounter {
   counter  Int    @default(0)
 
   @@map("accounting_entry_counters")
+}
+
+// ===========================================================================
+// Phase 9H — Payroll. Uses the REAL Staff model (Phase 6A) as the sole
+// employee identity — no second Employee/HR model. Uses the REAL
+// StaffAttendanceRecord (9E.1) and LeaveRequest (9E.2) as DISPLAY-ONLY
+// context on a payroll snapshot — neither ever changes a calculated amount.
+// Posts to the REAL Phase 9G JournalEntry/JournalLine ledger — no parallel
+// accounting engine.
+//
+// PAYROLL V1 POLICY (deliberately minimal — see the Phase 9H final report for
+// the full audit):
+//   - Monthly frequency. One PayrollRun per (schoolId, branchId, year, month),
+//     DB-unique.
+//   - Salary is a FIXED reusable SalaryStructure (EARNING/DEDUCTION
+//     components, FIXED or PERCENTAGE-of-another-component-in-the-same-
+//     structure) assigned to a Staff via an effective-dated
+//     StaffSalaryAssignment. grossEarnings = sum(EARNING), totalDeductions =
+//     sum(DEDUCTION), netPay = grossEarnings - totalDeductions. No
+//     attendance- or leave-based deduction: this repo has no working-day-
+//     calendar / per-day-rate / LOP-conversion policy, so attendance and
+//     leave are captured on PayrollRunItem purely as informational summary
+//     counts (never read by the calculation). Manual per-run adjustments
+//     (bonus/allowance/deduction/reimbursement) are plain flat-amount
+//     PayrollRunItemComponent rows with source=MANUAL — never a computed
+//     rule.
+//   - Lifecycle: DRAFT -> CALCULATED -> FINALIZED -> PAID. Calculating
+//     replaces this run's PayrollRunItem/PayrollRunItemComponent rows
+//     (idempotent) until FINALIZED; a FINALIZED run's snapshot is immutable
+//     — corrections are a new run or a reversal journal, never an edit.
+//     Finalize/pay use a `SELECT ... FOR UPDATE` lock on the PayrollRun row
+//     (same pattern as Phase 9E's leave-overlap check and Phase 8E's
+//     promotion capacity lock) so two concurrent transitions can never both
+//     succeed.
+//   - Payment is RECORDING only (PayrollPayment), never a real bank
+//     transfer — one PayrollPayment per PayrollRun (@@unique), whole-run
+//     payment only, no partial disbursement in V1.
+//   - Accounting recognition point mirrors Fees' CASH basis: a JournalEntry
+//     posts only when a PayrollPayment is recorded (never merely on
+//     finalize) — Debit PAYROLL_EXPENSE, Credit the existing Phase 9G BANK
+//     system account (no duplicate clearing account invented). Idempotent
+//     via the same sourceEventId ("PAYROLL_PAYMENT:<id>") uniqueness Fees
+//     uses.
+//   - Explicitly DEFERRED, not invented: PF/ESI/TDS/Professional Tax/
+//     gratuity/overtime, loans/advances, attendance- or leave-based salary
+//     deduction, department/designation-grouped reports (Staff.department/
+//     designation are free-text, not a real dimension entity), payslip
+//     PAN/UAN/ESI/bank-account fields, PDF generation (browser print only).
+// ===========================================================================
+
+enum SalaryComponentType {
+  EARNING
+  DEDUCTION
+}
+
+enum SalaryComponentCalcType {
+  FIXED
+  PERCENTAGE
+}
+
+enum SalaryComponentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/** A reusable earning/deduction line definition. Archived components remain
+ * readable (never deleted) so historical PayrollRunItemComponent snapshots
+ * that reference one stay resolvable. */
+model SalaryComponent {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  code        String
+  name        String
+  type        SalaryComponentType
+  calcType    SalaryComponentCalcType
+  description String?
+  status      SalaryComponentStatus  @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  structureLines SalaryStructureComponent[]
+  payrollLines   PayrollRunItemComponent[]
+
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("salary_components")
+}
+
+enum SalaryStructureStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/** A reusable named bundle of components. Structural edits (component list)
+ * are only allowed while it has zero StaffSalaryAssignment rows — once
+ * assigned, it is financially live and only name/description/status remain
+ * editable (mirrors lib/server/fees/structures.ts's FeeStructure exactly). */
+model SalaryStructure {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  name        String
+  description String?
+  status      SalaryStructureStatus @default(ACTIVE)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  components  SalaryStructureComponent[]
+  assignments StaffSalaryAssignment[]
+
+  @@unique([schoolId, name])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("salary_structures")
+}
+
+/** One component line within a structure. Exactly one of `amount` /
+ * (`percent` + `percentOfComponentId`) is set, matching calcType — enforced
+ * in lib/server/payroll/structures.ts, not expressible as a DB CHECK across
+ * a self-referencing FK. `percentOfComponentId` must reference another line
+ * in the SAME structure. */
+model SalaryStructureComponent {
+  id                String  @id @default(cuid())
+  salaryStructureId String
+  salaryComponentId String
+  amount            Decimal? @db.Decimal(12, 2)
+  percent           Decimal? @db.Decimal(5, 2)
+  percentOfLineId   String?
+  order             Int      @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  salaryStructure SalaryStructure  @relation(fields: [salaryStructureId], references: [id], onDelete: Cascade)
+  salaryComponent SalaryComponent  @relation(fields: [salaryComponentId], references: [id], onDelete: Restrict)
+  percentOfLine   SalaryStructureComponent?  @relation("PercentBase", fields: [percentOfLineId], references: [id], onDelete: SetNull)
+  percentBasisFor SalaryStructureComponent[] @relation("PercentBase")
+
+  // One line per component per structure — never duplicated.
+  @@unique([salaryStructureId, salaryComponentId])
+  @@index([salaryStructureId])
+  @@map("salary_structure_components")
+}
+
+/** Effective-dated assignment of a real Staff to a real SalaryStructure. A
+ * salary change is always a NEW row (effectiveTo set on the old one) — never
+ * a mutation of history. Overlap prevention is enforced in
+ * lib/server/payroll/assignments.ts via a `SELECT ... FOR UPDATE` lock on the
+ * Staff row (same pattern as Phase 9E's leave-overlap check), not a DB
+ * constraint Postgres can't express without extensions. */
+model StaffSalaryAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId           String
+  salaryStructureId String
+
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff           Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  salaryStructure SalaryStructure @relation(fields: [salaryStructureId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([staffId, effectiveFrom])
+  @@index([schoolId, branchId])
+  @@map("staff_salary_assignments")
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  CALCULATED
+  FINALIZED
+  PAID
+}
+
+/** One payroll period for one branch. `year`/`month` are the period identity
+ * (never derived from createdAt). FINALIZED is the immutability boundary —
+ * see the section doc comment above for the full lifecycle/concurrency
+ * rationale. */
+model PayrollRun {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  year  Int
+  month Int // 1-12
+
+  status PayrollRunStatus @default(DRAFT)
+
+  totalGross      Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions Decimal @default(0) @db.Decimal(14, 2)
+  totalNet        Decimal @default(0) @db.Decimal(14, 2)
+
+  createdByUserId String
+  createdByName   String?
+  calculatedAt    DateTime? @db.Timestamptz(6)
+  finalizedAt     DateTime? @db.Timestamptz(6)
+  finalizedByName String?
+  paidAt          DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  items   PayrollRunItem[]
+  payment PayrollPayment?
+
+  // One run per branch per period — never duplicated.
+  @@unique([schoolId, branchId, year, month])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("payroll_runs")
+}
+
+/** One immutable-once-FINALIZED payroll snapshot per Staff per run. Staff
+ * name/code and structure name are captured here as historical DISPLAY
+ * snapshots (real staffId/salaryStructureId FKs remain the relationship
+ * authority) so a later Staff rename or structure edit can never alter a
+ * generated payslip. Attendance/leave counts are informational only —
+ * NEVER an input to grossEarnings/totalDeductions/netPay. */
+model PayrollRunItem {
+  id           String @id @default(cuid())
+  payrollRunId String
+
+  staffId             String
+  employeeCode         String
+  staffName            String
+  salaryStructureId    String?
+  salaryStructureName  String?
+
+  grossEarnings   Decimal @db.Decimal(12, 2)
+  totalDeductions Decimal @db.Decimal(12, 2)
+  netPay          Decimal @db.Decimal(12, 2)
+
+  // Informational attendance/leave summary for the run's period — display only.
+  presentDays   Int @default(0)
+  absentDays    Int @default(0)
+  lateDays      Int @default(0)
+  halfDays      Int @default(0)
+  onLeaveDays   Int @default(0)
+  notMarkedDays Int @default(0)
+  paidLeaveDays   Int @default(0)
+  unpaidLeaveDays Int @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  payrollRun PayrollRun                 @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  staff      Staff                      @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  components PayrollRunItemComponent[]
+
+  // One snapshot per staff per run — recalculation replaces, never duplicates.
+  @@unique([payrollRunId, staffId])
+  @@index([staffId])
+  @@map("payroll_run_items")
+}
+
+enum PayrollComponentSource {
+  STRUCTURE
+  MANUAL
+}
+
+/** One frozen component line within a PayrollRunItem snapshot. `componentId`
+ * is kept for traceability but componentName/type are snapshotted so a later
+ * SalaryComponent rename never rewrites a finalized payslip line. */
+model PayrollRunItemComponent {
+  id               String @id @default(cuid())
+  payrollRunItemId String
+
+  componentId   String?
+  componentName String
+  type          SalaryComponentType
+  amount        Decimal @db.Decimal(12, 2)
+
+  source          PayrollComponentSource @default(STRUCTURE)
+  manualReason    String?
+  createdByUserId String?
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  payrollRunItem PayrollRunItem   @relation(fields: [payrollRunItemId], references: [id], onDelete: Cascade)
+  component      SalaryComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+
+  @@index([payrollRunItemId])
+  @@map("payroll_run_item_components")
+}
+
+enum PayrollPaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+/** Records that a FINALIZED run's total was paid — never initiates a real
+ * bank transfer (no gateway/bank-feed integration exists). One row per run
+ * (@@unique) — whole-run payment only; two concurrent attempts race on this
+ * constraint, so exactly one can ever succeed. */
+model PayrollPayment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  payrollRunId String @unique
+
+  amount      Decimal               @db.Decimal(14, 2)
+  paymentDate DateTime              @db.Date
+  method      PayrollPaymentMethod
+  reference   String?
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, branchId])
+  @@map("payroll_payments")
 }

@@ -113,6 +113,17 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "accounting.post", module: "accounting", action: "post", description: "Post a draft journal entry" },
   { key: "accounting.reverse", module: "accounting", action: "reverse", description: "Reverse a posted journal entry" },
 
+  // Phase 9H — Payroll. Same reasoning as Fees/Accounting: no real
+  // ACCOUNTANT/HR_MANAGER DB role exists, so these are granted to
+  // SCHOOL_ADMIN (full) / PRINCIPAL (view, matching its accounting.view-only
+  // oversight pattern) — never a new role invented for this phase. Staff
+  // self-service payslip access is identity-based (Staff.userId), not
+  // gated by any of these permissions.
+  { key: "payroll.view", module: "payroll", action: "view", description: "View salary structures, payroll runs, payslips, reports and dashboard" },
+  { key: "payroll.manage", module: "payroll", action: "manage", description: "Manage salary components/structures, staff assignments and payroll runs" },
+  { key: "payroll.finalize", module: "payroll", action: "finalize", description: "Finalize a calculated payroll run" },
+  { key: "payroll.pay", module: "payroll", action: "pay", description: "Record payment for a finalized payroll run" },
+
   { key: "transport.view", module: "transport", action: "view", description: "View transport" },
   { key: "transport.manage", module: "transport", action: "manage", description: "Manage transport" },
 
@@ -235,6 +246,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "leave.submit", "leave.approve",
     "fees.view", "fees.manage", "fees.collect", "fees.refund",
     "accounting.view", "accounting.manage", "accounting.post", "accounting.reverse",
+    "payroll.view", "payroll.manage", "payroll.finalize", "payroll.pay",
     "transport.view",
     "library.view",
     "hr.view",
@@ -262,6 +274,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "leave.submit", "leave.approve",
     "fees.view",
     "accounting.view",
+    "payroll.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",
