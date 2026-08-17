@@ -75,13 +75,13 @@ export function useKnowledgeArticles() {
   return useSisStore().knowledgeArticles;
 }
 
-export function useVisitors() {
-  return useSisStore().visitors;
-}
-
-export function useVisitorAppointments() {
-  return useSisStore().visitorAppointments;
-}
+// Phase 9I: useVisitors()/useVisitorAppointments() were deleted — zero
+// remaining consumers after the real /api/visitors/* cutover (see
+// lib/hooks/api/use-visitors-api.ts). lib/selectors/communication-brief.ts
+// still reads db.visitors/db.visitorAppointments directly (not through
+// these hooks) for the unrelated, not-migrated Communication Hub dashboard
+// (app/communication/page.tsx) — retained, documented in the Phase 9I
+// final report.
 
 export function useGatePasses() {
   return useSisStore().gatePasses;

@@ -2057,6 +2057,7 @@ model Staff {
   leaveRequests           LeaveRequest[] // Phase 9E.2 — own leave requests
   salaryAssignments       StaffSalaryAssignment[] // Phase 9H — effective-dated salary assignments
   payrollItems            PayrollRunItem[] // Phase 9H — payroll snapshots
+  hostedVisits            VisitorVisit[] // Phase 9I — visits where this staff is the host
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3077,6 +3078,7 @@ enum NotificationType {
   LEAVE_REQUEST_SUBMITTED
   LEAVE_REQUEST_APPROVED
   LEAVE_REQUEST_REJECTED
+  VISITOR_CHECKED_IN
 }
 
 model Notification {
@@ -4131,4 +4133,121 @@ model PayrollPayment {
   @@index([tenantId])
   @@index([schoolId, branchId])
   @@map("payroll_payments")
+}
+
+// ===========================================================================
+// Phase 9I — Visitor Management. Audited existing mock: app/front-desk/
+// visitors/* (walk-in check-in + status list) and app/front-desk/
+// appointments/* (a read-only "expected visitor" schedule). Both are folded
+// into ONE model, VisitorVisit, per the phase's own instruction — no
+// parallel Appointment domain. app/front-desk/gate-passes (a broader
+// student/staff/material/vehicle pass system, not visitor-specific) and
+// calls/deliveries/incidents are separate Front Desk sub-domains, untouched.
+// No blacklist/watchlist UI or concept exists anywhere in the repo — none is
+// invented here (see the Phase 9I final report).
+//
+// Visitor is the person; VisitorVisit is one visit by that person. A host is
+// a real Staff FK (VisitorVisit.hostStaffId) — never a name string; the mock
+// UI made host selection mandatory, so this FK is required, not nullable.
+// No identity-document fields (ID type/number, photo) are stored — the old
+// mock UI's own copy already says "ID verification is a front-desk step;
+// document scanning/storage is not part of this frontend build," and no real
+// storage mechanism exists to justify adding them now.
+//
+// LIFECYCLE: EXPECTED -> CHECKED_IN -> CHECKED_OUT, or EXPECTED/CHECKED_IN ->
+// CANCELLED. The old mock's WAITING/MEETING/DENIED status values were never
+// actually produced by any real mutation (checkInVisitor() always set
+// "checked-in" directly) — dropped as unused-in-practice, not a real product
+// requirement. Enforced by lib/server/visitors/visits.ts, never client-side.
+//
+// PASS NUMBER: server-generated via the same race-safe school-scoped
+// `UPDATE ... RETURNING counter` pattern as FeeReceiptCounter/
+// AccountingEntryCounter — VisitorPassCounter below. Format
+// VIS-<schoolCode>-<year>-<counter>.
+// ===========================================================================
+
+model Visitor {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  fullName     String
+  phone        String
+  organization String?
+  notes        String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  visits VisitorVisit[]
+
+  @@index([tenantId])
+  @@index([schoolId, phone])
+  @@map("visitors")
+}
+
+enum VisitorCategory {
+  PARENT
+  VENDOR
+  GUEST
+  CONTRACTOR
+  INTERVIEW_CANDIDATE
+  ALUMNI
+  OFFICIAL
+  OTHER
+}
+
+enum VisitorVisitStatus {
+  EXPECTED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+model VisitorVisit {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  visitorId String
+  hostStaffId String
+
+  category    VisitorCategory @default(GUEST)
+  purpose     String
+  department  String?
+  vehicleNumber String?
+
+  status VisitorVisitStatus @default(EXPECTED)
+
+  expectedAt   DateTime? @db.Timestamptz(6)
+  checkedInAt  DateTime? @db.Timestamptz(6)
+  checkedOutAt DateTime? @db.Timestamptz(6)
+  passNumber   String?
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  visitor Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  host    Staff   @relation(fields: [hostStaffId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, passNumber])
+  @@index([tenantId])
+  @@index([schoolId, branchId, status])
+  @@index([schoolId, status, expectedAt])
+  @@index([visitorId])
+  @@index([hostStaffId])
+  @@map("visitor_visits")
+}
+
+/** Race-safe, school-scoped visitor-pass sequence — same atomic
+ * `UPDATE ... RETURNING` strategy as FeeReceiptCounter/AccountingEntryCounter. */
+model VisitorPassCounter {
+  schoolId String @id
+  counter  Int    @default(0)
+
+  @@map("visitor_pass_counters")
 }

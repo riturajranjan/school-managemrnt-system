@@ -175,7 +175,12 @@ export type AuditAction =
   | "PAYROLL_RUN_CREATED"
   | "PAYROLL_CALCULATED"
   | "PAYROLL_FINALIZED"
-  | "PAYROLL_PAYMENT_RECORDED";
+  | "PAYROLL_PAYMENT_RECORDED"
+  | "VISITOR_CREATED"
+  | "VISIT_EXPECTED"
+  | "VISITOR_CHECKED_IN"
+  | "VISITOR_CHECKED_OUT"
+  | "VISIT_CANCELLED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

@@ -207,6 +207,9 @@ export type Permission =
   | "payroll.manage"
   | "payroll.finalize"
   | "payroll.pay"
+  // Phase 9I — aligned with the real RBAC catalog's visitors.view/manage keys
+  | "visitors.view"
+  | "visitors.manage"
   // Phase 6 — transport and fleet operations
   | "transport.view"
   | "transport.manageRoutes"
@@ -622,6 +625,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...FEES_OVERSIGHT,
     ...ACCOUNTING_OVERSIGHT,
     ...PAYROLL_OVERSIGHT,
+    "visitors.view", // Phase 9I — aligned with the real RBAC catalog's visitors.view key
     ...TRANSPORT_OVERSIGHT,
     ...LIBRARY_OVERSIGHT,
     ...INVENTORY_OVERSIGHT,
@@ -678,6 +682,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     ...FEES_OVERSIGHT,
     ...ACCOUNTING_OVERSIGHT,
     ...PAYROLL_OVERSIGHT,
+    "visitors.view", // Phase 9I — aligned with the real RBAC catalog's visitors.view key
     ...TRANSPORT_OVERSIGHT,
     ...LIBRARY_OVERSIGHT,
     "library.waiveFines",
@@ -881,6 +886,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "payroll.manage",
     "payroll.finalize",
     "payroll.pay",
+    "visitors.view", // Phase 9I — aligned with the real RBAC catalog's visitors.view/manage keys
+    "visitors.manage",
     ...HR_OPERATE,
     "comm.view",
     "comm.message",

@@ -31,6 +31,7 @@ import { seedStaffAttendanceLeave } from "./seed-staff-attendance-leave";
 import { seedFees } from "./seed-fees";
 import { seedAccounting } from "./seed-accounting";
 import { seedPayroll } from "./seed-payroll";
+import { seedVisitors } from "./seed-visitors";
 import { seedInvoices } from "./seed-invoices";
 import { seedPayments } from "./seed-payments";
 
@@ -350,6 +351,11 @@ async function main() {
   // Phase 9H — real Payroll
   // =========================================================================
   await seedPayroll(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
+
+  // =========================================================================
+  // Phase 9I — real Visitor Management
+  // =========================================================================
+  await seedVisitors(prisma, { tenantId: tenant.id, schoolId: school.id, branchId: mainBranch.id, academicSessionId: academicSession.id });
 
   // -------------------------------------------------------------------------
   const [tenants, schools, branches, sessions, users, memberships, roleCount, assignments, permissions, rolePerms] =

@@ -124,6 +124,14 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "payroll.finalize", module: "payroll", action: "finalize", description: "Finalize a calculated payroll run" },
   { key: "payroll.pay", module: "payroll", action: "pay", description: "Record payment for a finalized payroll run" },
 
+  // Phase 9I — Visitor Management. No real "receptionist" DB role exists
+  // (mock-only), so these are granted to SCHOOL_ADMIN (full) / PRINCIPAL
+  // (view, matching the established oversight pattern) — never a new role
+  // invented for this phase. checkIn/checkOut are folded into
+  // visitors.manage (the mock UI only ever distinguished view/manage too).
+  { key: "visitors.view", module: "visitors", action: "view", description: "View visitors, visits, expected visitors and dashboard" },
+  { key: "visitors.manage", module: "visitors", action: "manage", description: "Register visitors, check in/out, cancel visits" },
+
   { key: "transport.view", module: "transport", action: "view", description: "View transport" },
   { key: "transport.manage", module: "transport", action: "manage", description: "Manage transport" },
 
@@ -247,6 +255,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "fees.view", "fees.manage", "fees.collect", "fees.refund",
     "accounting.view", "accounting.manage", "accounting.post", "accounting.reverse",
     "payroll.view", "payroll.manage", "payroll.finalize", "payroll.pay",
+    "visitors.view", "visitors.manage",
     "transport.view",
     "library.view",
     "hr.view",
@@ -275,6 +284,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "fees.view",
     "accounting.view",
     "payroll.view",
+    "visitors.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",

@@ -414,40 +414,16 @@ export type KnowledgeArticle = {
 // Front Desk — visitors, appointments, gate passes, calls, deliveries
 // ---------------------------------------------------------------------------
 
+// Phase 9I: visitorTypeLabels/visitorStatusLabels/visitorStatusTone/
+// appointmentTypeLabels (display-only label/tone maps) were deleted — zero
+// remaining consumers after the real /api/visitors/* cutover. The
+// underlying types below remain: lib/data/store.ts's Db shape and
+// lib/data/seed/communication.ts still declare/populate db.visitors/
+// visitorAppointments, read by the unrelated, not-migrated Communication
+// Hub (lib/selectors/communication-brief.ts -> app/communication/page.tsx).
 export type VisitorType = "parent" | "vendor" | "guest" | "contractor" | "interview-candidate" | "alumni" | "official" | "other";
 
-export const visitorTypeLabels: Record<VisitorType, string> = {
-  parent: "Parent",
-  vendor: "Vendor",
-  guest: "Guest",
-  contractor: "Contractor",
-  "interview-candidate": "Interview candidate",
-  alumni: "Alumni",
-  official: "Official",
-  other: "Other",
-};
-
 export type VisitorStatus = "expected" | "waiting" | "checked-in" | "meeting" | "checked-out" | "denied" | "cancelled";
-
-export const visitorStatusLabels: Record<VisitorStatus, string> = {
-  expected: "Expected",
-  waiting: "Waiting",
-  "checked-in": "Checked in",
-  meeting: "In meeting",
-  "checked-out": "Checked out",
-  denied: "Denied",
-  cancelled: "Cancelled",
-};
-
-export const visitorStatusTone: Record<VisitorStatus, "success" | "warning" | "error" | "info" | "neutral"> = {
-  expected: "info",
-  waiting: "warning",
-  "checked-in": "success",
-  meeting: "info",
-  "checked-out": "neutral",
-  denied: "error",
-  cancelled: "neutral",
-};
 
 export type Visitor = {
   id: ID;
@@ -469,17 +445,6 @@ export type Visitor = {
 };
 
 export type AppointmentType = "parent-meeting" | "principal-meeting" | "teacher-meeting" | "admission-enquiry" | "vendor-meeting" | "interview" | "counselling" | "general";
-
-export const appointmentTypeLabels: Record<AppointmentType, string> = {
-  "parent-meeting": "Parent meeting",
-  "principal-meeting": "Principal meeting",
-  "teacher-meeting": "Teacher meeting",
-  "admission-enquiry": "Admission enquiry",
-  "vendor-meeting": "Vendor meeting",
-  interview: "Interview",
-  counselling: "Counselling",
-  general: "General",
-};
 
 export type AppointmentStatus = "scheduled" | "confirmed" | "in-progress" | "completed" | "cancelled" | "no-show";
 

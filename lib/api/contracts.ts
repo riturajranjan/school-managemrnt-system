@@ -1699,7 +1699,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in";
 
 export type NotificationDto = {
   id: string;
@@ -2204,6 +2204,64 @@ export type PayrollDashboardDto = {
   activeStructures: number;
   staffWithoutAssignment: number;
   recentRuns: PayrollRunListItemDto[];
+};
+
+// --- Phase 9I: Visitor Management ---
+
+export type VisitorCategoryDto = "parent" | "vendor" | "guest" | "contractor" | "interview_candidate" | "alumni" | "official" | "other";
+export type VisitorVisitStatusDto = "expected" | "checked_in" | "checked_out" | "cancelled";
+
+export type VisitorVisitListItemDto = {
+  id: string;
+  visitorId: string;
+  visitorName: string;
+  visitorPhone: string;
+  organization: string | null;
+  hostStaffId: string;
+  hostName: string;
+  category: VisitorCategoryDto;
+  purpose: string;
+  department: string | null;
+  vehicleNumber: string | null;
+  status: VisitorVisitStatusDto;
+  expectedAt: string | null;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
+  passNumber: string | null;
+};
+
+export type VisitorVisitDetailDto = VisitorVisitListItemDto & {
+  visitorPastVisitCount: number;
+};
+
+export type CreateWalkInVisitRequest = {
+  fullName: string;
+  phone: string;
+  organization?: string;
+  category: VisitorCategoryDto;
+  purpose: string;
+  department?: string;
+  vehicleNumber?: string;
+  hostStaffId: string;
+};
+
+export type CreateExpectedVisitRequest = {
+  fullName: string;
+  phone: string;
+  organization?: string;
+  category: VisitorCategoryDto;
+  purpose: string;
+  department?: string;
+  hostStaffId: string;
+  expectedAt: string; // ISO datetime
+};
+
+export type VisitorDashboardDto = {
+  today: number;
+  currentlyInside: number;
+  expectedToday: number;
+  checkedOutToday: number;
+  currentlyInsideList: VisitorVisitListItemDto[];
 };
 
 export type MyDayDto = {

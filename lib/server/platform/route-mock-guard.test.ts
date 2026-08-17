@@ -226,6 +226,19 @@ const MIGRATED_FILES = [
   "app/payroll/history/page.tsx",
   "app/payroll/payslips/page.tsx",
   "app/payroll/payslips/[payslipId]/page.tsx",
+  // Phase 9I — Visitor Management. Real Visitor/VisitorVisit via
+  // /api/visitors/* (PostgreSQL); host resolved through the real Staff
+  // model (Phase 6A) — never mock db.employees/hostName strings. Must never
+  // reintroduce db.visitors/visitorAppointments, Math.random() badge codes,
+  // or the deleted mock checkInVisitor/setVisitorStatus. app/front-desk/
+  // page.tsx (hub) is a hybrid — its visitor tiles are real but it still
+  // legitimately reads db.gatePasses/deliveries/receptionCalls/
+  // frontDeskIncidents for unmigrated Front Desk sub-domains, so it is NOT
+  // guarded here. gate-passes/calls/deliveries/incidents pages stay fully
+  // mock — separate domains, out of Phase 9I scope.
+  "app/front-desk/visitors/page.tsx",
+  "app/front-desk/visitors/new/page.tsx",
+  "app/front-desk/appointments/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -333,6 +346,16 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/finance-brief", why: "mock finance exceptions/daily-brief selector (deleted Phase 9H — dead import)" },
   { marker: "finance/finance-pulse-gauge", why: "mock Finance Pulse gauge component (deleted Phase 9H — dead import)" },
   { marker: '"@/lib/types/payroll"', why: "mock Payroll types (SalaryStructure/PayrollRun/Payslip/EmployeeLoan) — real surfaces use lib/api/contracts.ts DTOs instead" },
+  // Phase 9I — visitor mock authority (real surfaces must use hooks/api/use-visitors-api).
+  { marker: "checkInVisitor", why: "mock walk-in check-in (Math.random() badge code) — deleted, dead import" },
+  { marker: "setVisitorStatus", why: "mock visitor status mutation — deleted, dead import" },
+  { marker: "VisitorDraft", why: "mock visitor check-in draft type — deleted, dead import" },
+  { marker: "useVisitors\"", why: "mock db.visitors hook (deleted from use-communication.ts — use hooks/api/use-visitors-api)" },
+  { marker: "useVisitorAppointments", why: "mock db.visitorAppointments hook (deleted — use hooks/api/use-visitors-api)" },
+  { marker: "visitorStatusLabels", why: "mock visitor status label map (deleted — dead import)" },
+  { marker: "visitorStatusTone", why: "mock visitor status tone map (deleted — dead import)" },
+  { marker: "visitorTypeLabels", why: "mock visitor type label map (deleted — dead import)" },
+  { marker: "db.employees", why: "mock Employee list used as a visitor host — real surfaces must use hooks/api/use-staff" },
 ];
 
 function collectSources(dir: string): string[] {

@@ -1,164 +1,118 @@
 "use client";
 
+// Real PostgreSQL/API cutover (Phase 9I). Host picker uses the real Staff
+// foundation (Phase 6A) — never a mock employee-list host name string. Pass
+// number is server-generated (race-safe counter), never Math.random(). The
+// QR glyph encodes the real pass number (an opaque identifier already, no
+// personal data) — matches the mock's own stated intent.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  ArrowLeft,
-  BadgeCheck,
-  Check,
-  ChevronRight,
-  MapPin,
-} from "lucide-react";
+import { ArrowLeft, BadgeCheck, Check, ChevronRight, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QrGlyph } from "@/components/library/code-label";
 import { CampusMap } from "@/components/communication/campus-map";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { checkInVisitor } from "@/lib/services/communication-service";
+import { useStaff } from "@/lib/hooks/api/use-staff";
+import { createWalkInVisitRequest } from "@/lib/hooks/api/use-visitors-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { visitorTypeLabels, type VisitorType } from "@/lib/types/communication";
+import type { VisitorCategoryDto, VisitorVisitDetailDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
 
-const departments = [
-  "Academics",
-  "Administration",
-  "Accounts",
-  "HR",
-  "Principal Office",
-  "Library",
+const categoryOptions: { value: VisitorCategoryDto; label: string }[] = [
+  { value: "parent", label: "Parent" }, { value: "vendor", label: "Vendor" }, { value: "guest", label: "Guest" },
+  { value: "contractor", label: "Contractor" }, { value: "interview_candidate", label: "Interview candidate" },
+  { value: "alumni", label: "Alumni" }, { value: "official", label: "Official" }, { value: "other", label: "Other" },
 ];
+const departments = ["Academics", "Administration", "Accounts", "HR", "Principal Office", "Library"];
 
 export default function VisitorCheckInPage() {
-  const db = useSisStore();
   const router = useRouter();
   const { can, role } = usePermissions();
-  const hosts = db.employees
-    .slice(0, 40)
-    .map((e) => `${e.firstName} ${e.lastName}`);
+  const { data: staff } = useStaff({ status: "active" });
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [org, setOrg] = useState("");
-  const [type, setType] = useState<VisitorType>("parent");
+  const [category, setCategory] = useState<VisitorCategoryDto>("parent");
   const [purpose, setPurpose] = useState("");
-  const [host, setHost] = useState(hosts[0] ?? "");
+  const [hostStaffId, setHostStaffId] = useState("");
   const [department, setDepartment] = useState(departments[0]);
   const [vehicle, setVehicle] = useState("");
-  const [badge, setBadge] = useState<{ number: string; token: string } | null>(
-    null,
-  );
+  const [visit, setVisit] = useState<VisitorVisitDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  if (!can("frontdesk.manage"))
-    return (
-      <PermissionDenied
-        action="check in visitors"
-        role={roleLabels[role]}
-        backHref="/front-desk/visitors"
-      />
-    );
+  if (!can("visitors.manage")) return <PermissionDenied action="check in visitors" role={roleLabels[role]} backHref="/front-desk/visitors" />;
 
-  function submit() {
+  async function submit() {
     setError(null);
     if (!name.trim()) return setError("Visitor name is required.");
-    if (!host) return setError("Select a host to meet.");
-    const result = checkInVisitor({
-      name,
-      phone,
-      organization: org || undefined,
-      purpose: purpose || "Visit",
-      hostName: host,
-      department,
-      type,
-      vehicleNumber: vehicle || undefined,
+    if (!hostStaffId) return setError("Select a host to meet.");
+    setBusy(true);
+    const result = await createWalkInVisitRequest({
+      fullName: name.trim(), phone: phone.trim(), organization: org.trim() || undefined,
+      purpose: purpose.trim() || "Visit", category, department, vehicleNumber: vehicle.trim() || undefined, hostStaffId,
     });
-    if (!result.ok) return setError(result.error);
-    const v = db.visitors.find((x) => x.id === result.visitorId);
-    setBadge({
-      number: v?.visitorNumber ?? "V-000",
-      token: v?.badgeCode ?? "BADGE",
-    });
+    setBusy(false);
+    if (!result.success) return setError(result.error.message);
+    setVisit(result.data);
   }
 
-  if (badge) {
+  const hostName = staff?.find((s) => s.id === hostStaffId)?.name ?? "";
+
+  if (visit) {
     return (
       <div className="mx-auto flex w-full max-w-lg flex-col gap-md pb-20 sm:pb-0">
         <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/8 p-sm text-sm text-success">
-          <Check className="size-4" /> {name} checked in. Host{" "}
-          <span className="font-medium">{host}</span> notified (in-app).
+          <Check className="size-4" /> {visit.visitorName} checked in. Host <span className="font-medium">{visit.hostName}</span> notified (in-app).
         </div>
-        <div className="mx-auto w-full  rounded-xl border border-border bg-surface p-md shadow-floating">
+        <div className="mx-auto w-full rounded-xl border border-border bg-surface p-md shadow-floating">
           <div className="mb-2 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-primary">VISITOR</p>
-              <p className="text-sm font-bold text-foreground">{name}</p>
+              <p className="text-sm font-bold text-foreground">{visit.visitorName}</p>
             </div>
             <BadgeCheck className="size-6 text-primary" />
           </div>
           <div className="flex items-center gap-3">
-            <QrGlyph value={badge.token} size={72} />
+            <QrGlyph value={visit.passNumber ?? ""} size={72} />
             <div className="text-xs text-muted-foreground">
-              <p>
-                <span className="text-foreground">Host:</span> {host}
-              </p>
-              <p>
-                <span className="text-foreground">Dept:</span> {department}
-              </p>
-              <p>
-                <span className="text-foreground">Date:</span>{" "}
-                {formatDate(new Date().toISOString())}
-              </p>
-              <p className="mt-1 font-mono text-[11px]">{badge.number}</p>
+              <p><span className="text-foreground">Host:</span> {visit.hostName}</p>
+              <p><span className="text-foreground">Dept:</span> {visit.department ?? "—"}</p>
+              <p><span className="text-foreground">Date:</span> {formatDate(new Date().toISOString())}</p>
+              <p className="mt-1 font-mono text-[11px]">{visit.passNumber}</p>
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-muted-foreground">
-            QR encodes an opaque badge token only — no personal data.
-          </p>
+          <p className="mt-2 text-[10px] text-muted-foreground">QR encodes the pass number only — no personal data.</p>
         </div>
         <div className="flex justify-center gap-xs">
-          <Button variant="outline" onClick={() => window.print()}>
-            Print badge
-          </Button>
-          <Button onClick={() => router.push("/front-desk/visitors")}>
-            Done
-          </Button>
+          <Button variant="outline" onClick={() => window.print()}>Print badge</Button>
+          <Button onClick={() => router.push("/front-desk/visitors")}>Done</Button>
         </div>
         <div className="rounded-lg border border-border bg-surface p-md">
           <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
-            <MapPin className="size-4" /> Directions to {department}
+            <MapPin className="size-4" /> Directions to {visit.department ?? "reception"}
           </h2>
-          <CampusMap highlight={department} />
+          <CampusMap highlight={visit.department ?? ""} />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full  flex-col gap-md pb-20 sm:pb-0">
+    <div className="mx-auto flex w-full flex-col gap-md pb-20 sm:pb-0">
       <div className="flex items-center gap-sm">
         <Button asChild size="icon" variant="ghost" aria-label="Back">
-          <Link href="/front-desk/visitors">
-            <ArrowLeft className="size-4" />
-          </Link>
+          <Link href="/front-desk/visitors"><ArrowLeft className="size-4" /></Link>
         </Button>
         <div>
-          <h1 className="text-lg font-semibold text-foreground">
-            Visitor check-in
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Register the visitor and generate a badge
-          </p>
+          <h1 className="text-lg font-semibold text-foreground">Visitor check-in</h1>
+          <p className="text-xs text-muted-foreground">Register the visitor and generate a badge</p>
         </div>
       </div>
 
@@ -166,107 +120,56 @@ export default function VisitorCheckInPage() {
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="vname">Full name *</Label>
-            <Input
-              id="vname"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <Input id="vname" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="vphone">Phone</Label>
-            <Input
-              id="vphone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+91 …"
-            />
+            <Input id="vphone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 …" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Visitor type</Label>
-            <Select
-              value={type}
-              onValueChange={(v) => setType(v as VisitorType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={category} onValueChange={(v) => setCategory(v as VisitorCategoryDto)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {(Object.keys(visitorTypeLabels) as VisitorType[]).map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {visitorTypeLabels[t]}
-                  </SelectItem>
-                ))}
+                {categoryOptions.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="vorg">Organization</Label>
-            <Input
-              id="vorg"
-              value={org}
-              onChange={(e) => setOrg(e.target.value)}
-              placeholder="Optional"
-            />
+            <Input id="vorg" value={org} onChange={(e) => setOrg(e.target.value)} placeholder="Optional" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="vpurp">Purpose</Label>
-            <Input
-              id="vpurp"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              placeholder="e.g. Meet class teacher"
-            />
+            <Input id="vpurp" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Meet class teacher" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="vveh">Vehicle number</Label>
-            <Input
-              id="vveh"
-              value={vehicle}
-              onChange={(e) => setVehicle(e.target.value)}
-              placeholder="Optional"
-            />
+            <Input id="vveh" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Optional" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Host to meet *</Label>
-            <Select value={host} onValueChange={setHost}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select host" />
-              </SelectTrigger>
+            <Select value={hostStaffId} onValueChange={setHostStaffId}>
+              <SelectTrigger><SelectValue placeholder="Select host">{hostName || undefined}</SelectValue></SelectTrigger>
               <SelectContent>
-                {hosts.map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h}
-                  </SelectItem>
-                ))}
+                {staff?.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Department</Label>
             <Select value={department} onValueChange={setDepartment}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {departments.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
+                {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          ID verification is a front-desk step; document scanning/storage is not
-          part of this frontend build.
-        </p>
-        {error && (
-          <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">
-            {error}
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground">ID verification is a front-desk step; document scanning/storage is not part of this frontend build.</p>
+        {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
         <div className="flex justify-end">
-          <Button onClick={submit}>
+          <Button onClick={submit} disabled={busy}>
             Generate badge & check in <ChevronRight className="size-4" />
           </Button>
         </div>

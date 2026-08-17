@@ -9,8 +9,6 @@ import type {
   NotificationSettings,
   TicketPriority,
   TicketStatus,
-  VisitorStatus,
-  VisitorType,
 } from "@/lib/types/communication";
 import { ME_ID } from "@/lib/data/seed/communication";
 import { generateId } from "@/lib/utils";
@@ -187,44 +185,14 @@ export function assignTicket(ticketId: string, assignee: string): Result {
 
 // ---------------------------------------------------------------------------
 // Front desk
+//
+// Phase 9I: checkInVisitor()/setVisitorStatus()/VisitorDraft (mock visitor
+// check-in + Math.random() badge codes) were deleted — zero remaining
+// consumers after the real /api/visitors/* cutover (see
+// lib/server/visitors/*.ts, lib/hooks/api/use-visitors-api.ts). Gate pass/
+// call/delivery mutations below remain mock — those Front Desk sub-domains
+// are not migrated.
 // ---------------------------------------------------------------------------
-
-export type VisitorDraft = { name: string; phone: string; organization?: string; purpose: string; hostName: string; department: string; type: VisitorType; vehicleNumber?: string };
-
-export function checkInVisitor(draft: VisitorDraft): Result & { visitorId?: string } {
-  if (!draft.name.trim()) return { ok: false, error: "Visitor name is required." };
-  if (!draft.hostName.trim()) return { ok: false, error: "Select a host to meet." };
-  const db = getSnapshot();
-  const now = new Date();
-  const visitor = {
-    id: generateId("vis"),
-    visitorNumber: `V-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${String(db.visitors.length + 1).padStart(3, "0")}`,
-    name: draft.name.trim(),
-    phone: draft.phone,
-    organization: draft.organization,
-    purpose: draft.purpose,
-    hostName: draft.hostName,
-    department: draft.department,
-    type: draft.type,
-    date: now.toISOString().slice(0, 10),
-    arrivalTime: now.toTimeString().slice(0, 5),
-    vehicleNumber: draft.vehicleNumber,
-    badgeCode: `BADGE${Math.floor(1000 + Math.random() * 9000)}`,
-    status: "checked-in" as VisitorStatus,
-    createdAt: now.toISOString(),
-  };
-  setState((current) => ({ ...current, visitors: [visitor, ...current.visitors] }));
-  return { ok: true, visitorId: visitor.id };
-}
-
-export function setVisitorStatus(visitorId: string, status: VisitorStatus): Result {
-  const now = new Date();
-  setState((db) => ({
-    ...db,
-    visitors: db.visitors.map((v) => (v.id === visitorId ? { ...v, status, departureTime: status === "checked-out" ? now.toTimeString().slice(0, 5) : v.departureTime, arrivalTime: status === "checked-in" && !v.arrivalTime ? now.toTimeString().slice(0, 5) : v.arrivalTime } : v)),
-  }));
-  return { ok: true };
-}
 
 export function setGatePassStatus(gatePassId: string, status: GatePassStatus, authorizedBy?: string): Result {
   setState((db) => ({ ...db, gatePasses: db.gatePasses.map((g) => (g.id === gatePassId ? { ...g, status, authorizedBy: authorizedBy ?? g.authorizedBy } : g)) }));
