@@ -1736,7 +1736,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned";
 
 export type NotificationDto = {
   id: string;
@@ -1802,7 +1802,7 @@ export type SendMessageRequest = { body: string };
 // `<sourceType>:<sourceId>:<actionKind>`. `dueAt`/`priority` only ever come
 // from a real domain field — never fabricated. ---
 
-export type ActionCategoryDto = "lesson_plan" | "leave" | "marks" | "fees" | "payroll" | "visitor" | "communication";
+export type ActionCategoryDto = "lesson_plan" | "leave" | "marks" | "fees" | "payroll" | "visitor" | "communication" | "library";
 export type ActionPriorityDto = "urgent" | "high" | "normal" | "low";
 
 export type ActionItemDto = {
@@ -2604,4 +2604,112 @@ export type StudentTransportProfileDto = {
   vehicle: { id: string; registrationNumber: string } | null;
   driverName: string | null;
   attendantName: string | null;
+};
+
+// ── Library (Phase 9N) ──────────────────────────────────────────────────────
+// A borrower is always a real Student.id or Staff.id — no separate
+// LibraryMember identity. Availability is always derived from copy status,
+// never a stored aggregate. Fines are computed from the real LibraryPolicy,
+// never invented; fine payment/collection is deliberately deferred.
+
+export type LibraryBookStatusDto = "active" | "archived";
+
+export type LibraryBookDto = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  isbn: string | null;
+  author: string;
+  publisher: string | null;
+  publicationYear: number | null;
+  category: string | null;
+  language: string | null;
+  description: string | null;
+  status: LibraryBookStatusDto;
+  copyCount: number;
+  availableCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateLibraryBookRequest = {
+  title: string;
+  subtitle?: string;
+  isbn?: string;
+  author: string;
+  publisher?: string;
+  publicationYear?: number;
+  category?: string;
+  language?: string;
+  description?: string;
+};
+export type UpdateLibraryBookRequest = Partial<CreateLibraryBookRequest> & { status?: LibraryBookStatusDto };
+
+export type LibraryCopyStatusDto = "available" | "issued" | "lost" | "damaged" | "archived";
+
+export type LibraryBookCopyDto = {
+  id: string;
+  bookId: string;
+  bookTitle: string;
+  accessionNumber: string;
+  barcode: string | null;
+  status: LibraryCopyStatusDto;
+  acquiredAt: string | null;
+  shelfLocation: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateLibraryCopyRequest = { barcode?: string; shelfLocation?: string; notes?: string; acquiredAt?: string };
+export type UpdateLibraryCopyRequest = { barcode?: string; shelfLocation?: string; notes?: string };
+
+export type LibraryLoanStatusDto = "issued" | "returned" | "lost" | "cancelled";
+export type LibraryBorrowerTypeDto = "student" | "staff";
+
+export type LibraryLoanDto = {
+  id: string;
+  copyId: string;
+  accessionNumber: string;
+  bookId: string;
+  bookTitle: string;
+  borrowerType: LibraryBorrowerTypeDto;
+  borrowerId: string;
+  borrowerName: string;
+  issuedAt: string;
+  dueAt: string;
+  returnedAt: string | null;
+  status: LibraryLoanStatusDto;
+  renewalCount: number;
+  isOverdue: boolean;
+  daysOverdue: number;
+  fineAmount: number; // derived from the real, admin-editable LibraryPolicy (defaults to 0/day until configured — never invented)
+  createdAt: string;
+};
+export type IssueLoanRequest = { copyId: string; studentId?: string; staffId?: string; dueAt?: string };
+export type ReturnLoanRequest = { condition?: "damaged" };
+
+export type LibraryPolicyDto = {
+  loanDurationDays: number;
+  finePerDay: number;
+  graceDays: number;
+  maxFineAmount: number | null;
+  updatedAt: string;
+};
+export type UpdateLibraryPolicyRequest = { loanDurationDays?: number; finePerDay?: number; graceDays?: number; maxFineAmount?: number | null };
+
+export type LibraryDashboardDto = {
+  totalTitles: number;
+  totalCopies: number;
+  availableCopies: number;
+  issuedCopies: number;
+  lostDamagedCopies: number;
+  overdueLoans: number;
+  loansToday: number;
+  returnsToday: number;
+};
+
+/** Student 360 Library tab — real active loans + recent return history,
+ *  never a fake fine total or fabricated engagement metric. */
+export type StudentLibraryProfileDto = {
+  activeLoans: LibraryLoanDto[];
+  recentHistory: LibraryLoanDto[];
 };

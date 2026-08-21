@@ -1,84 +1,87 @@
 "use client";
 
-import { BookOpen, Library, Settings2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+// Library settings (Phase 9N) — real, admin-editable LibraryPolicy. Never a
+// silently hardcoded loan-duration/fine rule — this page is that policy's
+// single source of truth.
+import { useState } from "react";
+import { Save, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PermissionDenied } from "@/components/library/permission-denied";
-import { ResourceAuditTrail } from "@/components/library/resource-audit-trail";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { updateLibraryPolicyRequest, useLibraryPolicy } from "@/lib/hooks/api/use-library-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { memberTypeLabels, resourceTypeLabels } from "@/lib/types/library";
-import { formatMoney } from "@/lib/finance/money";
+import type { LibraryPolicyDto } from "@/lib/api/contracts";
 
 export default function LibrarySettingsPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  if (!can("library.manageSettings") && !can("library.view")) return <PermissionDenied action="view library settings" role={roleLabels[role]} />;
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: policy, loading, reload } = useLibraryPolicy();
+
+  if (!capabilitiesLoading && !hasServerPermission("library.manage")) {
+    return <PermissionDenied action="edit library settings" role={roleLabels[role]} backHref="/library" />;
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">Library settings</h1>
-        <p className="text-xs text-muted-foreground">Libraries, lending policies and configuration</p>
+        <p className="text-xs text-muted-foreground">Loan duration and fine policy — applied to every new issue and renewal</p>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-md">
-        <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
-          <Library className="size-4" /> Libraries
-        </h2>
-        <div className="flex flex-col gap-sm">
-          {db.libraries.map((l) => (
-            <div key={l.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm">
-              <div>
-                <p className="text-sm font-medium text-foreground">{l.name} <span className="text-xs text-muted-foreground">({l.code})</span></p>
-                <p className="text-xs text-muted-foreground">{l.location} · {l.openingHours ?? "—"}</p>
-              </div>
-              {l.isPrimary && <Badge tone="info">Primary</Badge>}
-            </div>
-          ))}
-        </div>
-      </section>
+      {loading || !policy ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <PolicyForm policy={policy} onSaved={reload} />
+      )}
+    </div>
+  );
+}
 
-      <section className="rounded-lg border border-border bg-surface p-md">
-        <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
-          <Settings2 className="size-4" /> Lending policies
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="py-sm pr-sm font-semibold">Policy</th>
-                <th className="py-sm pr-sm font-semibold">Applies to</th>
-                <th className="py-sm pr-sm text-right font-semibold">Max books</th>
-                <th className="py-sm pr-sm text-right font-semibold">Duration</th>
-                <th className="py-sm pr-sm text-right font-semibold">Renewals</th>
-                <th className="py-sm pr-sm text-right font-semibold">Fine/day</th>
-                <th className="py-sm text-right font-semibold">Max fine</th>
-              </tr>
-            </thead>
-            <tbody>
-              {db.libraryRules.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-0">
-                  <td className="py-sm pr-sm font-medium text-foreground">{r.name}</td>
-                  <td className="py-sm pr-sm text-muted-foreground">{r.memberType ? memberTypeLabels[r.memberType] : r.resourceType ? resourceTypeLabels[r.resourceType] : "Everyone"}</td>
-                  <td className="py-sm pr-sm text-right text-foreground">{r.maxBooks}</td>
-                  <td className="py-sm pr-sm text-right text-foreground">{r.loanDurationDays}d</td>
-                  <td className="py-sm pr-sm text-right text-foreground">{r.renewalCount}</td>
-                  <td className="py-sm pr-sm text-right text-foreground">{formatMoney(r.finePerDay)}</td>
-                  <td className="py-sm text-right text-foreground">{formatMoney(r.maxFine)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+function PolicyForm({ policy, onSaved }: { policy: LibraryPolicyDto; onSaved: () => void }) {
+  const [loanDurationDays, setLoanDurationDays] = useState(String(policy.loanDurationDays));
+  const [finePerDay, setFinePerDay] = useState(String(policy.finePerDay));
+  const [graceDays, setGraceDays] = useState(String(policy.graceDays));
+  const [maxFineAmount, setMaxFineAmount] = useState(policy.maxFineAmount === null ? "" : String(policy.maxFineAmount));
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-      <section className="rounded-lg border border-border bg-surface p-md">
-        <h2 className="mb-sm flex items-center gap-1 text-sm font-semibold text-foreground">
-          <BookOpen className="size-4" /> Recent library activity
-        </h2>
-        <ResourceAuditTrail domain="library" />
-      </section>
+  return (
+    <div className="flex max-w-md flex-col gap-sm rounded-lg border border-border bg-surface p-md">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><ShieldCheck className="size-4" /> Loan policy</h2>
+      {saveError && <p className="text-xs text-error">{saveError}</p>}
+      {saved && <p className="text-xs text-success">Saved.</p>}
+      <div>
+        <Label htmlFor="loan-duration">Loan duration (days)</Label>
+        <Input id="loan-duration" type="number" min={1} value={loanDurationDays} onChange={(e) => setLoanDurationDays(e.target.value)} />
+      </div>
+      <div>
+        <Label htmlFor="fine-per-day">Fine per day (₹)</Label>
+        <Input id="fine-per-day" type="number" min={0} step="0.01" value={finePerDay} onChange={(e) => setFinePerDay(e.target.value)} />
+      </div>
+      <div>
+        <Label htmlFor="grace-days">Grace days</Label>
+        <Input id="grace-days" type="number" min={0} value={graceDays} onChange={(e) => setGraceDays(e.target.value)} />
+      </div>
+      <div>
+        <Label htmlFor="max-fine">Maximum fine (₹, optional)</Label>
+        <Input id="max-fine" type="number" min={0} step="0.01" value={maxFineAmount} onChange={(e) => setMaxFineAmount(e.target.value)} placeholder="No cap" />
+      </div>
+      <Button
+        onClick={async () => {
+          setSaveError(null); setSaved(false);
+          const res = await updateLibraryPolicyRequest({
+            loanDurationDays: Number(loanDurationDays), finePerDay: Number(finePerDay), graceDays: Number(graceDays),
+            maxFineAmount: maxFineAmount.trim() === "" ? null : Number(maxFineAmount),
+          });
+          if (!res.success) { setSaveError(res.error.message); return; }
+          setSaved(true);
+          onSaved();
+        }}
+      >
+        <Save className="size-3.5" />
+        Save policy
+      </Button>
     </div>
   );
 }

@@ -19,13 +19,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { librarySummary, formatFineTotal } from "@/lib/selectors/library-brief";
+import { useLibraryDashboard } from "@/lib/hooks/api/use-library-api";
 
 const quickLinks = [
-  { href: "/library/catalog", label: "Catalogue", description: "Books, resources, search and advanced filters", icon: BookOpen },
-  { href: "/library/issue-return", label: "Issue / Return", description: "Fast, keyboard-first circulation desk", icon: ScanLine },
-  { href: "/library/loans", label: "Loans", description: "Active loans, overdue and renewals", icon: BookMarked },
+  { href: "/library/books", label: "Catalogue", description: "Books, copies and search", icon: BookOpen },
+  { href: "/library/issue-return", label: "Issue / Return", description: "Fast circulation desk", icon: ScanLine },
+  { href: "/library/loans", label: "Loans", description: "Active loans, overdue and history", icon: BookMarked },
   { href: "/library/reservations", label: "Reservations", description: "Hold queues and pickup readiness", icon: Layers },
   { href: "/library/members", label: "Members", description: "Borrower profiles, cards and history", icon: Users },
   { href: "/library/copies", label: "Copies", description: "Physical copy register and condition", icon: Boxes },
@@ -40,8 +39,7 @@ const quickLinks = [
 ];
 
 export default function LibraryHubPage() {
-  const db = useSisStore();
-  const summary = librarySummary(db);
+  const { data } = useLibraryDashboard();
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -53,16 +51,16 @@ export default function LibraryHubPage() {
         <Button asChild size="sm">
           <Link href="/library/dashboard">
             <Gauge className="size-3.5" />
-            Library Command Centre
+            Library overview
           </Link>
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Total titles" value={String(summary.totalTitles)} icon={BookOpen} tone="neutral" />
-        <StatTile label="Available copies" value={String(summary.availableCopies)} icon={BookMarked} tone="success" />
-        <StatTile label="Overdue loans" value={String(summary.overdueLoans)} icon={ScrollText} tone={summary.overdueLoans > 0 ? "warning" : "success"} />
-        <StatTile label="Fines outstanding" value={formatFineTotal(summary.finesOutstanding)} icon={Wallet} tone={summary.finesOutstanding.minorUnits > 0 ? "warning" : "success"} />
+        <StatTile label="Total titles" value={String(data?.totalTitles ?? 0)} icon={BookOpen} tone="neutral" />
+        <StatTile label="Available copies" value={String(data?.availableCopies ?? 0)} icon={BookMarked} tone="success" />
+        <StatTile label="Overdue loans" value={String(data?.overdueLoans ?? 0)} icon={ScrollText} tone={(data?.overdueLoans ?? 0) > 0 ? "warning" : "success"} />
+        <StatTile label="Issued copies" value={String(data?.issuedCopies ?? 0)} icon={Wallet} tone="neutral" />
       </div>
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">

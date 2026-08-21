@@ -2,10 +2,10 @@
 
 // Student 360 — real-data profile. Reads GET /api/students/[id]; the tabs shown
 // here (Overview, Guardians, Documents, Timeline) are the sections Phase 4 owns,
-// plus a real Attendance tab (Phase 5), a real Fees tab (Phase 9F) and a real
-// Transport tab (Phase 9M). Academics / Health / Library etc. are intentionally
-// NOT shown as real here — they arrive with their own module migrations, and
-// are never faked against this real record (§8).
+// plus a real Attendance tab (Phase 5), a real Fees tab (Phase 9F), a real
+// Transport tab (Phase 9M) and a real Library tab (Phase 9N). Academics /
+// Health etc. are intentionally NOT shown as real here — they arrive with
+// their own module migrations, and are never faked against this real record (§8).
 import Link from "next/link";
 import { useState } from "react";
 import { Archive, Mail, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
@@ -28,12 +28,13 @@ import {
 import { useStudentAttendance } from "@/lib/hooks/api/use-attendance";
 import { useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
 import { useStudentTransportProfile } from "@/lib/hooks/api/use-transport-api";
+import { useStudentLibraryProfile } from "@/lib/hooks/api/use-library-api";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can } = usePermissions();
@@ -71,6 +72,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="fees">Fees</TabsTrigger>
           <TabsTrigger value="transport">Transport</TabsTrigger>
+          <TabsTrigger value="library">Library</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -91,6 +93,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="transport" className="mt-md">
           <TransportSection studentId={student.id} />
+        </TabsContent>
+        <TabsContent value="library" className="mt-md">
+          <LibrarySection studentId={student.id} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -519,6 +524,47 @@ function TransportSection({ studentId }: { studentId: string }) {
       <Link href={`/transport/routes/${a.routeId}`} className="mt-sm inline-block text-xs font-medium text-primary hover:underline">
         View route
       </Link>
+    </div>
+  );
+}
+
+// Real PostgreSQL/API cutover (Phase 9N) — reads GET /api/students/[id]/library.
+function LibrarySection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentLibraryProfile(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading library…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Active loans</h2>
+        <ul className="flex flex-col gap-sm">
+          {data.activeLoans.map((l) => (
+            <li key={l.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+              <div className="min-w-0">
+                <p className="truncate text-foreground">{l.bookTitle}</p>
+                <p className="text-xs text-muted-foreground">Due {new Date(l.dueAt).toLocaleDateString("en-IN")}</p>
+              </div>
+              <Badge tone={l.isOverdue ? "error" : "neutral"}>{l.isOverdue ? `${l.daysOverdue}d overdue` : "on time"}</Badge>
+            </li>
+          ))}
+          {data.activeLoans.length === 0 && <p className="text-sm text-muted-foreground">No books currently on loan.</p>}
+        </ul>
+      </div>
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Recent history</h2>
+        <ul className="flex flex-col gap-sm">
+          {data.recentHistory.map((l) => (
+            <li key={l.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+              <p className="truncate text-foreground">{l.bookTitle}</p>
+              <Badge tone={l.status === "lost" ? "error" : "success"}>{l.status}</Badge>
+            </li>
+          ))}
+          {data.recentHistory.length === 0 && <p className="text-sm text-muted-foreground">No return history yet.</p>}
+        </ul>
+      </div>
     </div>
   );
 }

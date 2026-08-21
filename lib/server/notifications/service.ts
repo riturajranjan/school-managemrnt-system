@@ -31,12 +31,14 @@ const TYPE_TO_UI: Record<string, NotificationTypeDto> = {
   LEAVE_REQUEST_REJECTED: "leave-request-rejected",
   VISITOR_CHECKED_IN: "visitor-checked-in",
   MESSAGE_RECEIVED: "message-received",
+  LIBRARY_BOOK_ISSUED: "library-book-issued",
+  LIBRARY_BOOK_RETURNED: "library-book-returned",
 };
 
 type CreateNotificationInput = {
   tenantId: string;
   schoolId: string;
-  type: "LESSON_PLAN_APPROVED" | "LESSON_PLAN_REJECTED" | "EXAM_SCHEDULED" | "CALENDAR_EVENT" | "LEAVE_REQUEST_SUBMITTED" | "LEAVE_REQUEST_APPROVED" | "LEAVE_REQUEST_REJECTED" | "VISITOR_CHECKED_IN" | "MESSAGE_RECEIVED";
+  type: "LESSON_PLAN_APPROVED" | "LESSON_PLAN_REJECTED" | "EXAM_SCHEDULED" | "CALENDAR_EVENT" | "LEAVE_REQUEST_SUBMITTED" | "LEAVE_REQUEST_APPROVED" | "LEAVE_REQUEST_REJECTED" | "VISITOR_CHECKED_IN" | "MESSAGE_RECEIVED" | "LIBRARY_BOOK_ISSUED" | "LIBRARY_BOOK_RETURNED";
   title: string;
   body: string;
   href?: string | null;

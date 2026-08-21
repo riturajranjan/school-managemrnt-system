@@ -27,12 +27,14 @@ import { isBroadPayrollManager } from "@/lib/server/payroll/access";
 import { listVisits } from "@/lib/server/visitors/visits";
 import { isBroadVisitorManager } from "@/lib/server/visitors/access";
 import { getUnreadCount } from "@/lib/server/communication/service";
+import { listLoans } from "@/lib/server/library/loans";
+import { isBroadLibraryManager } from "@/lib/server/library/access";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { ActionCategoryDto, ActionInboxSummaryDto, ActionItemDto, ActionPriorityDto } from "@/lib/api/contracts";
 
 export type ActionInboxPermFlags = { communication: boolean };
 
-const CATEGORIES: ActionCategoryDto[] = ["lesson_plan", "leave", "marks", "fees", "payroll", "visitor", "communication"];
+const CATEGORIES: ActionCategoryDto[] = ["lesson_plan", "leave", "marks", "fees", "payroll", "visitor", "communication", "library"];
 const PRIORITIES: ActionPriorityDto[] = ["urgent", "high", "normal", "low"];
 
 function todayIso(): string {
@@ -205,6 +207,23 @@ async function communicationActions(scope: OrgScope, perms: ActionInboxPermFlags
   }];
 }
 
+async function libraryActions(scope: OrgScope): Promise<ActionItemDto[]> {
+  if (!(await isBroadLibraryManager(scope))) return [];
+  const issued = await listLoans(scope, { status: "issued" });
+  return issued
+    .filter((l) => l.isOverdue)
+    .map((l) => ({
+      id: `LIBRARY_LOAN:${l.id}:FOLLOW_UP`,
+      sourceType: "LibraryLoan", sourceId: l.id,
+      category: "library" as const, title: `Overdue — ${l.bookTitle}`,
+      description: `${l.borrowerName} · ${l.daysOverdue}d overdue`,
+      priority: l.daysOverdue > 7 ? "high" : "normal",
+      createdAt: l.issuedAt, dueAt: l.dueAt,
+      href: "/library/loans", actionLabel: "Follow up",
+      status: l.status,
+    }));
+}
+
 function priorityRank(p: ActionPriorityDto): number {
   return { urgent: 0, high: 1, normal: 2, low: 3 }[p];
 }
@@ -220,6 +239,7 @@ export async function getActionInbox(scope: OrgScope, perms: ActionInboxPermFlag
     payrollActions(scope),
     visitorActions(scope),
     communicationActions(scope, perms),
+    libraryActions(scope),
   ]);
   let items = groups.flat();
   if (filters.category) items = items.filter((i) => i.category === filters.category);

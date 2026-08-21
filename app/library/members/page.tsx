@@ -1,100 +1,77 @@
 "use client";
 
+// Borrowers (Phase 9N) — real PostgreSQL/API cutover. No separate
+// LibraryMember identity: borrowers are the real Student/Staff directory,
+// augmented with their current active-loan count.
 import { useMemo, useState } from "react";
-import { Search, Users } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import type { ColumnDef } from "@/components/data-table/types";
+import { Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { reinstateMember, suspendMember } from "@/lib/services/library-member-service";
-import { addMoney, formatMoney, zeroMoney } from "@/lib/finance/money";
-import { fineOutstanding } from "@/lib/services/library-fine-service";
+import { useStudentList } from "@/lib/hooks/api/use-students";
+import { useStaffList } from "@/lib/hooks/api/use-staff-api";
+import { useLibraryLoans } from "@/lib/hooks/api/use-library-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { memberStatusLabels, memberTypeLabels, type LibraryMember, type MemberStatus } from "@/lib/types/library";
 
-const statusTone: Record<MemberStatus, "success" | "warning" | "error" | "neutral"> = {
-  active: "success",
-  suspended: "error",
-  expired: "warning",
-  inactive: "neutral",
-};
+export default function LibraryMembersPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const [search, setSearch] = useState("");
 
-export default function MembersPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  const actor = { name: "Librarian", role: roleLabels[role] };
-  const [query, setQuery] = useState("");
-  const [, force] = useState(0);
+  const { data: students } = useStudentList({ status: ["active"], pageSize: 300 });
+  const { data: staff } = useStaffList({ status: "active", pageSize: 300 });
+  const { data: issuedLoans } = useLibraryLoans({ status: "issued" });
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return db.libraryMembers.filter((m) => (q ? m.name.toLowerCase().includes(q) || m.membershipId.toLowerCase().includes(q) : true));
-  }, [db.libraryMembers, query]);
+  const activeCountByBorrower = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of issuedLoans) m.set(l.borrowerId, (m.get(l.borrowerId) ?? 0) + 1);
+    return m;
+  }, [issuedLoans]);
 
-  if (!can("library.view")) return <PermissionDenied action="view members" role={roleLabels[role]} />;
-  const canManage = can("library.manageMembers");
+  const q = search.trim().toLowerCase();
+  const filteredStudents = students.filter((s) => !q || s.fullName.toLowerCase().includes(q));
+  const filteredStaff = staff.filter((s) => !q || s.name.toLowerCase().includes(q));
 
-  const activeLoanCount = (id: string) => db.libraryLoans.filter((l) => l.memberId === id && (l.status === "active" || l.status === "overdue" || l.status === "renewed")).length;
-  const fineBalance = (id: string) => db.libraryFines.filter((f) => f.memberId === id && (f.status === "pending" || f.status === "partially-paid")).reduce((s, f) => addMoney(s, fineOutstanding(f)), zeroMoney("INR"));
-
-  const columns: ColumnDef<LibraryMember>[] = [
-    { id: "name", header: "Member", alwaysVisible: true, sortValue: (m) => m.name, cell: (m) => (
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
-        <p className="truncate text-xs text-muted-foreground">{m.membershipId} · {memberTypeLabels[m.type]}</p>
-      </div>
-    ) },
-    { id: "class", header: "Class / Dept", cell: (m) => <span className="text-sm text-muted-foreground">{m.classOrDept ?? "—"}</span>, defaultVisible: false },
-    { id: "loans", header: "On loan", align: "right", sortValue: (m) => activeLoanCount(m.id), cell: (m) => <span className="text-sm text-foreground">{activeLoanCount(m.id)}</span> },
-    { id: "fines", header: "Fine balance", align: "right", cell: (m) => { const b = fineBalance(m.id); return <span className={`text-sm ${b.minorUnits > 0 ? "text-warning" : "text-muted-foreground"}`}>{formatMoney(b)}</span>; } },
-    { id: "status", header: "Status", align: "right", cell: (m) => <Badge tone={statusTone[m.status]}>{memberStatusLabels[m.status]}</Badge> },
-  ];
+  if (!capabilitiesLoading && !hasServerPermission("library.view")) {
+    return <PermissionDenied action="view library borrowers" role={roleLabels[role]} backHref="/library" />;
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Members</h1>
-        <p className="text-xs text-muted-foreground">{db.libraryMembers.length} borrowers · students, teachers and staff</p>
+        <h1 className="text-lg font-semibold text-foreground">Borrowers</h1>
+        <p className="text-xs text-muted-foreground">Real students and staff — eligibility and current loans</p>
       </div>
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name or membership ID…" className="pl-8" aria-label="Search members" />
-      </div>
+      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name" className="max-w-sm" />
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowId={(m) => m.id}
-        caption="Library members"
-        isFiltered={query.trim() !== ""}
-        emptyIcon={Users}
-        emptyTitle="No members yet"
-        rowActions={
-          canManage
-            ? [
-                { key: "suspend", label: "Suspend borrowing", destructive: true, onSelect: (m) => { suspendMember(m.id, actor, "Suspended from members list"); force((n) => n + 1); }, hidden: (m) => m.status !== "active" },
-                { key: "reinstate", label: "Reinstate", onSelect: (m) => { reinstateMember(m.id, actor); force((n) => n + 1); }, hidden: (m) => m.status === "active" },
-              ]
-            : undefined
-        }
-        renderMobileCard={(m) => {
-          const b = fineBalance(m.id);
-          return (
-            <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-              <div className="flex items-center justify-between gap-xs">
-                <p className="truncate text-sm font-semibold text-foreground">{m.name}</p>
-                <Badge tone={statusTone[m.status]}>{memberStatusLabels[m.status]}</Badge>
+      <div className="grid grid-cols-1 gap-md lg:grid-cols-2">
+        <section className="flex flex-col gap-sm">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><Users className="size-4" /> Students</h2>
+          <div className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
+            {filteredStudents.slice(0, 50).map((s) => (
+              <div key={s.id} className="flex items-center justify-between gap-sm p-sm">
+                <p className="truncate text-sm text-foreground">{s.fullName}</p>
+                <Badge tone={(activeCountByBorrower.get(s.id) ?? 0) > 0 ? "info" : "neutral"}>{activeCountByBorrower.get(s.id) ?? 0} active</Badge>
               </div>
-              <p className="text-xs text-muted-foreground">{m.membershipId} · {memberTypeLabels[m.type]}</p>
-              <p className="text-xs text-muted-foreground">{activeLoanCount(m.id)} on loan · {formatMoney(b)} fines</p>
-            </div>
-          );
-        }}
-      />
+            ))}
+            {filteredStudents.length === 0 && <p className="p-md text-center text-sm text-muted-foreground">No students match</p>}
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-sm">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><Users className="size-4" /> Staff</h2>
+          <div className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
+            {filteredStaff.slice(0, 50).map((s) => (
+              <div key={s.id} className="flex items-center justify-between gap-sm p-sm">
+                <p className="truncate text-sm text-foreground">{s.name}</p>
+                <Badge tone={(activeCountByBorrower.get(s.id) ?? 0) > 0 ? "info" : "neutral"}>{activeCountByBorrower.get(s.id) ?? 0} active</Badge>
+              </div>
+            ))}
+            {filteredStaff.length === 0 && <p className="p-md text-center text-sm text-muted-foreground">No staff match</p>}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

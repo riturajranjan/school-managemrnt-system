@@ -13,6 +13,9 @@ import { getMarksRoster, submitMarks, verifyMarks } from "@/lib/server/exams/mar
 import { createExpectedVisit, checkInVisit, checkOutVisit } from "@/lib/server/visitors/visits";
 import { startDirectConversation, sendMessage, markConversationRead } from "@/lib/server/communication/service";
 import { getActionInbox, getActionInboxSummary } from "@/lib/server/action-inbox/service";
+import { createBook } from "@/lib/server/library/books";
+import { createCopy } from "@/lib/server/library/copies";
+import { issueLoan, returnLoan } from "@/lib/server/library/loans";
 import type { OrgScope } from "@/lib/server/api/scope";
 
 let dbReady = false;
@@ -87,6 +90,9 @@ afterAll(async () => {
   if (!dbReady || !tenantId) return;
   await prisma.notificationRecipient.deleteMany({ where: { notification: { tenantId } } });
   await prisma.notification.deleteMany({ where: { tenantId } });
+  await prisma.libraryLoan.deleteMany({ where: { tenantId } });
+  await prisma.libraryBookCopy.deleteMany({ where: { tenantId } });
+  await prisma.libraryBook.deleteMany({ where: { tenantId } });
   await prisma.message.deleteMany({ where: { conversation: { tenantId } } });
   await prisma.conversationParticipant.deleteMany({ where: { conversation: { tenantId } } });
   await prisma.conversation.deleteMany({ where: { tenantId } });
@@ -284,5 +290,26 @@ describe.skipIf(!dbReady)("isolation + summary + DTO safety (DB)", () => {
     const item = items.find((i) => i.sourceId === req.id)!;
     expect(Object.keys(item).sort()).toEqual(["actionLabel", "category", "createdAt", "description", "dueAt", "href", "id", "priority", "sourceId", "sourceType", "status", "title"].sort());
     await approveLeaveRequest(adminScope, req.id);
+  });
+});
+
+// Placed last: creates an overdue loan and leaves librarianScope non-empty,
+// which would break the "empty inbox" assertion earlier in this file if run
+// out of order.
+describe.skipIf(!dbReady)("library actions (DB)", () => {
+  it("an overdue ISSUED loan surfaces as a derived follow-up action for LIBRARIAN only; returning it removes the action", async () => {
+    const book = await createBook(librarianScope, { title: `Overdue Book ${stamp}`, author: "Test Author" });
+    const copy = await createCopy(librarianScope, book.id, {});
+    const loan = await issueLoan(librarianScope, { copyId: copy.id, staffId: teacherStaffId, dueAt: "2020-01-01" });
+
+    const librarianItems = await getActionInbox(librarianScope, NO_COMM);
+    expect(librarianItems.some((i) => i.id === `LIBRARY_LOAN:${loan.id}:FOLLOW_UP`)).toBe(true);
+
+    const adminItems = await getActionInbox(adminScope, NO_COMM);
+    expect(adminItems.some((i) => i.sourceId === loan.id)).toBe(false); // SCHOOL_ADMIN is library.view only, not a broad library manager
+
+    await returnLoan(librarianScope, loan.id, {});
+    const afterReturn = await getActionInbox(librarianScope, NO_COMM);
+    expect(afterReturn.some((i) => i.sourceId === loan.id)).toBe(false);
   });
 });

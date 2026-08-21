@@ -19,7 +19,7 @@ import { timeAgo } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<ActionCategoryDto, string> = {
   lesson_plan: "Lesson plans", leave: "Leave", marks: "Marks", fees: "Fees",
-  payroll: "Payroll", visitor: "Visitors", communication: "Messages",
+  payroll: "Payroll", visitor: "Visitors", communication: "Messages", library: "Library",
 };
 const PRIORITY_TONE: Record<ActionPriorityDto, "error" | "warning" | "info" | "neutral"> = {
   urgent: "error", high: "warning", normal: "info", low: "neutral",

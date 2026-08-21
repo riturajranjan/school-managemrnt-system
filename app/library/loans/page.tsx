@@ -1,105 +1,83 @@
 "use client";
 
+// Loans / circulation history (Phase 9N) — real PostgreSQL/API cutover.
 import Link from "next/link";
-import { useState } from "react";
 import { BookMarked } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
-import type { ColumnDef } from "@/components/data-table/types";
+import type { ColumnDef, RowAction } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { markLoanLost, renewLoan, returnLoan } from "@/lib/services/loan-service";
+import { returnLoanRequest, useLibraryLoans } from "@/lib/hooks/api/use-library-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { loanStatusLabels, type LibraryLoan, type LoanStatus } from "@/lib/types/library";
+import type { LibraryLoanDto, LibraryLoanStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
 
-const statusTone: Record<LoanStatus, "success" | "warning" | "error" | "neutral" | "info"> = {
-  active: "info",
-  returned: "neutral",
-  overdue: "error",
-  lost: "error",
-  renewed: "info",
-  "claimed-returned": "warning",
-};
+const statusTone: Record<LibraryLoanStatusDto, "success" | "warning" | "error" | "neutral"> = { issued: "neutral", returned: "success", lost: "error", cancelled: "neutral" };
 
-export default function LoansPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  const actor = { name: "Circulation Desk", role: roleLabels[role] };
-  const [filter, setFilter] = useState<"active" | "overdue" | "all">("active");
-  const [, force] = useState(0);
-  const today = new Date().toISOString().slice(0, 10);
+export default function LibraryLoansPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: loans, loading, error, reload } = useLibraryLoans();
 
-  if (!can("library.view")) return <PermissionDenied action="view loans" role={roleLabels[role]} />;
-  const canCirculate = can("library.circulate");
+  if (!capabilitiesLoading && !hasServerPermission("library.view")) {
+    return <PermissionDenied action="view library loans" role={roleLabels[role]} backHref="/library" />;
+  }
+  const canManage = hasServerPermission("library.manage");
 
-  const rows = db.libraryLoans.filter((l) => {
-    if (filter === "active") return l.status === "active" || l.status === "overdue" || l.status === "renewed";
-    if (filter === "overdue") return l.status === "overdue" || ((l.status === "active" || l.status === "renewed") && l.dueDate < today);
-    return true;
-  });
-
-  const bookTitle = (id: string) => db.books.find((b) => b.id === id)?.title ?? id;
-  const memberName = (id: string) => db.libraryMembers.find((m) => m.id === id)?.name ?? id;
-
-  const columns: ColumnDef<LibraryLoan>[] = [
-    { id: "book", header: "Title", alwaysVisible: true, sortValue: (l) => bookTitle(l.bookId), cell: (l) => <Link href={`/library/books/${l.bookId}`} className="text-sm font-medium text-foreground hover:underline">{bookTitle(l.bookId)}</Link> },
-    { id: "member", header: "Member", cell: (l) => <span className="text-sm text-muted-foreground">{memberName(l.memberId)}</span> },
-    { id: "issued", header: "Issued", cell: (l) => <span className="text-xs text-muted-foreground">{formatDate(l.issuedAt)}</span>, defaultVisible: false, sortValue: (l) => l.issuedAt },
-    { id: "due", header: "Due", sortValue: (l) => l.dueDate, cell: (l) => <span className={`text-sm ${l.dueDate < today && l.status !== "returned" ? "text-error" : "text-foreground"}`}>{formatDate(l.dueDate)}</span> },
-    { id: "status", header: "Status", align: "right", cell: (l) => <Badge tone={statusTone[l.status]}>{loanStatusLabels[l.status]}</Badge> },
+  const columns: ColumnDef<LibraryLoanDto>[] = [
+    {
+      id: "book", header: "Book", alwaysVisible: true, sortValue: (l) => l.bookTitle,
+      cell: (l) => (
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{l.bookTitle}</p>
+          <p className="text-xs text-muted-foreground">{l.borrowerName} · {l.accessionNumber}</p>
+        </div>
+      ),
+    },
+    { id: "due", header: "Due", cell: (l) => <span className={`text-sm ${l.isOverdue ? "text-error" : "text-muted-foreground"}`}>{formatDate(l.dueAt)}{l.isOverdue ? ` · ${l.daysOverdue}d overdue` : ""}</span> },
+    { id: "fine", header: "Fine", align: "right", cell: (l) => <span className="text-sm text-foreground">{l.fineAmount > 0 ? `₹${l.fineAmount.toFixed(2)}` : "—"}</span>, defaultVisible: false },
+    { id: "status", header: "Status", align: "right", cell: (l) => <Badge tone={statusTone[l.status]}>{l.status}</Badge> },
   ];
+
+  const rowActions: RowAction<LibraryLoanDto>[] = canManage
+    ? [{ key: "return", label: "Return", hidden: (l) => l.status !== "issued", onSelect: async (l) => { await returnLoanRequest(l.id); reload(); } }]
+    : [];
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
-      <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Loans</h1>
-          <p className="text-xs text-muted-foreground">Active circulation, overdue tracking and renewals</p>
-        </div>
-        <div className="inline-flex rounded-md border border-border p-0.5">
-          {(["active", "overdue", "all"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`rounded px-sm py-1.5 text-xs font-medium capitalize ${filter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
-              {f}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h1 className="text-lg font-semibold text-foreground">Loans</h1>
+        <p className="text-xs text-muted-foreground">Active loans, overdue and circulation history</p>
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowId={(l) => l.id}
-        caption="Loans"
-        emptyIcon={BookMarked}
-        emptyTitle="No loans to show"
-        rowActions={
-          canCirculate
-            ? [
-                { key: "return", label: "Return", onSelect: (l) => { returnLoan({ loanId: l.id }, actor, today); force((n) => n + 1); }, hidden: (l) => l.status === "returned" || l.status === "lost" },
-                { key: "renew", label: "Renew", onSelect: (l) => { const r = renewLoan(l.id, actor, today); if (!r.ok) alert(r.error); force((n) => n + 1); }, hidden: (l) => l.status === "returned" || l.status === "lost" },
-                { key: "lost", label: "Mark lost", destructive: true, onSelect: (l) => { markLoanLost(l.id, actor, "Marked from loans list"); force((n) => n + 1); }, hidden: (l) => l.status === "returned" || l.status === "lost" },
-              ]
-            : undefined
-        }
-        renderMobileCard={(l) => (
-          <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-            <div className="flex items-center justify-between gap-xs">
-              <Link href={`/library/books/${l.bookId}`} className="truncate text-sm font-semibold text-foreground">{bookTitle(l.bookId)}</Link>
-              <Badge tone={statusTone[l.status]}>{loanStatusLabels[l.status]}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">{memberName(l.memberId)} · Due {formatDate(l.dueDate)}</p>
-            {canCirculate && l.status !== "returned" && l.status !== "lost" && (
-              <div className="mt-1 flex gap-xs">
-                <Button size="sm" variant="outline" onClick={() => { returnLoan({ loanId: l.id }, actor, today); force((n) => n + 1); }}>Return</Button>
-                <Button size="sm" variant="ghost" onClick={() => { const r = renewLoan(l.id, actor, today); if (!r.ok) alert(r.error); force((n) => n + 1); }}>Renew</Button>
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && loans.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={loans}
+          getRowId={(l) => l.id}
+          caption="Loans"
+          rowActions={rowActions}
+          renderMobileCard={(l) => (
+            <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
+              <div className="flex items-center justify-between gap-xs">
+                <p className="truncate text-sm font-semibold text-foreground">{l.bookTitle}</p>
+                <Badge tone={statusTone[l.status]}>{l.status}</Badge>
               </div>
-            )}
-          </div>
-        )}
-      />
+              <p className="text-xs text-muted-foreground">{l.borrowerName} · Due {formatDate(l.dueAt)}</p>
+            </div>
+          )}
+          emptyIcon={BookMarked}
+          emptyTitle="No loans yet"
+        />
+      )}
+
+      <Link href="/library/issue-return" className="text-xs font-medium text-primary hover:underline">
+        Go to Issue / Return desk
+      </Link>
     </div>
   );
 }

@@ -281,6 +281,32 @@ const MIGRATED_FILES = [
   // is already covered by the broader "components/dashboard" directory guard
   // above.
   "app/action-inbox/page.tsx",
+  // Phase 9N — Library Management. Real LibraryBook/LibraryBookCopy/
+  // LibraryLoan/LibraryPolicy via /api/library/* (PostgreSQL). No separate
+  // LibraryMember identity — a borrower is always a real Student.id or
+  // Staff.id. Accession numbers are server-generated and race-safe. Fines
+  // are computed from the real, admin-editable LibraryPolicy — never
+  // invented — and payment/collection is deliberately deferred. Author/
+  // publisher/category are plain text fields on the book, not normalized
+  // entities, so the old mock authors/publishers/categories pages have no
+  // real replacement and stay fully mock (deferred), alongside reservations,
+  // digital resources, the shelf hierarchy, stocktake, and barcode/QR/RFID —
+  // none of that real infrastructure exists. app/library/page.tsx (hub) is a
+  // hybrid — its headline stats are real but its quickLinks still legitimately
+  // point at those still-mock pages — so it is NOT guarded here, matching the
+  // Transport/front-desk hub precedent.
+  "app/library/books/page.tsx",
+  "app/library/books/new/page.tsx",
+  "app/library/books/[bookId]/page.tsx",
+  "app/library/catalog/page.tsx",
+  "app/library/copies/page.tsx",
+  "app/library/loans/page.tsx",
+  "app/library/issue-return/page.tsx",
+  "app/library/members/page.tsx",
+  "app/library/fines/page.tsx",
+  "app/library/settings/page.tsx",
+  "app/library/dashboard/page.tsx",
+  "app/teacher/library/page.tsx",
   // Phase 9M — Transport Management. Real TransportVehicle/TransportRoute/
   // TransportStop/TransportRouteStop/TransportRouteAssignment/
   // StudentTransportAssignment/StaffTransportAssignment/TransportTrip via
@@ -444,6 +470,20 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/transport-pulse", why: "mock Transport Pulse gauge selector (deleted from the dashboard — no real GPS/telemetry/delay data exists)" },
   { marker: "selectors/transport-brief", why: "mock daily transport brief/exception-feed selector (deleted from the dashboard)" },
   { marker: '"@/lib/types/transport"', why: "mock Transport types (Vehicle/Driver/TransportRoute/TransportStop/StudentTransportAssignment/TransportTrip) — real surfaces use lib/api/contracts.ts DTOs instead" },
+  // Phase 9N — library mock authority (real surfaces must use hooks/api/use-library-api).
+  { marker: 'hooks/use-library"', why: "mock library hooks (deleted authority for real surfaces — use hooks/api/use-library-api)" },
+  { marker: "services/book-service", why: "mock book/catalog service (deleted authority for real surfaces)" },
+  { marker: "services/library-member-service", why: "mock library-member service — no separate LibraryMember identity exists in the real domain" },
+  { marker: "services/library-fine-service", why: "mock fine service — writes into the pre-cutover mock fee shape, incompatible with real fines" },
+  { marker: "services/library-stocktake-service", why: "mock stocktake service (deferred — no real infrastructure)" },
+  { marker: "services/library-reference-service", why: "mock authors/publishers/categories/shelves service — those are plain text fields on the real LibraryBook, not normalized entities" },
+  { marker: "selectors/library-loan-rules", why: "mock per-category/per-role tiered loan-rule matcher — the real LibraryPolicy is a single uniform policy" },
+  { marker: "selectors/book-availability", why: "mock availability selector — real availability is derived from LibraryBookCopy.status" },
+  { marker: "selectors/library-brief", why: "mock library summary/exception selector (deleted from the hub/dashboard)" },
+  { marker: "selectors/library-pulse", why: "mock Library Pulse selector — no real basis for a composite score exists" },
+  { marker: "selectors/library-reports", why: "mock reading-engagement/popular-book/trend selector — no real backing exists" },
+  { marker: '"@/lib/types/library"', why: "mock Library types (Book/BookCopy/LibraryMember/LibraryLoan/LibraryReservation/LibraryFine) — real surfaces use lib/api/contracts.ts DTOs instead" },
+  { marker: "components/library/catalogue-view", why: "mock catalogue component bound to the mock Book/BookCopy/Author/Publisher/Category types — real surfaces render their own real list" },
 ];
 
 function collectSources(dir: string): string[] {

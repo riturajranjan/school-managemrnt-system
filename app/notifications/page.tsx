@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { Bell, BellOff, CalendarDays, CheckCheck, ClipboardCheck, FileBadge, MessageSquare, UserCheck, UserRoundCheck, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, BookOpen, CalendarDays, CheckCheck, ClipboardCheck, FileBadge, MessageSquare, UserCheck, UserRoundCheck, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNotificationList, markAllNotificationsReadRequest, markNotificationReadRequest } from "@/lib/hooks/api/use-notifications-api";
@@ -19,6 +19,8 @@ const TYPE_ICON: Record<NotificationTypeDto, LucideIcon> = {
   "leave-request-rejected": UserCheck,
   "visitor-checked-in": UserRoundCheck,
   "message-received": MessageSquare,
+  "library-book-issued": BookOpen,
+  "library-book-returned": BookOpen,
 };
 const TYPE_LABEL: Record<NotificationTypeDto, string> = {
   "lesson-plan-approved": "Lesson plans",
@@ -30,6 +32,8 @@ const TYPE_LABEL: Record<NotificationTypeDto, string> = {
   "leave-request-rejected": "Leave",
   "visitor-checked-in": "Visitors",
   "message-received": "Messages",
+  "library-book-issued": "Library",
+  "library-book-returned": "Library",
 };
 
 function dayBucket(iso: string): string {

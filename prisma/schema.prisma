@@ -695,6 +695,7 @@ model Student {
   transportAssignments StudentTransportAssignment[] // Phase 9M — transport
   transportTripRecords TransportTripStudent[] // Phase 9M — per-trip boarding/drop
   feeCharges           FeeCharge[] // Phase 9F — billable fee items
+  libraryLoans         LibraryLoan[] // Phase 9N — library circulation
   feePayments          FeePayment[] // Phase 9F — fee collections
 
   // Admission number is unique within a school.
@@ -2067,6 +2068,7 @@ model Staff {
   transportTripsAsDriver             TransportTrip[]            @relation("TransportTripDriver") // Phase 9M
   transportTripsAsAttendant          TransportTrip[]            @relation("TransportTripAttendant") // Phase 9M
   staffTransportAssignments          StaffTransportAssignment[] // Phase 9M
+  libraryLoans                       LibraryLoan[] // Phase 9N — library circulation
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3089,6 +3091,8 @@ enum NotificationType {
   LEAVE_REQUEST_REJECTED
   VISITOR_CHECKED_IN
   MESSAGE_RECEIVED
+  LIBRARY_BOOK_ISSUED
+  LIBRARY_BOOK_RETURNED
 }
 
 model Notification {
@@ -4792,4 +4796,173 @@ model TransportTripStudent {
   @@unique([tripId, studentId])
   @@index([tripId])
   @@map("transport_trip_students")
+}
+
+// ===========================================================================
+// Phase 9N — Library Management. Reuses real identities throughout: a
+// borrower is always a real Student.id or Staff.id — there is deliberately
+// NO separate LibraryMember identity model (the audit found no real product
+// need for membership numbers/join workflow beyond eligibility). Catalog
+// identity (LibraryBook, the title) is separate from physical-copy identity
+// (LibraryBookCopy, the lendable item) per the phase's own explicit rule.
+// Author/publisher/category are kept as plain text fields on LibraryBook,
+// not normalized entities — the mock UI's separate Author/Publisher/Category
+// pages had no independent management need beyond labelling a book. Shelf
+// location is a plain optional text field on the copy, not a normalized
+// Shelf hierarchy. Availability is never a stored aggregate — always derived
+// from LibraryBookCopy.status. Fines are computed from a real, admin-
+// editable LibraryPolicy (not invented), but fine COLLECTION/payment is
+// deliberately deferred (no LibraryPayment, no Phase 9F Fees integration —
+// see the phase's final report). Reservations, digital resources, shelf
+// hierarchy, stocktake, and barcode/QR/RFID hardware integration are
+// deliberately deferred — no real infrastructure for any of them exists.
+enum LibraryBookStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/**
+ * Bibliographic/title-level catalog record — NOT a lendable item itself.
+ */
+model LibraryBook {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  title           String
+  subtitle        String?
+  isbn            String? // intentionally NOT unique — editions/duplicates are a real possibility, no uniqueness policy was specified
+  author          String
+  publisher       String?
+  publicationYear Int?
+  category        String?
+  language        String?
+  description     String?
+
+  status LibraryBookStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  copies LibraryBookCopy[]
+
+  @@index([schoolId, status])
+  @@index([schoolId, title])
+  @@map("library_books")
+}
+
+enum LibraryCopyStatus {
+  AVAILABLE
+  ISSUED
+  LOST
+  DAMAGED
+  ARCHIVED
+}
+
+/**
+ * A single lendable physical item. A LibraryBook (title) may have many.
+ */
+model LibraryBookCopy {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  bookId   String
+
+  accessionNumber String // server-generated, race-safe (see LibraryAccessionCounter)
+  barcode         String?
+  status          LibraryCopyStatus @default(AVAILABLE)
+  acquiredAt      DateTime?         @db.Timestamptz(6)
+  shelfLocation   String?
+  notes           String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  book  LibraryBook   @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  loans LibraryLoan[]
+
+  @@unique([schoolId, accessionNumber])
+  @@index([bookId])
+  @@index([schoolId, status])
+  @@map("library_book_copies")
+}
+
+/**
+ * Race-safe, school-scoped accession numbering — same atomic
+ * `UPDATE ... RETURNING` strategy as VisitorPassCounter (Phase 9I).
+ */
+model LibraryAccessionCounter {
+  schoolId String @id
+  counter  Int    @default(0)
+
+  @@map("library_accession_counters")
+}
+
+/**
+ * One row per school: real, admin-editable loan-duration/fine policy —
+ * never a silently hardcoded business rule. Auto-created with visible
+ * defaults on first access; the settings page lets an admin change it
+ * immediately. Deliberately a single uniform policy (not the mock's
+ * per-category/per-role tiered matching) — minimal real, not over-built.
+ */
+model LibraryPolicy {
+  schoolId String @id
+
+  loanDurationDays Int      @default(14)
+  finePerDay       Decimal  @default(0) @db.Decimal(10, 2)
+  graceDays        Int      @default(0)
+  maxFineAmount    Decimal? @db.Decimal(10, 2)
+
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+  updatedByUserId String?
+
+  @@map("library_policies")
+}
+
+enum LibraryLoanStatus {
+  ISSUED
+  RETURNED
+  LOST
+  CANCELLED
+}
+
+/**
+ * Real circulation record. Exactly one of studentId/staffId is set — the
+ * borrower is always a real identity, never a name string. History must
+ * survive a student's class change, a staff member going inactive, or a
+ * book/copy being renamed or archived — none of those are FK-cascaded.
+ */
+model LibraryLoan {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  copyId   String
+
+  studentId String?
+  staffId   String?
+
+  issuedAt   DateTime  @db.Timestamptz(6)
+  dueAt      DateTime  @db.Timestamptz(6)
+  returnedAt DateTime? @db.Timestamptz(6)
+
+  status       LibraryLoanStatus @default(ISSUED)
+  renewalCount Int               @default(0)
+
+  issuedByUserId   String
+  returnedByUserId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  copy    LibraryBookCopy @relation(fields: [copyId], references: [id], onDelete: Restrict)
+  student Student?        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  staff   Staff?          @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, status])
+  @@index([copyId])
+  @@index([studentId])
+  @@index([staffId])
+  @@map("library_loans")
 }
