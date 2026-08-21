@@ -180,7 +180,9 @@ export type AuditAction =
   | "VISIT_EXPECTED"
   | "VISITOR_CHECKED_IN"
   | "VISITOR_CHECKED_OUT"
-  | "VISIT_CANCELLED";
+  | "VISIT_CANCELLED"
+  | "CONVERSATION_CREATED"
+  | "MESSAGE_SENT";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

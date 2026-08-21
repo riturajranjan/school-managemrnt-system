@@ -259,6 +259,21 @@ const MIGRATED_FILES = [
   "app/hr/staff/[staffId]/edit/page.tsx",
   "app/teacher/classes/page.tsx",
   "components/hr/staff-form.tsx",
+  // Phase 9K — Communication / Messaging. Real Conversation/ConversationParticipant/
+  // Message via /api/communication/* (PostgreSQL). User.id is the canonical
+  // messaging identity — never Staff.id, never a name string. This route used
+  // to be a mock parent SMS/WhatsApp/Email broadcaster
+  // (sendStudentCommunication) with no honest real backing (no Student/
+  // Guardian User account exists, and an SMS/WhatsApp/email gateway is out of
+  // scope) — replaced outright with real staff-to-staff messaging. Must never
+  // reintroduce db.conversations/messages/conversationParticipants,
+  // CURRENT_TEACHER_ID, or sendStudentCommunication. The rest of
+  // app/communication/* (inbox, announcements, broadcasts, etc.) stays fully
+  // mock — it mixes parent/student participants with no real User account
+  // and fake delivery receipts/attachments that have no honest real backing;
+  // partially migrating it would be misleading, so it is intentionally NOT
+  // guarded here (see the phase's final report).
+  "app/teacher/messages/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -376,6 +391,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "visitorStatusTone", why: "mock visitor status tone map (deleted — dead import)" },
   { marker: "visitorTypeLabels", why: "mock visitor type label map (deleted — dead import)" },
   { marker: "db.employees", why: "mock Employee list used as a visitor host — real surfaces must use hooks/api/use-staff" },
+  // Phase 9K — communication/messaging mock authority (real surfaces must use hooks/api/use-communication-api).
+  { marker: 'hooks/use-communication"', why: "mock communication hooks (deleted from teacher/messages — use hooks/api/use-communication-api)" },
+  { marker: '"@/lib/services/communication-service"', why: "mock conversation/message mutation service — real surfaces must use hooks/api/use-communication-api" },
+  { marker: "sendStudentCommunication", why: "mock parent SMS/WhatsApp/email broadcast send — no real Student/Guardian User account exists, and an SMS/WhatsApp/email gateway is out of scope" },
+  { marker: "db.conversations", why: "mock conversation store slice" },
+  { marker: "db.conversationParticipants", why: "mock conversation-participant store slice" },
 ];
 
 function collectSources(dir: string): string[] {

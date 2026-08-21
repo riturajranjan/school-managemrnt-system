@@ -1736,7 +1736,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received";
 
 export type NotificationDto = {
   id: string;
@@ -1747,6 +1747,54 @@ export type NotificationDto = {
   createdAt: string;
   readAt: string | null;
 };
+
+// --- Phase 9K: Communication / Messaging — real User-to-User conversations.
+// User.id is the canonical messaging identity (never Staff.id, never a name
+// string). Student/Guardian have no linked User account yet, so they never
+// appear as recipients/participants — a real limitation, not an oversight. ---
+
+export type ConversationTypeDto = "direct" | "group";
+
+/** A real, eligible messaging recipient — either a Staff-linked User or a
+ * non-Staff privileged User (e.g. a school admin with no Staff row). Never a
+ * Student/Guardian (no real User account exists for them). */
+export type MessagingRecipientDto = {
+  userId: string;
+  displayName: string;
+  roleLabel: string | null;
+  staffId: string | null;
+};
+
+export type ConversationListItemDto = {
+  id: string;
+  type: ConversationTypeDto;
+  title: string;
+  lastMessage: { body: string; createdAt: string; senderName: string; fromMe: boolean } | null;
+  unreadCount: number;
+  updatedAt: string;
+};
+
+export type ConversationDetailDto = ConversationListItemDto & {
+  participants: { userId: string; displayName: string }[];
+};
+
+export type MessageDto = {
+  id: string;
+  conversationId: string;
+  senderUserId: string;
+  senderName: string;
+  fromMe: boolean;
+  body: string;
+  createdAt: string;
+};
+
+export type MessageHistoryDto = {
+  items: MessageDto[];
+  nextCursor: string | null;
+};
+
+export type StartDirectConversationRequest = { recipientUserId: string };
+export type SendMessageRequest = { body: string };
 
 // --- Phase 9E.1: Staff Attendance — real StaffAttendanceRecord, one row per
 // staff per day. A staff member with no row for a date is NOT_MARKED (never
