@@ -80,7 +80,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { key: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
       { key: "my-day", label: "My Day", href: "/teacher/my-day", icon: CalendarCheck },
-      { key: "action-inbox", label: "Action Inbox", href: "/communication/inbox", icon: Inbox, badge: 5 },
+      { key: "action-inbox", label: "Action Inbox", href: "/action-inbox", icon: Inbox },
       { key: "calendar", label: "Calendar", href: "/academics/calendar", icon: Calendar },
       { key: "notifications", label: "Notifications", href: "/notifications", icon: Bell, badge: 3 },
     ],

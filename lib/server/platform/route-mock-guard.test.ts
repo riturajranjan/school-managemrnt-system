@@ -274,6 +274,13 @@ const MIGRATED_FILES = [
   // partially migrating it would be misleading, so it is intentionally NOT
   // guarded here (see the phase's final report).
   "app/teacher/messages/page.tsx",
+  // Phase 9L — Action Inbox. Pure aggregation over existing real domains
+  // (Lesson Plans, Leave, Marks, Fees, Payroll, Visitors, Communication) via
+  // GET /api/action-inbox — no ActionItem table, no second workflow/status.
+  // The Main Dashboard widget (components/dashboard/widgets/action-inbox.tsx)
+  // is already covered by the broader "components/dashboard" directory guard
+  // above.
+  "app/action-inbox/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).

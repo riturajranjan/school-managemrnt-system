@@ -1796,6 +1796,36 @@ export type MessageHistoryDto = {
 export type StartDirectConversationRequest = { recipientUserId: string };
 export type SendMessageRequest = { body: string };
 
+// --- Phase 9L: Action Inbox — derived, never persisted. Every item is
+// computed live from an existing real domain's own status/lifecycle (no
+// second ActionItem table, no second workflow). `id` is deterministic:
+// `<sourceType>:<sourceId>:<actionKind>`. `dueAt`/`priority` only ever come
+// from a real domain field — never fabricated. ---
+
+export type ActionCategoryDto = "lesson_plan" | "leave" | "marks" | "fees" | "payroll" | "visitor" | "communication";
+export type ActionPriorityDto = "urgent" | "high" | "normal" | "low";
+
+export type ActionItemDto = {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  category: ActionCategoryDto;
+  title: string;
+  description: string;
+  priority: ActionPriorityDto;
+  createdAt: string;
+  dueAt: string | null;
+  href: string;
+  actionLabel: string;
+  status: string;
+};
+
+export type ActionInboxSummaryDto = {
+  total: number;
+  byPriority: Record<ActionPriorityDto, number>;
+  byCategory: Record<ActionCategoryDto, number>;
+};
+
 // --- Phase 9E.1: Staff Attendance — real StaffAttendanceRecord, one row per
 // staff per day. A staff member with no row for a date is NOT_MARKED (never
 // synthesized as absent). ---

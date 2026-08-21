@@ -30,7 +30,7 @@ const parseDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
 const dateToUi = (d: Date) => d.toISOString().slice(0, 10);
 const REVIEWER_ROLE_KEYS = ["SCHOOL_ADMIN", "PRINCIPAL", "HR_ADMIN"];
 
-async function isBroadLeaveManager(scope: OrgScope): Promise<boolean> {
+export async function isBroadLeaveManager(scope: OrgScope): Promise<boolean> {
   const m = await prisma.roleAssignment.findFirst({
     where: { membership: { userId: scope.actor.id, tenantId: scope.tenantId, status: "ACTIVE" }, role: { key: { in: REVIEWER_ROLE_KEYS } } },
     select: { id: true },

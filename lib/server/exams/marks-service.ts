@@ -64,7 +64,7 @@ async function requireEntryInScope(scope: OrgScope, examId: string, entryId: str
 // ── Authorization ────────────────────────────────────────────────────────────
 
 /** SCHOOL_ADMIN/PRINCIPAL hold marks.verify and may enter/verify for any section+subject. */
-async function isBroadMarksManager(scope: OrgScope): Promise<boolean> {
+export async function isBroadMarksManager(scope: OrgScope): Promise<boolean> {
   const m = await prisma.roleAssignment.findFirst({
     where: { membership: { userId: scope.actor.id, tenantId: scope.tenantId, status: "ACTIVE" }, role: { key: { in: ["SCHOOL_ADMIN", "PRINCIPAL"] } } },
     select: { id: true },
