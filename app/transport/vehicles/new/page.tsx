@@ -1,270 +1,119 @@
 "use client";
 
+// Add vehicle (Phase 9M) — real PostgreSQL/API cutover.
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { z } from "zod";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FieldError, Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { createVehicle } from "@/lib/services/vehicle-service";
-import {
-  fuelTypeLabels,
-  ownershipTypeLabels,
-  vehicleTypeLabels,
-  type FuelType,
-  type OwnershipType,
-  type VehicleType,
-} from "@/lib/types/transport";
+import { createVehicleRequest } from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
 
-const ACTOR = {
-  name: "Transport Administrator",
-  role: "Transport Administrator",
-};
-const typeOptions = Object.keys(vehicleTypeLabels) as VehicleType[];
-const fuelOptions = Object.keys(fuelTypeLabels) as FuelType[];
-const ownershipOptions = Object.keys(ownershipTypeLabels) as OwnershipType[];
+const formSchema = z.object({
+  registrationNumber: z.string().trim().min(1, "Registration number is required"),
+  displayName: z.string().trim().optional(),
+  type: z.enum(["bus", "mini-bus", "van", "car", "electric-vehicle", "contract-vehicle", "custom"]).optional(),
+  make: z.string().trim().optional(),
+  model: z.string().trim().optional(),
+  capacity: z.number().int().min(1, "Capacity must be at least 1"),
+});
+type FormValues = z.infer<typeof formSchema>;
 
 export default function NewVehiclePage() {
   const router = useRouter();
-  const { can } = usePermissions();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const form = useForm<FormValues>({ resolver: zodResolver(formSchema) });
 
-  const [registrationNumber, setRegistrationNumber] = useState("");
-  const [fleetNumber, setFleetNumber] = useState("");
-  const [type, setType] = useState<VehicleType>("bus");
-  const [make, setMake] = useState("");
-  const [model, setModel] = useState("");
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [capacity, setCapacity] = useState(42);
-  const [fuelType, setFuelType] = useState<FuelType>("diesel");
-  const [chassisNumber, setChassisNumber] = useState("");
-  const [engineNumber, setEngineNumber] = useState("");
-  const [odometerKm, setOdometerKm] = useState(0);
-  const [ownershipType, setOwnershipType] = useState<OwnershipType>("owned");
-  const [error, setError] = useState<string | null>(null);
+  if (!capabilitiesLoading && !hasServerPermission("transport.manage")) return <PermissionDenied action="add vehicles" role={roleLabels[role]} backHref="/transport/vehicles" />;
 
-  const canSubmit =
-    registrationNumber.trim().length > 0 &&
-    fleetNumber.trim().length > 0 &&
-    make.trim().length > 0 &&
-    model.trim().length > 0 &&
-    capacity > 0;
-
-  if (!can("transport.manageVehicles")) {
-    return (
-      <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">
-        You don&apos;t have permission to add vehicles.
-      </p>
-    );
+  async function onSubmit(values: FormValues) {
+    setSaving(true);
+    setSaveError(null);
+    const res = await createVehicleRequest({
+      registrationNumber: values.registrationNumber, displayName: values.displayName || undefined, type: values.type,
+      make: values.make || undefined, model: values.model || undefined, capacity: values.capacity,
+    });
+    if (!res.success) {
+      setSaveError(res.error.message);
+      setSaving(false);
+      return;
+    }
+    router.push(`/transport/vehicles/${res.data.id}`);
   }
 
   return (
-    <div className="mx-auto flex  flex-col gap-md pb-20 sm:pb-0">
-      <div>
-        <h1 className="text-lg font-semibold text-foreground">New vehicle</h1>
-        <p className="text-xs text-muted-foreground">
-          Adds the vehicle to the fleet with a generated seating layout
-        </p>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-md pb-20 sm:pb-0">
+      <div className="flex items-center gap-sm">
+        <Button asChild size="icon" variant="ghost" aria-label="Back"><Link href="/transport/vehicles"><ArrowLeft className="size-4" /></Link></Button>
+        <div>
+          <h1 className="text-lg font-semibold text-foreground">Add vehicle</h1>
+          <p className="text-xs text-muted-foreground">Creates a real vehicle record</p>
+        </div>
       </div>
 
-      <div className="surface-3d flex flex-col gap-sm rounded-lg border border-border bg-surface p-md">
-        {error && <p className="text-xs text-error">{error}</p>}
-
-        <div className="grid grid-cols-2 gap-sm">
+      <form className="flex flex-col gap-md rounded-lg border border-border bg-surface p-md" onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
           <div>
             <Label htmlFor="veh-reg">Registration number</Label>
-            <Input
-              id="veh-reg"
-              value={registrationNumber}
-              onChange={(e) => setRegistrationNumber(e.target.value)}
-              placeholder="KA-05-AB-1234"
+            <Input id="veh-reg" {...form.register("registrationNumber")} placeholder="KA-01-AB-1234" />
+            <FieldError>{form.formState.errors.registrationNumber?.message}</FieldError>
+          </div>
+          <div>
+            <Label htmlFor="veh-name">Display name (optional)</Label>
+            <Input id="veh-name" {...form.register("displayName")} placeholder="Bus 12" />
+          </div>
+          <div>
+            <Label htmlFor="veh-type">Type</Label>
+            <Controller
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                  <SelectTrigger id="veh-type"><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bus">Bus</SelectItem>
+                    <SelectItem value="mini-bus">Mini bus</SelectItem>
+                    <SelectItem value="van">Van</SelectItem>
+                    <SelectItem value="car">Car</SelectItem>
+                    <SelectItem value="electric-vehicle">Electric vehicle</SelectItem>
+                    <SelectItem value="contract-vehicle">Contract vehicle</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             />
           </div>
           <div>
-            <Label htmlFor="veh-fleet">Fleet number</Label>
-            <Input
-              id="veh-fleet"
-              value={fleetNumber}
-              onChange={(e) => setFleetNumber(e.target.value)}
-              placeholder="BUS-06"
-            />
+            <Label htmlFor="veh-capacity">Seating capacity</Label>
+            <Input id="veh-capacity" type="number" min={1} {...form.register("capacity", { valueAsNumber: true })} />
+            <FieldError>{form.formState.errors.capacity?.message}</FieldError>
+          </div>
+          <div>
+            <Label htmlFor="veh-make">Make (optional)</Label>
+            <Input id="veh-make" {...form.register("make")} />
+          </div>
+          <div>
+            <Label htmlFor="veh-model">Model (optional)</Label>
+            <Input id="veh-model" {...form.register("model")} />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label>Vehicle type</Label>
-            <Select
-              value={type}
-              onValueChange={(v) => setType(v as VehicleType)}>
-              <SelectTrigger aria-label="Vehicle type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {typeOptions.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {vehicleTypeLabels[t]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="veh-capacity">Capacity</Label>
-            <Input
-              id="veh-capacity"
-              type="number"
-              min={1}
-              value={capacity}
-              onChange={(e) => setCapacity(Number(e.target.value))}
-            />
-          </div>
+        {saveError && <p className="text-sm text-error">{saveError}</p>}
+        <div className="flex gap-xs">
+          <Button type="submit" disabled={saving}>Add vehicle</Button>
+          <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
         </div>
-
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label htmlFor="veh-make">Make</Label>
-            <Input
-              id="veh-make"
-              value={make}
-              onChange={(e) => setMake(e.target.value)}
-              placeholder="Tata"
-            />
-          </div>
-          <div>
-            <Label htmlFor="veh-model">Model</Label>
-            <Input
-              id="veh-model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Starbus"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label htmlFor="veh-year">Year</Label>
-            <Input
-              id="veh-year"
-              type="number"
-              min={1990}
-              max={new Date().getFullYear() + 1}
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <Label>Fuel type</Label>
-            <Select
-              value={fuelType}
-              onValueChange={(v) => setFuelType(v as FuelType)}>
-              <SelectTrigger aria-label="Fuel type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {fuelOptions.map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {fuelTypeLabels[f]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label htmlFor="veh-chassis">Chassis number</Label>
-            <Input
-              id="veh-chassis"
-              value={chassisNumber}
-              onChange={(e) => setChassisNumber(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="veh-engine">Engine number</Label>
-            <Input
-              id="veh-engine"
-              value={engineNumber}
-              onChange={(e) => setEngineNumber(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-sm">
-          <div>
-            <Label htmlFor="veh-odometer">Odometer (km)</Label>
-            <Input
-              id="veh-odometer"
-              type="number"
-              min={0}
-              value={odometerKm}
-              onChange={(e) => setOdometerKm(Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <Label>Ownership</Label>
-            <Select
-              value={ownershipType}
-              onValueChange={(v) => setOwnershipType(v as OwnershipType)}>
-              <SelectTrigger aria-label="Ownership type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ownershipOptions.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {ownershipTypeLabels[o]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-sm pt-1">
-          <Button
-            disabled={!canSubmit}
-            onClick={() => {
-              const result = createVehicle(
-                {
-                  registrationNumber: registrationNumber.trim(),
-                  fleetNumber: fleetNumber.trim(),
-                  type,
-                  make: make.trim(),
-                  model: model.trim(),
-                  year,
-                  capacity,
-                  fuelType,
-                  chassisNumber: chassisNumber.trim(),
-                  engineNumber: engineNumber.trim(),
-                  odometerKm,
-                  branch: "main",
-                  ownershipType,
-                },
-                ACTOR,
-              );
-              if (!result.ok || !result.vehicle) {
-                setError(result.ok ? "Something went wrong." : result.error);
-                return;
-              }
-              router.push(`/transport/vehicles/${result.vehicle.id}`);
-            }}>
-            Add vehicle
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/transport/vehicles")}>
-            Cancel
-          </Button>
-        </div>
-      </div>
+      </form>
     </div>
   );
 }

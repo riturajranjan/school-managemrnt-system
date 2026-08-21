@@ -1,5 +1,8 @@
 "use client";
 
+// Student transport assignments (Phase 9M) — real PostgreSQL/API cutover.
+// Bulk assign resolves eligible students server-side from real Enrollment —
+// the class picker only tells the server WHICH class, never the student list.
 import { useState } from "react";
 import { Plus, UsersRound } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -9,79 +12,66 @@ import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useManagedClasses } from "@/lib/hooks/use-academics";
-import { useRouteStops, useTransportRoutes } from "@/lib/hooks/use-transport";
-import { useStudents } from "@/lib/hooks/use-students";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { CURRENT_SESSION } from "@/lib/data/seed/reference";
-import { assignStudentTransport, bulkAssignStudentsToRoute, withdrawStudentTransport } from "@/lib/services/student-transport-service";
-import { transportAssignmentStatusLabels, transportShiftLabels, type StudentTransportAssignment, type TransportAssignmentStatus } from "@/lib/types/transport";
+import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
+import { useStudentList } from "@/lib/hooks/api/use-students";
+import {
+  assignStudentTransportRequest,
+  bulkAssignStudentTransportRequest,
+  useRouteStops,
+  useStudentTransportAssignments,
+  useTransportRoutes,
+  withdrawStudentTransportRequest,
+} from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
+import type { StudentTransportAssignmentDto, StudentTransportStatusDto } from "@/lib/api/contracts";
 
-const ACTOR = { name: "Transport Administrator", role: "Transport Administrator" };
-
-const statusTone: Record<TransportAssignmentStatus, "success" | "warning" | "error" | "neutral"> = {
-  active: "success",
-  suspended: "warning",
-  withdrawn: "error",
-  expired: "neutral",
-};
+const statusTone: Record<StudentTransportStatusDto, "success" | "warning" | "error" | "neutral"> = { active: "success", suspended: "warning", withdrawn: "error" };
 
 export default function StudentAssignmentsPage() {
-  const db = useSisStore();
-  const students = useStudents();
-  const routes = useTransportRoutes();
-  const classes = useManagedClasses();
-  const { can } = usePermissions();
-  const canManage = can("transport.assignStudents");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: assignments, loading, error, reload } = useStudentTransportAssignments();
+  const { data: students } = useStudentList({ status: ["active"], pageSize: 150 });
+  const { data: routes } = useTransportRoutes({ status: "active" });
+  const { data: classes } = useClasses();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [studentId, setStudentId] = useState("");
   const [routeId, setRouteId] = useState("");
   const [pickupStopId, setPickupStopId] = useState("");
+  const { data: selectedRouteStops } = useRouteStops(routeId || undefined);
 
   const [bulkClassId, setBulkClassId] = useState("");
   const [bulkRouteId, setBulkRouteId] = useState("");
   const [bulkStopId, setBulkStopId] = useState("");
-  const [bulkResult, setBulkResult] = useState<{ assigned: number; skipped: number } | null>(null);
+  const { data: bulkRouteStops } = useRouteStops(bulkRouteId || undefined);
+  const [bulkResult, setBulkResult] = useState<{ assignedCount: number; skippedCount: number } | null>(null);
 
-  const selectedRouteStops = useRouteStops(routeId);
-  const bulkRouteStops = useRouteStops(bulkRouteId);
+  if (!capabilitiesLoading && !hasServerPermission("transport.view")) {
+    return <PermissionDenied action="view student transport assignments" role={roleLabels[role]} backHref="/" />;
+  }
+  const canManage = hasServerPermission("transport.manage");
 
-  function studentName(id: string) {
-    const s = students.find((st) => st.id === id);
-    return s ? `${s.profile.firstName} ${s.profile.lastName}` : id;
-  }
-  function routeName(id: string) {
-    return routes.find((r) => r.id === id)?.name ?? id;
-  }
-  function stopName(id: string) {
-    return db.transportStops.find((s) => s.id === id)?.name ?? id;
-  }
-
-  const columns: ColumnDef<StudentTransportAssignment>[] = [
+  const columns: ColumnDef<StudentTransportAssignmentDto>[] = [
     {
-      id: "student",
-      header: "Student",
-      alwaysVisible: true,
-      sortValue: (a) => studentName(a.studentId),
+      id: "student", header: "Student", alwaysVisible: true, sortValue: (a) => a.studentName,
       cell: (a) => (
         <div>
-          <p className="text-sm font-medium text-foreground">{studentName(a.studentId)}</p>
-          <p className="text-xs text-muted-foreground">{routeName(a.routeId)}</p>
+          <p className="text-sm font-medium text-foreground">{a.studentName}</p>
+          <p className="text-xs text-muted-foreground">{a.routeName}</p>
         </div>
       ),
     },
-    { id: "stop", header: "Pickup stop", cell: (a) => <span className="text-sm text-muted-foreground">{stopName(a.pickupStopId)}</span> },
-    { id: "shift", header: "Shift", cell: (a) => <Badge tone="info">{transportShiftLabels[a.shift]}</Badge>, defaultVisible: false },
-    { id: "status", header: "Status", align: "right", cell: (a) => <Badge tone={statusTone[a.status]}>{transportAssignmentStatusLabels[a.status]}</Badge> },
+    { id: "stop", header: "Pickup stop", cell: (a) => <span className="text-sm text-muted-foreground">{a.pickupStopName}</span> },
+    { id: "status", header: "Status", align: "right", cell: (a) => <Badge tone={statusTone[a.status]}>{a.status}</Badge> },
   ];
 
-  const rowActions: RowAction<StudentTransportAssignment>[] = canManage
-    ? [{ key: "withdraw", label: "Withdraw", hidden: (a) => a.status !== "active", destructive: true, onSelect: (a) => withdrawStudentTransport(a.id, "Withdrawn by transport office", ACTOR) }]
+  const rowActions: RowAction<StudentTransportAssignmentDto>[] = canManage
+    ? [{ key: "withdraw", label: "Withdraw", hidden: (a) => a.status !== "active", destructive: true, onSelect: async (a) => { await withdrawStudentTransportRequest(a.id, { reason: "Withdrawn by transport office" }); reload(); } }]
     : [];
 
   return (
@@ -89,13 +79,11 @@ export default function StudentAssignmentsPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Student transport assignments</h1>
-          <p className="text-xs text-muted-foreground">{CURRENT_SESSION} · Assign students to routes, stops and seats</p>
+          <p className="text-xs text-muted-foreground">Assign students to routes and stops</p>
         </div>
         {canManage && (
           <div className="flex items-center gap-xs">
-            <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>
-              Bulk assign
-            </Button>
+            <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>Bulk assign</Button>
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-3.5" />
               Assign student
@@ -104,107 +92,69 @@ export default function StudentAssignmentsPage() {
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={[...db.studentTransportAssignments].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))}
-        getRowId={(a) => a.id}
-        caption="Student transport assignments"
-        rowActions={rowActions}
-        renderMobileCard={(a) => (
-          <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-            <div className="flex items-center justify-between gap-xs">
-              <p className="truncate text-sm font-semibold text-foreground">{studentName(a.studentId)}</p>
-              <Badge tone={statusTone[a.status]}>{transportAssignmentStatusLabels[a.status]}</Badge>
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && assignments.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={[...assignments].sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
+          getRowId={(a) => a.id}
+          caption="Student transport assignments"
+          rowActions={rowActions}
+          renderMobileCard={(a) => (
+            <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
+              <div className="flex items-center justify-between gap-xs">
+                <p className="truncate text-sm font-semibold text-foreground">{a.studentName}</p>
+                <Badge tone={statusTone[a.status]}>{a.status}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">{a.routeName} · {a.pickupStopName}</p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {routeName(a.routeId)} · {stopName(a.pickupStopId)}
-            </p>
-          </div>
-        )}
-        emptyIcon={UsersRound}
-        emptyTitle="No transport assignments yet"
-      />
+          )}
+          emptyIcon={UsersRound}
+          emptyTitle="No transport assignments yet"
+        />
+      )}
 
-      <DetailDrawer
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (!open) setError(null);
-        }}
-        title="Assign student transport"
-        description="Validated against route capacity, stops and shift"
-      >
+      <DetailDrawer open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) setSaveError(null); }} title="Assign student transport" description="Validated against real route/stop data">
         <div className="flex flex-col gap-sm">
-          {error && <p className="text-xs text-error">{error}</p>}
+          {saveError && <p className="text-xs text-error">{saveError}</p>}
           <div>
             <Label>Student</Label>
             <Select value={studentId} onValueChange={setStudentId}>
-              <SelectTrigger aria-label="Student">
-                <SelectValue placeholder="Select student" />
-              </SelectTrigger>
+              <SelectTrigger aria-label="Student"><SelectValue placeholder="Select student" /></SelectTrigger>
               <SelectContent>
-                {students
-                  .filter((s) => s.status === "active")
-                  .slice(0, 150)
-                  .map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.profile.firstName} {s.profile.lastName}
-                    </SelectItem>
-                  ))}
+                {students.map((s) => <SelectItem key={s.id} value={s.id}>{s.fullName}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Route</Label>
-            <Select
-              value={routeId}
-              onValueChange={(v) => {
-                setRouteId(v);
-                setPickupStopId("");
-              }}
-            >
-              <SelectTrigger aria-label="Route">
-                <SelectValue placeholder="Select route" />
-              </SelectTrigger>
+            <Select value={routeId} onValueChange={(v) => { setRouteId(v); setPickupStopId(""); }}>
+              <SelectTrigger aria-label="Route"><SelectValue placeholder="Select route" /></SelectTrigger>
               <SelectContent>
-                {routes
-                  .filter((r) => r.status === "active")
-                  .map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
+                {routes.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Pickup / drop stop</Label>
             <Select value={pickupStopId} onValueChange={setPickupStopId} disabled={!routeId}>
-              <SelectTrigger aria-label="Stop">
-                <SelectValue placeholder="Select stop" />
-              </SelectTrigger>
+              <SelectTrigger aria-label="Stop"><SelectValue placeholder="Select stop" /></SelectTrigger>
               <SelectContent>
-                {selectedRouteStops.map((rs) => (
-                  <SelectItem key={rs.stopId} value={rs.stopId}>
-                    {stopName(rs.stopId)}
-                  </SelectItem>
-                ))}
+                {(selectedRouteStops ?? []).map((rs) => <SelectItem key={rs.stopId} value={rs.stopId}>{rs.stopName}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <Button
             disabled={!studentId || !routeId || !pickupStopId}
-            onClick={() => {
-              const route = routes.find((r) => r.id === routeId)!;
-              const result = assignStudentTransport({ studentId, session: CURRENT_SESSION, routeId, pickupStopId, dropStopId: pickupStopId, shift: route.shift, vehicleId: route.assignedVehicleId, effectiveFrom: new Date().toISOString().slice(0, 10) }, ACTOR);
-              if (!result.ok) {
-                setError(result.error);
-                return;
-              }
+            onClick={async () => {
+              const res = await assignStudentTransportRequest({ studentId, routeId, pickupStopId });
+              if (!res.success) { setSaveError(res.error.message); return; }
               setCreateOpen(false);
-              setStudentId("");
-              setRouteId("");
-              setPickupStopId("");
+              setStudentId(""); setRouteId(""); setPickupStopId("");
+              reload();
             }}
           >
             Assign transport
@@ -212,80 +162,41 @@ export default function StudentAssignmentsPage() {
         </div>
       </DetailDrawer>
 
-      <DetailDrawer
-        open={bulkOpen}
-        onOpenChange={(open) => {
-          setBulkOpen(open);
-          if (!open) setBulkResult(null);
-        }}
-        title="Bulk assign by class"
-        description="Assigns every active student in the class to the selected route and stop"
-      >
+      <DetailDrawer open={bulkOpen} onOpenChange={(open) => { setBulkOpen(open); if (!open) setBulkResult(null); }} title="Bulk assign by class" description="Assigns every actively enrolled student in the class">
         <div className="flex flex-col gap-sm">
-          {bulkResult && (
-            <p className="text-xs text-success">
-              {bulkResult.assigned} assigned, {bulkResult.skipped} skipped (capacity or duplicate).
-            </p>
-          )}
+          {bulkResult && <p className="text-xs text-success">{bulkResult.assignedCount} assigned, {bulkResult.skippedCount} skipped (already assigned).</p>}
           <div>
             <Label>Class</Label>
             <Select value={bulkClassId} onValueChange={setBulkClassId}>
-              <SelectTrigger aria-label="Class">
-                <SelectValue placeholder="Select class" />
-              </SelectTrigger>
+              <SelectTrigger aria-label="Class"><SelectValue placeholder="Select class" /></SelectTrigger>
               <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
+                {classes.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Route</Label>
-            <Select
-              value={bulkRouteId}
-              onValueChange={(v) => {
-                setBulkRouteId(v);
-                setBulkStopId("");
-              }}
-            >
-              <SelectTrigger aria-label="Bulk route">
-                <SelectValue placeholder="Select route" />
-              </SelectTrigger>
+            <Select value={bulkRouteId} onValueChange={(v) => { setBulkRouteId(v); setBulkStopId(""); }}>
+              <SelectTrigger aria-label="Bulk route"><SelectValue placeholder="Select route" /></SelectTrigger>
               <SelectContent>
-                {routes
-                  .filter((r) => r.status === "active")
-                  .map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
+                {routes.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Stop</Label>
             <Select value={bulkStopId} onValueChange={setBulkStopId} disabled={!bulkRouteId}>
-              <SelectTrigger aria-label="Bulk stop">
-                <SelectValue placeholder="Select stop" />
-              </SelectTrigger>
+              <SelectTrigger aria-label="Bulk stop"><SelectValue placeholder="Select stop" /></SelectTrigger>
               <SelectContent>
-                {bulkRouteStops.map((rs) => (
-                  <SelectItem key={rs.stopId} value={rs.stopId}>
-                    {stopName(rs.stopId)}
-                  </SelectItem>
-                ))}
+                {(bulkRouteStops ?? []).map((rs) => <SelectItem key={rs.stopId} value={rs.stopId}>{rs.stopName}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <Button
             disabled={!bulkClassId || !bulkRouteId || !bulkStopId}
-            onClick={() => {
-              const classStudentIds = students.filter((s) => s.classId === bulkClassId && s.status === "active").map((s) => s.id);
-              const result = bulkAssignStudentsToRoute(classStudentIds, bulkRouteId, bulkStopId, bulkStopId, CURRENT_SESSION, ACTOR);
-              setBulkResult({ assigned: result.assigned.length, skipped: result.skipped.length });
+            onClick={async () => {
+              const res = await bulkAssignStudentTransportRequest({ classId: bulkClassId, routeId: bulkRouteId, pickupStopId: bulkStopId });
+              if (res.success) { setBulkResult(res.data); reload(); }
             }}
           >
             Run bulk assignment

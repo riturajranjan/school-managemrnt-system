@@ -1,35 +1,33 @@
 "use client";
 
+// Vehicles (Phase 9M) — real PostgreSQL/API cutover. No fake "health score"
+// (depended on mock maintenance/document data that doesn't exist) — dropped,
+// not replaced with an invented number.
 import Link from "next/link";
 import { Bus, Plus } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useVehicles } from "@/lib/hooks/use-transport";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { computeVehicleHealth } from "@/lib/selectors/vehicle-health";
-import { vehicleStatusLabels, vehicleTypeLabels, type Vehicle, type VehicleStatus } from "@/lib/types/transport";
+import { useTransportVehicles } from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
+import type { TransportVehicleDto, TransportVehicleStatusDto, TransportVehicleTypeDto } from "@/lib/api/contracts";
 
-const statusTone: Record<VehicleStatus, "success" | "warning" | "error" | "neutral"> = {
-  available: "success",
-  assigned: "success",
-  "in-service": "success",
-  maintenance: "warning",
-  breakdown: "error",
-  "documents-expired": "error",
-  inactive: "neutral",
-  retired: "neutral",
-};
+const statusTone: Record<TransportVehicleStatusDto, "success" | "warning" | "error" | "neutral"> = { active: "success", inactive: "neutral", maintenance: "warning", archived: "neutral" };
+const typeLabels: Record<TransportVehicleTypeDto, string> = { bus: "Bus", "mini-bus": "Mini bus", van: "Van", car: "Car", "electric-vehicle": "Electric vehicle", "contract-vehicle": "Contract vehicle", custom: "Custom" };
 
 export default function VehiclesPage() {
-  const vehicles = useVehicles();
-  const db = useSisStore();
-  const { can } = usePermissions();
-  const canManage = can("transport.manageVehicles");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: vehicles, loading, error } = useTransportVehicles();
 
-  const columns: ColumnDef<Vehicle>[] = [
+  if (!capabilitiesLoading && !hasServerPermission("transport.view")) {
+    return <PermissionDenied action="view transport vehicles" role={roleLabels[role]} backHref="/" />;
+  }
+  const canManage = hasServerPermission("transport.manage");
+
+  const columns: ColumnDef<TransportVehicleDto>[] = [
     {
       id: "registration",
       header: "Vehicle",
@@ -38,26 +36,13 @@ export default function VehiclesPage() {
       cell: (v) => (
         <Link href={`/transport/vehicles/${v.id}`} className="min-w-0">
           <p className="text-sm font-medium text-foreground underline-offset-2 hover:underline">{v.registrationNumber}</p>
-          <p className="text-xs text-muted-foreground">
-            {v.fleetNumber} · {v.make} {v.model}
-          </p>
+          <p className="text-xs text-muted-foreground">{[v.displayName, v.make, v.model].filter(Boolean).join(" · ") || "—"}</p>
         </Link>
       ),
     },
-    { id: "type", header: "Type", cell: (v) => <Badge tone="info">{vehicleTypeLabels[v.type]}</Badge> },
+    { id: "type", header: "Type", cell: (v) => <Badge tone="info">{typeLabels[v.type]}</Badge> },
     { id: "capacity", header: "Capacity", align: "right", cell: (v) => <span className="text-sm text-foreground">{v.capacity}</span> },
-    {
-      id: "health",
-      header: "Health",
-      align: "right",
-      sortValue: (v) => computeVehicleHealth(db, v).score,
-      cell: (v) => {
-        const health = computeVehicleHealth(db, v);
-        return <span className={`text-sm font-medium ${health.score >= 80 ? "text-success" : health.score >= 60 ? "text-warning" : "text-error"}`}>{health.score}</span>;
-      },
-    },
-    { id: "odometer", header: "Odometer", align: "right", cell: (v) => <span className="text-sm text-muted-foreground">{v.odometerKm.toLocaleString("en-IN")} km</span>, defaultVisible: false },
-    { id: "status", header: "Status", align: "right", cell: (v) => <Badge tone={statusTone[v.status]}>{vehicleStatusLabels[v.status]}</Badge> },
+    { id: "status", header: "Status", align: "right", cell: (v) => <Badge tone={statusTone[v.status]}>{v.status}</Badge> },
   ];
 
   return (
@@ -65,7 +50,7 @@ export default function VehiclesPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Vehicles</h1>
-          <p className="text-xs text-muted-foreground">Fleet registry, seating, documents and health</p>
+          <p className="text-xs text-muted-foreground">Fleet registry</p>
         </div>
         {canManage && (
           <Button asChild size="sm">
@@ -77,29 +62,29 @@ export default function VehiclesPage() {
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={[...vehicles].sort((a, b) => a.fleetNumber.localeCompare(b.fleetNumber))}
-        getRowId={(v) => v.id}
-        caption="Vehicles"
-        renderMobileCard={(v) => {
-          const health = computeVehicleHealth(db, v);
-          return (
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && vehicles.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={[...vehicles].sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber))}
+          getRowId={(v) => v.id}
+          caption="Vehicles"
+          renderMobileCard={(v) => (
             <Link href={`/transport/vehicles/${v.id}`} className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
               <div className="flex items-center justify-between gap-xs">
                 <p className="truncate text-sm font-semibold text-foreground">{v.registrationNumber}</p>
-                <Badge tone={statusTone[v.status]}>{vehicleStatusLabels[v.status]}</Badge>
+                <Badge tone={statusTone[v.status]}>{v.status}</Badge>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {v.fleetNumber} · {vehicleTypeLabels[v.type]} · {v.capacity} seats
-              </p>
-              <p className={`text-sm font-medium ${health.score >= 80 ? "text-success" : health.score >= 60 ? "text-warning" : "text-error"}`}>Health {health.score}</p>
+              <p className="text-xs text-muted-foreground">{typeLabels[v.type]} · {v.capacity} seats</p>
             </Link>
-          );
-        }}
-        emptyIcon={Bus}
-        emptyTitle="No vehicles yet"
-      />
+          )}
+          emptyIcon={Bus}
+          emptyTitle="No vehicles yet"
+        />
+      )}
     </div>
   );
 }

@@ -21,14 +21,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { useSisStore } from "@/lib/hooks/use-store";
+import { useTransportDashboard } from "@/lib/hooks/api/use-transport-api";
 import { transportDocumentStatusLabels } from "@/lib/types/transport";
 
 const quickLinks = [
-  { href: "/transport/routes", label: "Routes", description: "Route builder, stops and vehicle assignment", icon: Route },
+  { href: "/transport/routes", label: "Routes", description: "Stops, crew and vehicle assignment", icon: Route },
   { href: "/transport/stops", label: "Stops", description: "Pickup and drop points, safety flags", icon: MapPinned },
-  { href: "/transport/vehicles", label: "Vehicles", description: "Fleet, seating, documents and health", icon: Bus },
-  { href: "/transport/drivers", label: "Drivers", description: "Driver profiles, licenses and safety score", icon: UserCog },
-  { href: "/transport/attendants", label: "Attendants", description: "Attendant profiles and assignments", icon: Users },
+  { href: "/transport/vehicles", label: "Vehicles", description: "Fleet registry and status", icon: Bus },
+  { href: "/transport/drivers", label: "Drivers", description: "Staff currently on driver duty", icon: UserCog },
+  { href: "/transport/attendants", label: "Attendants", description: "Staff currently on attendant duty", icon: Users },
   { href: "/transport/trips", label: "Trips", description: "Today's trips, stop timelines and status", icon: ClipboardList },
   { href: "/transport/student-assignments", label: "Student assignments", description: "Assign students to routes and seats", icon: UsersRound },
   { href: "/transport/attendance", label: "Transport attendance", description: "Boarding and drop attendance by route", icon: ClipboardList },
@@ -44,11 +45,8 @@ const quickLinks = [
 
 export default function TransportHubPage() {
   const db = useSisStore();
+  const { data: dashboard } = useTransportDashboard();
 
-  const activeVehicles = db.vehicles.filter((v) => v.status === "assigned" || v.status === "in-service").length;
-  const activeRoutes = db.transportRoutes.filter((r) => r.status === "active").length;
-  const studentsOnTransport = db.studentTransportAssignments.filter((a) => a.status === "active").length;
-  const openIncidents = db.transportIncidents.filter((i) => i.status === "open" || i.status === "investigating" || i.status === "action-required" || i.status === "escalated").length;
   const expiringDocs = [...db.vehicleDocuments.filter((d) => d.status !== "valid"), ...db.driverDocuments.filter((d) => d.status !== "valid")].length;
 
   return (
@@ -61,16 +59,16 @@ export default function TransportHubPage() {
         <Button asChild size="sm">
           <Link href="/transport/dashboard">
             <Gauge className="size-3.5" />
-            Transport Command Centre
+            Transport overview
           </Link>
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Active vehicles" value={String(activeVehicles)} icon={Bus} tone="success" />
-        <StatTile label="Active routes" value={String(activeRoutes)} icon={Route} tone="neutral" />
-        <StatTile label="Students on transport" value={String(studentsOnTransport)} icon={UsersRound} tone="neutral" />
-        <StatTile label="Open incidents" value={String(openIncidents)} icon={AlertTriangle} tone={openIncidents > 0 ? "warning" : "success"} />
+        <StatTile label="Active vehicles" value={String(dashboard?.activeVehicles ?? 0)} icon={Bus} tone="success" />
+        <StatTile label="Active routes" value={String(dashboard?.activeRoutes ?? 0)} icon={Route} tone="neutral" />
+        <StatTile label="Students on transport" value={String(dashboard?.studentsAssigned ?? 0)} icon={UsersRound} tone="neutral" />
+        <StatTile label="Trips today" value={String(dashboard?.tripsToday ?? 0)} icon={ClipboardList} tone="neutral" />
       </div>
 
       {expiringDocs > 0 && (

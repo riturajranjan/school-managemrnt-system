@@ -2416,3 +2416,192 @@ export type SchoolDashboardSummaryDto = {
   };
   upcomingExams: UpcomingExamDto[];
 };
+
+// --- Phase 9M: Transport Management. Drivers/attendants are real Staff
+// (Staff.id, surfaced as { id, name } snapshots for display — never a
+// parallel identity). Students resolve through real Student.id. No GPS/
+// telemetry fields anywhere in these DTOs — deliberately deferred. ---
+
+export type TransportVehicleTypeDto = "bus" | "mini-bus" | "van" | "car" | "electric-vehicle" | "contract-vehicle" | "custom";
+export type TransportVehicleStatusDto = "active" | "inactive" | "maintenance" | "archived";
+
+export type TransportVehicleDto = {
+  id: string;
+  registrationNumber: string;
+  displayName: string | null;
+  type: TransportVehicleTypeDto;
+  make: string | null;
+  model: string | null;
+  capacity: number;
+  status: TransportVehicleStatusDto;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateTransportVehicleRequest = { registrationNumber: string; displayName?: string; type?: TransportVehicleTypeDto; make?: string; model?: string; capacity: number };
+export type UpdateTransportVehicleRequest = Partial<CreateTransportVehicleRequest>;
+export type SetTransportVehicleStatusRequest = { status: TransportVehicleStatusDto };
+
+export type TransportShiftDto = "morning" | "afternoon" | "evening" | "both";
+export type TransportRouteDirectionDto = "pickup" | "drop" | "both";
+export type TransportRouteStatusDto = "draft" | "active" | "paused" | "archived";
+
+export type TransportRouteListItemDto = {
+  id: string;
+  name: string;
+  code: string;
+  shift: TransportShiftDto;
+  direction: TransportRouteDirectionDto;
+  capacity: number | null;
+  status: TransportRouteStatusDto;
+  notes: string | null;
+  vehicle: { id: string; registrationNumber: string } | null;
+  driver: { id: string; name: string } | null;
+  attendant: { id: string; name: string } | null;
+  studentCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateTransportRouteRequest = { name: string; code: string; shift?: TransportShiftDto; direction?: TransportRouteDirectionDto; capacity?: number; notes?: string };
+export type UpdateTransportRouteRequest = Partial<CreateTransportRouteRequest> & { status?: TransportRouteStatusDto };
+
+export type TransportRouteStopDto = { id: string; stopId: string; stopName: string; stopCode: string; sequence: number; pickupTime: string | null; dropTime: string | null };
+export type SetRouteStopsRequest = { stops: { stopId: string; sequence: number; pickupTime?: string; dropTime?: string }[] };
+
+export type TransportRouteAssignmentDto = {
+  id: string;
+  routeId: string;
+  vehicleId: string;
+  vehicleRegistration: string;
+  driverStaffId: string | null;
+  driverName: string | null;
+  attendantStaffId: string | null;
+  attendantName: string | null;
+  status: "active" | "ended";
+  effectiveFrom: string;
+  effectiveTo: string | null;
+};
+export type SetRouteAssignmentRequest = { vehicleId: string; driverStaffId?: string; attendantStaffId?: string };
+
+export type TransportStopStatusDto = "active" | "temporary" | "unsafe" | "inactive";
+export type TransportStopDto = {
+  id: string;
+  name: string;
+  code: string;
+  address: string;
+  landmark: string | null;
+  status: TransportStopStatusDto;
+  safetyNotes: string | null;
+  routeCount: number;
+  studentCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateTransportStopRequest = { name: string; code: string; address: string; landmark?: string };
+export type FlagStopUnsafeRequest = { safetyNotes: string };
+export type SetStopStatusRequest = { status: TransportStopStatusDto };
+
+export type StudentTransportStatusDto = "active" | "suspended" | "withdrawn";
+export type StudentTransportAssignmentDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  routeId: string;
+  routeName: string;
+  pickupStopId: string;
+  pickupStopName: string;
+  dropStopId: string;
+  dropStopName: string;
+  status: StudentTransportStatusDto;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  createdAt: string;
+};
+export type AssignStudentTransportRequest = { studentId: string; routeId: string; pickupStopId: string; dropStopId?: string };
+export type BulkAssignStudentTransportRequest = { classId: string; routeId: string; pickupStopId: string; dropStopId?: string };
+export type BulkAssignResultDto = { assignedCount: number; skippedCount: number };
+export type WithdrawStudentTransportRequest = { reason?: string };
+
+export type StaffTransportAssignmentDto = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  routeId: string;
+  routeName: string;
+  pickupStopId: string;
+  pickupStopName: string;
+  status: StudentTransportStatusDto;
+  effectiveFrom: string;
+  createdAt: string;
+};
+export type AssignStaffTransportRequest = { staffId: string; routeId: string; pickupStopId: string };
+
+export type TransportTripTypeDto = "pickup" | "drop";
+export type TransportTripStatusDto = "scheduled" | "in-progress" | "completed" | "cancelled";
+
+export type TransportTripListItemDto = {
+  id: string;
+  routeId: string;
+  routeName: string;
+  date: string;
+  type: TransportTripTypeDto;
+  status: TransportTripStatusDto;
+  vehicleRegistration: string | null;
+  driverName: string | null;
+  studentsBoarded: number;
+  studentsExpected: number;
+  createdAt: string;
+};
+export type CreateTransportTripRequest = { routeId: string; date: string; type?: TransportTripTypeDto };
+
+export type TransportTripStopStatusDto = "pending" | "arrived" | "departed";
+export type TransportTripStopDto = { id: string; stopId: string; stopName: string; sequence: number; status: TransportTripStopStatusDto; arrivedAt: string | null; departedAt: string | null };
+
+export type TransportBoardingStatusDto = "expected" | "boarded" | "absent";
+export type TransportDropStatusDto = "onboard" | "dropped";
+export type TransportTripStudentDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  stopId: string;
+  stopName: string;
+  boardingStatus: TransportBoardingStatusDto;
+  dropStatus: TransportDropStatusDto;
+  boardedAt: string | null;
+  droppedAt: string | null;
+};
+
+export type TransportTripDetailDto = TransportTripListItemDto & {
+  vehicleId: string | null;
+  driverStaffId: string | null;
+  attendantStaffId: string | null;
+  attendantName: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  stops: TransportTripStopDto[];
+  students: TransportTripStudentDto[];
+};
+
+export type MarkBoardingRequest = { status: TransportBoardingStatusDto };
+export type MarkDropRequest = { status: TransportDropStatusDto };
+
+export type TransportDashboardDto = {
+  activeVehicles: number;
+  activeRoutes: number;
+  studentsAssigned: number;
+  tripsToday: number;
+  tripsInProgress: number;
+  tripsCompletedToday: number;
+};
+
+/** Real Staff currently on active driver/attendant duty somewhere — derived
+ *  from ACTIVE TransportRouteAssignment rows, never a parallel identity. */
+export type CurrentTransportStaffDto = { staffId: string; staffName: string; routeId: string; routeName: string };
+
+/** Student 360 Transport tab — the current active assignment (if any), never
+ *  live location. */
+export type StudentTransportProfileDto = {
+  assignment: StudentTransportAssignmentDto | null;
+  vehicle: { id: string; registrationNumber: string } | null;
+  driverName: string | null;
+  attendantName: string | null;
+};

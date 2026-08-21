@@ -683,17 +683,19 @@ model Student {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  guardians         StudentGuardian[]
-  documents         StudentDocument[]
-  timeline          StudentTimelineEvent[]
-  enrollments       Enrollment[] // Phase 6-pre — real class/section enrollment
-  attendanceRecords AttendanceRecord[] // Phase 5 — attendance
-  examMarks         ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
-  examResults       StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
-  promotions        StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
-  feeAssignments    StudentFeeAssignment[] // Phase 9F — fee billing
-  feeCharges        FeeCharge[] // Phase 9F — billable fee items
-  feePayments       FeePayment[] // Phase 9F — fee collections
+  guardians            StudentGuardian[]
+  documents            StudentDocument[]
+  timeline             StudentTimelineEvent[]
+  enrollments          Enrollment[] // Phase 6-pre — real class/section enrollment
+  attendanceRecords    AttendanceRecord[] // Phase 5 — attendance
+  examMarks            ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
+  examResults          StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
+  promotions           StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
+  feeAssignments       StudentFeeAssignment[] // Phase 9F — fee billing
+  transportAssignments StudentTransportAssignment[] // Phase 9M — transport
+  transportTripRecords TransportTripStudent[] // Phase 9M — per-trip boarding/drop
+  feeCharges           FeeCharge[] // Phase 9F — billable fee items
+  feePayments          FeePayment[] // Phase 9F — fee collections
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2048,18 +2050,23 @@ model Staff {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  user                    User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  teachingAssignments     TeachingAssignment[]
-  timetableEntries        TimetableEntry[] // Phase 7 — timetable
-  examInvigilations       ExamScheduleEntry[] // Phase 8A — optional invigilator
-  homework                Homework[] // Phase 9B — homework/assignments
-  curriculumTopicProgress CurriculumTopicProgress[] // Phase 9C.1 — topics this staff marked complete
-  lessonPlans             LessonPlan[] // Phase 9C.2 — lesson plans
-  attendanceRecords       StaffAttendanceRecord[] // Phase 9E.1 — own daily attendance
-  leaveRequests           LeaveRequest[] // Phase 9E.2 — own leave requests
-  salaryAssignments       StaffSalaryAssignment[] // Phase 9H — effective-dated salary assignments
-  payrollItems            PayrollRunItem[] // Phase 9H — payroll snapshots
-  hostedVisits            VisitorVisit[] // Phase 9I — visits where this staff is the host
+  user                               User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  teachingAssignments                TeachingAssignment[]
+  timetableEntries                   TimetableEntry[] // Phase 7 — timetable
+  examInvigilations                  ExamScheduleEntry[] // Phase 8A — optional invigilator
+  homework                           Homework[] // Phase 9B — homework/assignments
+  curriculumTopicProgress            CurriculumTopicProgress[] // Phase 9C.1 — topics this staff marked complete
+  lessonPlans                        LessonPlan[] // Phase 9C.2 — lesson plans
+  attendanceRecords                  StaffAttendanceRecord[] // Phase 9E.1 — own daily attendance
+  leaveRequests                      LeaveRequest[] // Phase 9E.2 — own leave requests
+  salaryAssignments                  StaffSalaryAssignment[] // Phase 9H — effective-dated salary assignments
+  payrollItems                       PayrollRunItem[] // Phase 9H — payroll snapshots
+  hostedVisits                       VisitorVisit[] // Phase 9I — visits where this staff is the host
+  transportRouteDriverAssignments    TransportRouteAssignment[] @relation("TransportRouteDriver") // Phase 9M
+  transportRouteAttendantAssignments TransportRouteAssignment[] @relation("TransportRouteAttendant") // Phase 9M
+  transportTripsAsDriver             TransportTrip[]            @relation("TransportTripDriver") // Phase 9M
+  transportTripsAsAttendant          TransportTrip[]            @relation("TransportTripAttendant") // Phase 9M
+  staffTransportAssignments          StaffTransportAssignment[] // Phase 9M
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -4376,4 +4383,413 @@ model VisitorPassCounter {
   counter  Int    @default(0)
 
   @@map("visitor_pass_counters")
+}
+
+// ===========================================================================
+// Phase 9M — Transport Management. Reuses real identities throughout: drivers
+// and attendants are real Staff (Staff.id, never a parallel Driver/Employee
+// model); students resolve through real Student.id, session-scoped via
+// academicSessionId; no fake GPS/telemetry, no second fee engine (Phase 9F
+// remains canonical — transport fees are deferred, not modelled here).
+//
+// TransportRouteAssignment is the "current + historical" vehicle/driver/
+// attendant combo for a route, effective-dated rather than a fixed pointer on
+// Route itself (so past trips keep their true historical crew even after the
+// route is reassigned) — a partial unique index (added by hand in the
+// migration SQL, not expressible as a Prisma @@unique) keeps at most one
+// ACTIVE row per route, mirroring Phase 7C's AttendanceSession.type pattern.
+//
+// TransportTrip snapshots vehicleId/driverStaffId/attendantStaffId from the
+// route's effective assignment AT CREATION TIME — never re-read live — so a
+// later crew change never rewrites a trip's own history.
+//
+// TransportTripStudent boarding/drop is intentionally NOT student academic
+// attendance (Phase 5/7C) — a separate, smaller state machine scoped to one
+// trip, seeded from the real active StudentTransportAssignment roster.
+// ===========================================================================
+
+enum TransportVehicleType {
+  BUS
+  MINI_BUS
+  VAN
+  CAR
+  ELECTRIC_VEHICLE
+  CONTRACT_VEHICLE
+  CUSTOM
+}
+
+enum TransportVehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  ARCHIVED
+}
+
+model TransportVehicle {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  registrationNumber String
+  displayName        String? // fleet number / nickname — display only
+  type               TransportVehicleType   @default(BUS)
+  make               String?
+  model              String?
+  capacity           Int
+  status             TransportVehicleStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  routeAssignments TransportRouteAssignment[]
+  trips            TransportTrip[]
+
+  // Registration number unique within the school — the real concurrency
+  // guarantee against duplicate vehicle registration (a race-losing insert
+  // fails on this constraint; see createVehicle's doc comment).
+  @@unique([schoolId, registrationNumber])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("transport_vehicles")
+}
+
+enum TransportShift {
+  MORNING
+  AFTERNOON
+  EVENING
+  BOTH
+}
+
+enum TransportRouteDirection {
+  PICKUP
+  DROP
+  BOTH
+}
+
+enum TransportRouteStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model TransportRoute {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  name      String
+  code      String
+  shift     TransportShift          @default(MORNING)
+  direction TransportRouteDirection @default(BOTH)
+  capacity  Int?
+  status    TransportRouteStatus    @default(DRAFT)
+  notes     String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  routeStops         TransportRouteStop[]
+  assignments        TransportRouteAssignment[]
+  studentAssignments StudentTransportAssignment[]
+  staffAssignments   StaffTransportAssignment[]
+  trips              TransportTrip[]
+
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("transport_routes")
+}
+
+enum TransportStopStatus {
+  ACTIVE
+  TEMPORARY
+  UNSAFE
+  INACTIVE
+}
+
+model TransportStop {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  name        String
+  code        String
+  address     String
+  landmark    String?
+  status      TransportStopStatus @default(ACTIVE)
+  safetyNotes String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  routeStops         TransportRouteStop[]
+  pickupAssignments  StudentTransportAssignment[] @relation("TransportPickupStop")
+  dropAssignments    StudentTransportAssignment[] @relation("TransportDropStop")
+  staffAssignments   StaffTransportAssignment[]
+  tripStudentStops   TransportTripStudent[]
+  transportTripStops TransportTripStop[]
+
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@map("transport_stops")
+}
+
+/**
+ * A stop's role on one specific route (sequence, timing) — the same physical
+ * TransportStop can appear on multiple routes with different sequence/timing
+ * via separate rows here. Sequence is application-managed (ORDER BY), not a
+ * DB-unique tuple, so an atomic multi-row reorder never transiently collides
+ * with itself inside one transaction.
+ */
+model TransportRouteStop {
+  id       String @id @default(cuid())
+  tenantId String
+  routeId  String
+  stopId   String
+
+  sequence   Int
+  pickupTime String? // "HH:MM", manually set — never computed/estimated
+  dropTime   String?
+
+  route TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop  TransportStop  @relation(fields: [stopId], references: [id], onDelete: Restrict)
+
+  // A given physical stop appears on a route at most once.
+  @@unique([routeId, stopId])
+  @@index([tenantId])
+  @@index([routeId, sequence])
+  @@map("transport_route_stops")
+}
+
+enum TransportAssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
+/**
+ * The effective-dated vehicle + driver (Staff) + attendant (Staff) combo for
+ * a route — see the domain doc comment above for why this isn't a fixed
+ * pointer on TransportRoute.
+ */
+model TransportRouteAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  routeId          String
+  vehicleId        String
+  driverStaffId    String?
+  attendantStaffId String?
+
+  status        TransportAssignmentStatus @default(ACTIVE)
+  effectiveFrom DateTime                  @db.Date
+  effectiveTo   DateTime?                 @db.Date
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  route     TransportRoute   @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  vehicle   TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver    Staff?           @relation("TransportRouteDriver", fields: [driverStaffId], references: [id], onDelete: SetNull)
+  attendant Staff?           @relation("TransportRouteAttendant", fields: [attendantStaffId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([routeId, status])
+  @@index([vehicleId])
+  @@map("transport_route_assignments")
+}
+
+enum StudentTransportStatus {
+  ACTIVE
+  SUSPENDED
+  WITHDRAWN
+}
+
+model StudentTransportAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  academicSessionId String
+  studentId         String
+  enrollmentId      String?
+  routeId           String
+  pickupStopId      String
+  dropStopId        String
+
+  status        StudentTransportStatus @default(ACTIVE)
+  effectiveFrom DateTime               @db.Date
+  effectiveTo   DateTime?              @db.Date
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  student     Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  route       TransportRoute         @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  pickupStop  TransportStop          @relation("TransportPickupStop", fields: [pickupStopId], references: [id], onDelete: Restrict)
+  dropStop    TransportStop          @relation("TransportDropStop", fields: [dropStopId], references: [id], onDelete: Restrict)
+  tripRecords TransportTripStudent[]
+
+  @@index([tenantId])
+  @@index([schoolId, academicSessionId, status])
+  @@index([routeId])
+  @@index([studentId])
+  @@map("student_transport_assignments")
+}
+
+model StaffTransportAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId      String
+  routeId      String
+  pickupStopId String
+
+  status        StudentTransportStatus @default(ACTIVE)
+  effectiveFrom DateTime               @db.Date
+  effectiveTo   DateTime?              @db.Date
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  staff Staff          @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  route TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  stop  TransportStop  @relation(fields: [pickupStopId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([staffId])
+  @@map("staff_transport_assignments")
+}
+
+enum TransportTripType {
+  PICKUP
+  DROP
+}
+
+enum TransportTripStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model TransportTrip {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  routeId          String
+  // Snapshotted from the route's effective TransportRouteAssignment at
+  // creation time — see the domain doc comment above.
+  vehicleId        String
+  driverStaffId    String?
+  attendantStaffId String?
+
+  date   DateTime            @db.Date
+  type   TransportTripType
+  status TransportTripStatus @default(SCHEDULED)
+
+  startedAt   DateTime? @db.Timestamptz(6)
+  completedAt DateTime? @db.Timestamptz(6)
+  cancelledAt DateTime? @db.Timestamptz(6)
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  route        TransportRoute         @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  vehicle      TransportVehicle       @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver       Staff?                 @relation("TransportTripDriver", fields: [driverStaffId], references: [id], onDelete: SetNull)
+  attendant    Staff?                 @relation("TransportTripAttendant", fields: [attendantStaffId], references: [id], onDelete: SetNull)
+  stops        TransportTripStop[]
+  tripStudents TransportTripStudent[]
+
+  // One trip per route per date per type — the real concurrency guarantee
+  // against a duplicate trip being created twice.
+  @@unique([routeId, date, type])
+  @@index([tenantId])
+  @@index([schoolId, date])
+  @@index([vehicleId])
+  @@map("transport_trips")
+}
+
+enum TransportTripStopStatus {
+  PENDING
+  ARRIVED
+  DEPARTED
+}
+
+/**
+ * Seeded from the route's TransportRouteStop order at trip creation — a
+ * snapshot, so a later route stop-order edit never rewrites a past trip's
+ * own timeline.
+ */
+model TransportTripStop {
+  id     String @id @default(cuid())
+  tripId String
+  stopId String
+
+  sequence Int
+  status   TransportTripStopStatus @default(PENDING)
+
+  arrivedAt  DateTime? @db.Timestamptz(6)
+  departedAt DateTime? @db.Timestamptz(6)
+
+  trip TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop TransportStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
+
+  @@unique([tripId, stopId])
+  @@index([tripId, sequence])
+  @@map("transport_trip_stops")
+}
+
+enum TransportBoardingStatus {
+  EXPECTED
+  BOARDED
+  ABSENT
+}
+
+enum TransportDropStatus {
+  ONBOARD
+  DROPPED
+}
+
+/**
+ * Per-student, per-trip boarding/drop — seeded from the real ACTIVE
+ * StudentTransportAssignment roster at trip creation. Deliberately NOT
+ * student academic attendance (Phase 5/7C AttendanceRecord) — a separate,
+ * smaller domain, never auto-synced.
+ */
+model TransportTripStudent {
+  id           String @id @default(cuid())
+  tripId       String
+  studentId    String
+  assignmentId String
+  stopId       String
+
+  boardingStatus TransportBoardingStatus @default(EXPECTED)
+  dropStatus     TransportDropStatus     @default(ONBOARD)
+  boardedAt      DateTime?               @db.Timestamptz(6)
+  droppedAt      DateTime?               @db.Timestamptz(6)
+  markedByUserId String?
+
+  trip       TransportTrip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  student    Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment StudentTransportAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  stop       TransportStop              @relation(fields: [stopId], references: [id], onDelete: Restrict)
+
+  @@unique([tripId, studentId])
+  @@index([tripId])
+  @@map("transport_trip_students")
 }

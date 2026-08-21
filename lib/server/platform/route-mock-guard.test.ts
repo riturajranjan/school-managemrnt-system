@@ -281,6 +281,34 @@ const MIGRATED_FILES = [
   // is already covered by the broader "components/dashboard" directory guard
   // above.
   "app/action-inbox/page.tsx",
+  // Phase 9M — Transport Management. Real TransportVehicle/TransportRoute/
+  // TransportStop/TransportRouteStop/TransportRouteAssignment/
+  // StudentTransportAssignment/StaffTransportAssignment/TransportTrip via
+  // /api/transport/* (PostgreSQL). Drivers/Attendants are the real Staff
+  // directory (no parallel Driver/Employee identity, no fake safety score).
+  // No GPS/live-tracking/fuel/maintenance/incidents/documents/fees/
+  // notifications — those stay fully mock (app/transport/live,
+  // attendance, incidents, maintenance, fuel, documents, fees,
+  // notifications, reports, settings), and app/transport/page.tsx (hub) is
+  // a hybrid — its headline stats are real but it still legitimately reads
+  // db.vehicleDocuments/driverDocuments for the still-mock document-expiry
+  // banner — so it is NOT guarded here, matching the front-desk hub
+  // precedent (Phase 9I).
+  "app/transport/vehicles/page.tsx",
+  "app/transport/vehicles/new/page.tsx",
+  "app/transport/vehicles/[vehicleId]/page.tsx",
+  "app/transport/drivers/page.tsx",
+  "app/transport/attendants/page.tsx",
+  "app/transport/routes/page.tsx",
+  "app/transport/routes/new/page.tsx",
+  "app/transport/routes/[routeId]/page.tsx",
+  "app/transport/stops/page.tsx",
+  "app/transport/assignments/page.tsx",
+  "app/transport/student-assignments/page.tsx",
+  "app/transport/staff-assignments/page.tsx",
+  "app/transport/trips/page.tsx",
+  "app/transport/trips/[tripId]/page.tsx",
+  "app/transport/dashboard/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -404,6 +432,18 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "sendStudentCommunication", why: "mock parent SMS/WhatsApp/email broadcast send — no real Student/Guardian User account exists, and an SMS/WhatsApp/email gateway is out of scope" },
   { marker: "db.conversations", why: "mock conversation store slice" },
   { marker: "db.conversationParticipants", why: "mock conversation-participant store slice" },
+  // Phase 9M — transport mock authority (real surfaces must use hooks/api/use-transport-api).
+  { marker: 'hooks/use-transport"', why: "mock transport hooks (useVehicles/useDrivers/useTransportRoutes/useTransportStops/useTransportTrips/useRouteStops — use hooks/api/use-transport-api)" },
+  { marker: "services/driver-service", why: "mock driver-identity create service — drivers are real Staff, never a parallel identity" },
+  { marker: "services/stop-service", why: "mock stop service (deleted authority — use hooks/api/use-transport-api)" },
+  { marker: "services/trip-service", why: "mock trip service (deleted authority — use hooks/api/use-transport-api)" },
+  { marker: "services/student-transport-service", why: "mock student-transport-assignment service (deleted authority — use hooks/api/use-transport-api)" },
+  { marker: "services/staff-transport-service", why: "mock staff-transport-assignment service (deleted authority for real surfaces — use hooks/api/use-transport-api)" },
+  { marker: "selectors/driver-safety", why: "mock driver safety-score selector — no real basis for a safety score exists" },
+  { marker: "selectors/vehicle-health", why: "mock vehicle health-score selector — no real basis for a health score exists" },
+  { marker: "selectors/transport-pulse", why: "mock Transport Pulse gauge selector (deleted from the dashboard — no real GPS/telemetry/delay data exists)" },
+  { marker: "selectors/transport-brief", why: "mock daily transport brief/exception-feed selector (deleted from the dashboard)" },
+  { marker: '"@/lib/types/transport"', why: "mock Transport types (Vehicle/Driver/TransportRoute/TransportStop/StudentTransportAssignment/TransportTrip) — real surfaces use lib/api/contracts.ts DTOs instead" },
 ];
 
 function collectSources(dir: string): string[] {

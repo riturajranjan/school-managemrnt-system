@@ -1,25 +1,25 @@
 "use client";
 
+// Transport assignments hub (Phase 9M) — real PostgreSQL/API cutover.
 import Link from "next/link";
 import { UserCog, UsersRound } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { useStaffTransportAssignments, useStudentTransportAssignments } from "@/lib/hooks/api/use-transport-api";
 
 export default function TransportAssignmentsHubPage() {
-  const db = useSisStore();
-  const activeStudentAssignments = db.studentTransportAssignments.filter((a) => a.status === "active").length;
-  const activeStaffAssignments = db.staffTransportAssignments.filter((a) => a.status === "active").length;
+  const { data: studentAssignments } = useStudentTransportAssignments({ status: "active" });
+  const { data: staffAssignments } = useStaffTransportAssignments({ status: "active" });
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">Transport assignments</h1>
-        <p className="text-xs text-muted-foreground">Assign students and staff to routes, stops and seats</p>
+        <p className="text-xs text-muted-foreground">Assign students and staff to routes and stops</p>
       </div>
 
       <div className="grid grid-cols-2 gap-sm">
-        <StatTile label="Students on transport" value={String(activeStudentAssignments)} icon={UsersRound} tone="neutral" />
-        <StatTile label="Staff on transport" value={String(activeStaffAssignments)} icon={UserCog} tone="neutral" />
+        <StatTile label="Students on transport" value={String(studentAssignments.length)} icon={UsersRound} tone="neutral" />
+        <StatTile label="Staff on transport" value={String(staffAssignments.length)} icon={UserCog} tone="neutral" />
       </div>
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">

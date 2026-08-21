@@ -2,10 +2,10 @@
 
 // Student 360 — real-data profile. Reads GET /api/students/[id]; the tabs shown
 // here (Overview, Guardians, Documents, Timeline) are the sections Phase 4 owns,
-// plus a real Attendance tab (Phase 5) backed by GET /api/students/[id]/attendance.
-// Fees / Academics / Transport / Health / Library etc. are intentionally NOT shown
-// as real here — they arrive with their own module migrations, and are never faked
-// against this real record (§8).
+// plus a real Attendance tab (Phase 5), a real Fees tab (Phase 9F) and a real
+// Transport tab (Phase 9M). Academics / Health / Library etc. are intentionally
+// NOT shown as real here — they arrive with their own module migrations, and
+// are never faked against this real record (§8).
 import Link from "next/link";
 import { useState } from "react";
 import { Archive, Mail, Pencil, Phone, Plus, Trash2, UserPlus } from "lucide-react";
@@ -27,12 +27,13 @@ import {
 } from "@/lib/hooks/api/use-students";
 import { useStudentAttendance } from "@/lib/hooks/api/use-attendance";
 import { useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
+import { useStudentTransportProfile } from "@/lib/hooks/api/use-transport-api";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can } = usePermissions();
@@ -69,6 +70,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="fees">Fees</TabsTrigger>
+          <TabsTrigger value="transport">Transport</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -87,6 +89,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         <TabsContent value="fees" className="mt-md">
           <FeesSection studentId={student.id} />
         </TabsContent>
+        <TabsContent value="transport" className="mt-md">
+          <TransportSection studentId={student.id} />
+        </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
         </TabsContent>
@@ -102,10 +107,10 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         onConfirm={() => void onArchive()}
       />
 
-      {/* Deliberately no academics/transport/health sections — those are owned
-          by future module phases and are not faked against this real record. */}
+      {/* Deliberately no academics/health sections — those are owned by
+          future module phases and are not faked against this real record. */}
       <p className="text-xs text-muted-foreground">
-        Academics, transport and health for this student appear once those modules are migrated.
+        Academics and health for this student appear once those modules are migrated.
       </p>
     </div>
   );
@@ -484,6 +489,36 @@ function FeesSection({ studentId }: { studentId: string }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+// Real PostgreSQL/API cutover (Phase 9M) — reads GET /api/students/[id]/transport.
+function TransportSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentTransportProfile(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading transport…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data || !data.assignment) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Not assigned to transport.</p>;
+  }
+
+  const a = data.assignment;
+  return (
+    <div className="rounded-lg border border-border p-sm">
+      <h2 className="mb-sm text-sm font-semibold text-foreground">Transport assignment</h2>
+      <div className="grid grid-cols-2 gap-sm sm:grid-cols-3">
+        <Field label="Route" value={a.routeName} />
+        <Field label="Pickup stop" value={a.pickupStopName} />
+        <Field label="Drop stop" value={a.dropStopName} />
+        <Field label="Vehicle" value={data.vehicle?.registrationNumber} />
+        <Field label="Driver" value={data.driverName} />
+        <Field label="Attendant" value={data.attendantName} />
+        <Field label="Status" value={a.status} />
+      </div>
+      <Link href={`/transport/routes/${a.routeId}`} className="mt-sm inline-block text-xs font-medium text-primary hover:underline">
+        View route
+      </Link>
     </div>
   );
 }

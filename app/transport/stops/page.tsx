@@ -1,5 +1,7 @@
 "use client";
 
+// Stops (Phase 9M) — real PostgreSQL/API cutover. No lat/long/geofence — the
+// old mock silently hardcoded fake coordinates on every create.
 import { useState } from "react";
 import { AlertTriangle, MapPinned, Plus } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -9,54 +11,36 @@ import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useTransportStops } from "@/lib/hooks/use-transport";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { createStop, flagUnsafeStop, setStopStatus } from "@/lib/services/stop-service";
-import { stopStatusLabels, type StopStatus, type TransportStop } from "@/lib/types/transport";
+import { createStopRequest, flagStopUnsafeRequest, setStopStatusRequest, useTransportStops } from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
+import type { TransportStopDto, TransportStopStatusDto } from "@/lib/api/contracts";
 
-const ACTOR = { name: "Transport Administrator", role: "Transport Administrator" };
-
-const statusTone: Record<StopStatus, "success" | "warning" | "error" | "neutral"> = {
-  active: "success",
-  temporary: "warning",
-  unsafe: "error",
-  alternate: "neutral",
-  inactive: "neutral",
-};
+const statusTone: Record<TransportStopStatusDto, "success" | "warning" | "error" | "neutral"> = { active: "success", temporary: "warning", unsafe: "error", inactive: "neutral" };
 
 export default function StopsPage() {
-  const stops = useTransportStops();
-  const db = useSisStore();
-  const { can } = usePermissions();
-  const canManage = can("transport.manageStops");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: stops, loading, error, reload } = useTransportStops();
 
-  const [detail, setDetail] = useState<TransportStop | null>(null);
+  const [detail, setDetail] = useState<TransportStopDto | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [flagOpen, setFlagOpen] = useState<TransportStop | null>(null);
+  const [flagOpen, setFlagOpen] = useState<TransportStopDto | null>(null);
   const [flagNotes, setFlagNotes] = useState("");
-
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [address, setAddress] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  function routesForStop(stopId: string) {
-    const routeIds = new Set(db.routeStops.filter((rs) => rs.stopId === stopId).map((rs) => rs.routeId));
-    return db.transportRoutes.filter((r) => routeIds.has(r.id));
+  if (!capabilitiesLoading && !hasServerPermission("transport.view")) {
+    return <PermissionDenied action="view transport stops" role={roleLabels[role]} backHref="/" />;
   }
+  const canManage = hasServerPermission("transport.manage");
 
-  function studentsForStop(stopId: string) {
-    return db.studentTransportAssignments.filter((a) => (a.pickupStopId === stopId || a.dropStopId === stopId) && a.status === "active");
-  }
-
-  const columns: ColumnDef<TransportStop>[] = [
+  const columns: ColumnDef<TransportStopDto>[] = [
     {
-      id: "name",
-      header: "Stop",
-      alwaysVisible: true,
-      sortValue: (s) => s.name,
+      id: "name", header: "Stop", alwaysVisible: true, sortValue: (s) => s.name,
       cell: (s) => (
         <button type="button" onClick={() => setDetail(s)} className="text-left">
           <p className="text-sm font-medium text-foreground underline-offset-2 hover:underline">{s.name}</p>
@@ -64,15 +48,15 @@ export default function StopsPage() {
         </button>
       ),
     },
-    { id: "routes", header: "Routes", align: "right", cell: (s) => <span className="text-sm text-muted-foreground">{routesForStop(s.id).length}</span> },
-    { id: "students", header: "Students", align: "right", cell: (s) => <span className="text-sm text-muted-foreground">{studentsForStop(s.id).length}</span> },
-    { id: "status", header: "Status", align: "right", cell: (s) => <Badge tone={statusTone[s.status]}>{stopStatusLabels[s.status]}</Badge> },
+    { id: "routes", header: "Routes", align: "right", cell: (s) => <span className="text-sm text-muted-foreground">{s.routeCount}</span> },
+    { id: "students", header: "Students", align: "right", cell: (s) => <span className="text-sm text-muted-foreground">{s.studentCount}</span> },
+    { id: "status", header: "Status", align: "right", cell: (s) => <Badge tone={statusTone[s.status]}>{s.status}</Badge> },
   ];
 
-  const rowActions: RowAction<TransportStop>[] = canManage
+  const rowActions: RowAction<TransportStopDto>[] = canManage
     ? [
         { key: "flag", label: "Flag unsafe", icon: <AlertTriangle className="size-3.5" />, hidden: (s) => s.status === "unsafe", destructive: true, onSelect: (s) => setFlagOpen(s) },
-        { key: "restore", label: "Restore to active", hidden: (s) => s.status === "active", onSelect: (s) => setStopStatus(s.id, "active", ACTOR) },
+        { key: "restore", label: "Restore to active", hidden: (s) => s.status === "active", onSelect: async (s) => { await setStopStatusRequest(s.id, { status: "active" }); reload(); } },
       ]
     : [];
 
@@ -91,26 +75,30 @@ export default function StopsPage() {
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={[...stops].sort((a, b) => a.name.localeCompare(b.name))}
-        getRowId={(s) => s.id}
-        caption="Stops"
-        rowActions={rowActions}
-        renderMobileCard={(s) => (
-          <button type="button" onClick={() => setDetail(s)} className="surface-3d flex w-full flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left">
-            <div className="flex items-center justify-between gap-xs">
-              <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
-              <Badge tone={statusTone[s.status]}>{stopStatusLabels[s.status]}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {s.code} · {routesForStop(s.id).length} route(s) · {studentsForStop(s.id).length} student(s)
-            </p>
-          </button>
-        )}
-        emptyIcon={MapPinned}
-        emptyTitle="No stops configured"
-      />
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && stops.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={[...stops].sort((a, b) => a.name.localeCompare(b.name))}
+          getRowId={(s) => s.id}
+          caption="Stops"
+          rowActions={rowActions}
+          renderMobileCard={(s) => (
+            <button type="button" onClick={() => setDetail(s)} className="surface-3d flex w-full flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left">
+              <div className="flex items-center justify-between gap-xs">
+                <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
+                <Badge tone={statusTone[s.status]}>{s.status}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">{s.code} · {s.routeCount} route(s) · {s.studentCount} student(s)</p>
+            </button>
+          )}
+          emptyIcon={MapPinned}
+          emptyTitle="No stops configured"
+        />
+      )}
 
       <DetailDrawer open={!!detail} onOpenChange={(open) => !open && setDetail(null)} title={detail?.name ?? ""} description={detail?.code}>
         {detail && (
@@ -126,54 +114,15 @@ export default function StopsPage() {
                 {detail.safetyNotes}
               </div>
             )}
-            <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">Routes using this stop</p>
-              {routesForStop(detail.id).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No routes use this stop.</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {routesForStop(detail.id).map((r) => (
-                    <li key={r.id} className="text-sm text-foreground">
-                      {r.name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">Students assigned ({studentsForStop(detail.id).length})</p>
-              {studentsForStop(detail.id).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No students assigned.</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {studentsForStop(detail.id)
-                    .slice(0, 15)
-                    .map((a) => {
-                      const student = db.students.find((s) => s.id === a.studentId);
-                      return (
-                        <li key={a.id} className="text-sm text-foreground">
-                          {student ? `${student.profile.firstName} ${student.profile.lastName}` : a.studentId}
-                        </li>
-                      );
-                    })}
-                </ul>
-              )}
-            </div>
+            <Field label="Routes using this stop" value={`${detail.routeCount}`} />
+            <Field label="Students assigned" value={`${detail.studentCount}`} />
           </div>
         )}
       </DetailDrawer>
 
-      <DetailDrawer
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (!open) setError(null);
-        }}
-        title="Add stop"
-        description="A reusable pickup/drop point that can be added to any route"
-      >
+      <DetailDrawer open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) setSaveError(null); }} title="Add stop" description="A reusable pickup/drop point that can be added to any route">
         <div className="flex flex-col gap-sm">
-          {error && <p className="text-xs text-error">{error}</p>}
+          {saveError && <p className="text-xs text-error">{saveError}</p>}
           <div>
             <Label htmlFor="stop-name">Stop name</Label>
             <Input id="stop-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -192,17 +141,12 @@ export default function StopsPage() {
           </div>
           <Button
             disabled={!name.trim() || !code.trim() || !address.trim()}
-            onClick={() => {
-              const result = createStop({ name: name.trim(), code: code.trim(), address: address.trim(), landmark: landmark.trim() || undefined, latitude: 12.97, longitude: 77.6, geofenceRadiusMeters: 150, branch: "main", status: "active" }, ACTOR);
-              if (!result.ok) {
-                setError(result.error);
-                return;
-              }
+            onClick={async () => {
+              const res = await createStopRequest({ name: name.trim(), code: code.trim(), address: address.trim(), landmark: landmark.trim() || undefined });
+              if (!res.success) { setSaveError(res.error.message); return; }
               setCreateOpen(false);
-              setName("");
-              setCode("");
-              setAddress("");
-              setLandmark("");
+              setName(""); setCode(""); setAddress(""); setLandmark("");
+              reload();
             }}
           >
             Add stop
@@ -219,16 +163,26 @@ export default function StopsPage() {
           <Button
             variant="destructive"
             disabled={!flagNotes.trim()}
-            onClick={() => {
-              if (flagOpen) flagUnsafeStop(flagOpen.id, flagNotes.trim(), ACTOR);
+            onClick={async () => {
+              if (flagOpen) await flagStopUnsafeRequest(flagOpen.id, { safetyNotes: flagNotes.trim() });
               setFlagOpen(null);
               setFlagNotes("");
+              reload();
             }}
           >
             Flag unsafe
           </Button>
         </div>
       </DetailDrawer>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm text-foreground">{value}</p>
     </div>
   );
 }
