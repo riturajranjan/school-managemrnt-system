@@ -1,5 +1,9 @@
 "use client";
 
+// Staff directory (Phase 9J) — real PostgreSQL/API cutover. GET /api/staff —
+// no mock employee/department/designation store. Department/Designation stay
+// plain text fields on Staff (Phase 6A) — no separate Department/Designation
+// model exists, and none is needed for this page. hr.view.
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Download, Eye, Plus, Search, Users } from "lucide-react";
@@ -13,62 +17,68 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { EmployeeAvatar } from "@/components/hr/employee-avatar";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { useStaffList } from "@/lib/hooks/api/use-staff-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { employeeStatusLabels, employeeStatusTone, employmentTypeLabels, type Employee, type EmployeeStatus } from "@/lib/types/hr";
-import { downloadTextFile, formatDate } from "@/lib/utils";
-import { formatMoney } from "@/lib/finance/money";
+import type { EmploymentType, StaffListItemDto, StaffStatus } from "@/lib/api/contracts";
+import { downloadTextFile } from "@/lib/utils";
+
+const statusLabels: Record<StaffStatus, string> = { active: "Active", inactive: "Inactive", archived: "Archived" };
+const statusTone: Record<StaffStatus, "success" | "warning" | "neutral"> = { active: "success", inactive: "warning", archived: "neutral" };
+const employmentTypeLabels: Record<EmploymentType, string> = { "full-time": "Full-time", "part-time": "Part-time", contract: "Contract", temporary: "Temporary" };
 
 export default function StaffDirectoryPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [query, setQuery] = useState("");
   const [dept, setDept] = useState("all");
   const [status, setStatus] = useState("all");
-  const [preview, setPreview] = useState<Employee | null>(null);
+  const [preview, setPreview] = useState<StaffListItemDto | null>(null);
 
-  const deptName = (id: string) => db.departments.find((d) => d.id === id)?.name ?? "—";
-  const desigTitle = (id: string) => db.designations.find((d) => d.id === id)?.title ?? "—";
+  const { data: staff, loading, error } = useStaffList({ pageSize: 200 });
+
+  const departments = useMemo(() => [...new Set(staff.map((s) => s.department).filter((d): d is string => Boolean(d)))].sort(), [staff]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return db.employees
-      .filter((e) => (dept === "all" ? true : e.departmentId === dept))
+    return staff
+      .filter((e) => (dept === "all" ? true : e.department === dept))
       .filter((e) => (status === "all" ? true : e.status === status))
-      .filter((e) => (q ? `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) || e.employeeCode.toLowerCase().includes(q) || e.email.toLowerCase().includes(q) : true));
-  }, [db.employees, query, dept, status]);
+      .filter((e) => (q ? e.name.toLowerCase().includes(q) || e.employeeCode.toLowerCase().includes(q) || (e.email ?? "").toLowerCase().includes(q) : true));
+  }, [staff, query, dept, status]);
 
-  if (!can("hr.view")) return <PermissionDenied action="view the staff directory" role={roleLabels[role]} backHref="/hr/employee-self-service" />;
-  const canSensitive = can("hr.viewSensitive");
+  if (!capabilitiesLoading && !hasServerPermission("hr.view")) {
+    return <PermissionDenied action="view the staff directory" role={roleLabels[role]} backHref="/hr/employee-self-service" />;
+  }
+  const canManage = hasServerPermission("hr.manage");
+  const canPayroll = hasServerPermission("payroll.view");
   const isFiltered = query.trim() !== "" || dept !== "all" || status !== "all";
 
   function exportCsv() {
     const header = "Employee ID,Name,Designation,Department,Type,Joined,Status";
-    const lines = rows.map((e) => [e.employeeCode, `${e.firstName} ${e.lastName}`, desigTitle(e.designationId), deptName(e.departmentId), employmentTypeLabels[e.employmentType], e.joiningDate, employeeStatusLabels[e.status]].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const lines = rows.map((e) => [e.employeeCode, e.name, e.designation ?? "", e.department ?? "", e.employmentType ? employmentTypeLabels[e.employmentType] : "", "", statusLabels[e.status]].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     downloadTextFile("staff-directory.csv", [header, ...lines].join("\n"));
   }
 
-  const columns: ColumnDef<Employee>[] = [
+  const columns: ColumnDef<StaffListItemDto>[] = [
     {
       id: "name",
       header: "Employee",
       alwaysVisible: true,
-      sortValue: (e) => `${e.firstName} ${e.lastName}`,
+      sortValue: (e) => e.name,
       cell: (e) => (
         <Link href={`/hr/staff/${e.id}`} className="flex min-w-0 items-center gap-sm">
-          <EmployeeAvatar firstName={e.firstName} lastName={e.lastName} color={e.photoColor} size="sm" />
+          <EmployeeAvatar firstName={e.name.split(" ")[0] ?? e.name} lastName={e.name.split(" ")[1] ?? ""} size="sm" />
           <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-foreground underline-offset-2 hover:underline">{e.firstName} {e.lastName}</span>
-            <span className="block truncate text-xs text-muted-foreground">{e.employeeCode} · {desigTitle(e.designationId)}</span>
+            <span className="block truncate text-sm font-medium text-foreground underline-offset-2 hover:underline">{e.name}</span>
+            <span className="block truncate text-xs text-muted-foreground">{e.employeeCode} · {e.designation ?? "—"}</span>
           </span>
         </Link>
       ),
     },
-    { id: "dept", header: "Department", cell: (e) => <span className="text-sm text-muted-foreground">{deptName(e.departmentId)}</span> },
-    { id: "type", header: "Type", cell: (e) => <Badge tone="neutral">{employmentTypeLabels[e.employmentType]}</Badge>, defaultVisible: false },
-    { id: "joined", header: "Joined", sortValue: (e) => e.joiningDate, cell: (e) => <span className="text-xs text-muted-foreground">{formatDate(e.joiningDate)}</span>, defaultVisible: false },
-    { id: "attendance", header: "Attendance", align: "right", sortValue: (e) => e.attendancePercent, cell: (e) => <span className={`text-sm font-medium ${e.attendancePercent >= 90 ? "text-success" : e.attendancePercent >= 80 ? "text-warning" : "text-error"}`}>{e.attendancePercent}%</span> },
-    { id: "status", header: "Status", align: "right", cell: (e) => <Badge tone={employeeStatusTone[e.status]}>{employeeStatusLabels[e.status]}</Badge> },
+    { id: "dept", header: "Department", cell: (e) => <span className="text-sm text-muted-foreground">{e.department ?? "—"}</span> },
+    { id: "type", header: "Type", cell: (e) => <Badge tone="neutral">{e.employmentType ? employmentTypeLabels[e.employmentType] : "—"}</Badge>, defaultVisible: false },
+    { id: "teaching", header: "Teaching", cell: (e) => <Badge tone={e.isTeaching ? "info" : "neutral"}>{e.isTeaching ? "Yes" : "No"}</Badge> },
+    { id: "login", header: "Login", cell: (e) => <Badge tone={e.hasUser ? "success" : "neutral"}>{e.hasUser ? "Linked" : "None"}</Badge>, defaultVisible: false },
+    { id: "status", header: "Status", align: "right", cell: (e) => <Badge tone={statusTone[e.status]}>{statusLabels[e.status]}</Badge> },
   ];
 
   return (
@@ -76,16 +86,16 @@ export default function StaffDirectoryPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Staff directory</h1>
-          <p className="text-xs text-muted-foreground">{db.employees.length} employees across {db.departments.length} departments</p>
+          <p className="text-xs text-muted-foreground">{staff.length} staff across {departments.length} department{departments.length === 1 ? "" : "s"}</p>
         </div>
         <div className="flex flex-wrap gap-xs">
           <Button size="sm" variant="outline" onClick={exportCsv}>
             <Download className="size-3.5" /> Export
           </Button>
-          {can("hr.manageStaff") && (
+          {canManage && (
             <Button asChild size="sm">
               <Link href="/hr/staff/new">
-                <Plus className="size-3.5" /> Add employee
+                <Plus className="size-3.5" /> Add staff
               </Link>
             </Button>
           )}
@@ -102,67 +112,78 @@ export default function StaffDirectoryPage() {
             <SelectTrigger className="w-40" aria-label="Filter by department"><SelectValue placeholder="Department" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All departments</SelectItem>
-              {db.departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-36" aria-label="Filter by status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {(Object.keys(employeeStatusLabels) as EmployeeStatus[]).map((s) => <SelectItem key={s} value={s}>{employeeStatusLabels[s]}</SelectItem>)}
+              {(Object.keys(statusLabels) as StaffStatus[]).map((s) => <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowId={(e) => e.id}
-        caption="Staff directory"
-        isFiltered={isFiltered}
-        emptyIcon={Users}
-        emptyTitle="No staff found"
-        rowActions={[{ key: "preview", label: "Quick preview", icon: <Eye className="size-4" />, onSelect: (e) => setPreview(e) }]}
-        renderMobileCard={(e) => (
-          <Link href={`/hr/staff/${e.id}`} className="surface-3d flex items-center gap-sm rounded-lg border border-border bg-surface p-sm">
-            <EmployeeAvatar firstName={e.firstName} lastName={e.lastName} color={e.photoColor} size="md" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-xs">
-                <p className="truncate text-sm font-semibold text-foreground">{e.firstName} {e.lastName}</p>
-                <Badge tone={employeeStatusTone[e.status]}>{employeeStatusLabels[e.status]}</Badge>
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && staff.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowId={(e) => e.id}
+          caption="Staff directory"
+          isFiltered={isFiltered}
+          emptyIcon={Users}
+          emptyTitle="No staff found"
+          rowActions={[{ key: "preview", label: "Quick preview", icon: <Eye className="size-4" />, onSelect: (e) => setPreview(e) }]}
+          renderMobileCard={(e) => (
+            <Link href={`/hr/staff/${e.id}`} className="surface-3d flex items-center gap-sm rounded-lg border border-border bg-surface p-sm">
+              <EmployeeAvatar firstName={e.name.split(" ")[0] ?? e.name} lastName={e.name.split(" ")[1] ?? ""} size="md" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-xs">
+                  <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
+                  <Badge tone={statusTone[e.status]}>{statusLabels[e.status]}</Badge>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">{e.designation ?? "—"} · {e.department ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">{e.employeeCode} · {e.isTeaching ? "Teaching" : "Non-teaching"}</p>
               </div>
-              <p className="truncate text-xs text-muted-foreground">{desigTitle(e.designationId)} · {deptName(e.departmentId)}</p>
-              <p className="text-xs text-muted-foreground">{e.employeeCode} · {e.attendancePercent}% attendance</p>
-            </div>
-          </Link>
-        )}
-      />
+            </Link>
+          )}
+        />
+      )}
 
-      <DetailDrawer open={preview !== null} onOpenChange={(o) => !o && setPreview(null)} title="Employee preview" description="Quick employee summary">
+      <DetailDrawer open={preview !== null} onOpenChange={(o) => !o && setPreview(null)} title="Staff preview" description="Quick staff summary">
         {preview && (
           <div className="flex flex-col gap-md">
             <div className="flex items-center gap-sm">
-              <EmployeeAvatar firstName={preview.firstName} lastName={preview.lastName} color={preview.photoColor} size="lg" />
+              <EmployeeAvatar firstName={preview.name.split(" ")[0] ?? preview.name} lastName={preview.name.split(" ")[1] ?? ""} size="lg" />
               <div className="min-w-0">
-                <p className="text-base font-semibold text-foreground">{preview.firstName} {preview.lastName}</p>
-                <p className="text-xs text-muted-foreground">{desigTitle(preview.designationId)} · {deptName(preview.departmentId)}</p>
-                <Badge tone={employeeStatusTone[preview.status]} className="mt-1">{employeeStatusLabels[preview.status]}</Badge>
+                <p className="text-base font-semibold text-foreground">{preview.name}</p>
+                <p className="text-xs text-muted-foreground">{preview.designation ?? "—"} · {preview.department ?? "—"}</p>
+                <Badge tone={statusTone[preview.status]} className="mt-1">{statusLabels[preview.status]}</Badge>
               </div>
             </div>
             <dl className="grid grid-cols-2 gap-sm text-sm">
               <Field label="Employee ID" value={preview.employeeCode} />
-              <Field label="Type" value={employmentTypeLabels[preview.employmentType]} />
-              <Field label="Joined" value={formatDate(preview.joiningDate)} />
-              <Field label="Attendance" value={`${preview.attendancePercent}%`} />
-              <Field label="Leave balance" value={`${preview.leaveBalanceDays} days`} />
-              {canSensitive && <Field label="Gross salary" value={formatMoney(preview.grossSalary)} />}
-              <Field label="Email" value={preview.email} />
-              <Field label="Phone" value={preview.phone} />
+              <Field label="Type" value={preview.employmentType ? employmentTypeLabels[preview.employmentType] : "—"} />
+              <Field label="Teaching" value={preview.isTeaching ? "Yes" : "No"} />
+              <Field label="Login" value={preview.hasUser ? "Linked" : "Not linked"} />
+              <Field label="Email" value={preview.email ?? "—"} />
+              <Field label="Branch" value={preview.branchId} />
             </dl>
-            <Button asChild size="sm">
-              <Link href={`/hr/staff/${preview.id}`}>Open full profile</Link>
-            </Button>
+            <div className="flex gap-xs">
+              <Button asChild size="sm">
+                <Link href={`/hr/staff/${preview.id}`}>Open full profile</Link>
+              </Button>
+              {canPayroll && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/payroll/payslips">View payroll</Link>
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </DetailDrawer>

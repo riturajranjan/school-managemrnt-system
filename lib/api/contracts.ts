@@ -913,6 +913,43 @@ export type TeachingAssignmentDto = {
   isPrimary: boolean;
 };
 
+/** One teaching assignment from a Staff/teacher's own perspective — real Section + Subject. */
+export type StaffTeachingAssignmentDto = {
+  id: string;
+  isPrimary: boolean;
+  section: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; code: string; name: string; color: string };
+};
+
+/** Bulk per-staff teaching-load aggregate (Phase 9J, Teachers directory list) — real TeachingAssignment + TimetableEntry counts, never fabricated workload. */
+export type TeachingLoadSummaryDto = {
+  staffId: string;
+  subjects: { id: string; name: string; shortName: string }[];
+  sectionCount: number;
+  weeklyPeriods: number; // count of this staff's real TimetableEntry rows in the current academic session
+};
+
+/**
+ * Teacher detail aggregation (Phase 9J) — one server round-trip over the
+ * existing real domains for a single Staff member, in place of the page doing
+ * several separate fetches. Each section is `null` when the caller lacks the
+ * underlying domain permission (never partially fabricated) — for `attendance`
+ * specifically, also when the caller may not view this staff's attendance
+ * (self, or a broad staff-attendance manager, only — see staff-attendance
+ * service `assertCanViewStaff`). `payroll` never carries an amount — Staff/
+ * Teacher surfaces link to Payroll, they do not duplicate its figures.
+ */
+export type TeacherDetailDto = {
+  staff: StaffDetailDto;
+  teachingAssignments: StaffTeachingAssignmentDto[];
+  timetable: TeacherTimetableDto | null;
+  homework: { items: HomeworkListItemDto[]; total: number } | null;
+  lessonPlans: { items: LessonPlanListItemDto[]; total: number } | null;
+  attendance: StaffAttendancePercentDto | null;
+  leave: { pendingCount: number; items: LeaveRequestDto[] } | null;
+  payroll: { visible: boolean };
+};
+
 // --- Phase 8A: Exams foundation (term / exam / class / schedule) ---
 
 export type ExamTermStatus = "active" | "archived";

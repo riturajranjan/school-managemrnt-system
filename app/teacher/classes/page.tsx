@@ -1,15 +1,21 @@
 "use client";
 
+// My classes (Phase 9J) — real PostgreSQL/API cutover. The authenticated
+// teacher's own real TeachingAssignments, resolved via their real Staff.id
+// server-side (GET /api/teaching-assignments/mine) — never the fake
+// CURRENT_TEACHER_ID / mock subjectAssignments.
 import Link from "next/link";
-import { findClass, findSection } from "@/lib/data/seed/reference";
-import { CURRENT_TEACHER_ID } from "@/lib/current-user";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { useMyTeachingAssignments } from "@/lib/hooks/api/use-staff-api";
 
 export default function TeacherClassesPage() {
-  const db = useSisStore();
-  const assignments = db.subjectAssignments.filter((a) => a.primaryTeacherId === CURRENT_TEACHER_ID);
-  const bySection = new Map<string, typeof assignments>();
-  for (const a of assignments) bySection.set(a.sectionId, [...(bySection.get(a.sectionId) ?? []), a]);
+  const { data: assignments, loading, error } = useMyTeachingAssignments();
+
+  const bySection = new Map<string, { className: string; name: string; assignments: typeof assignments }>();
+  for (const a of assignments) {
+    const existing = bySection.get(a.section.id);
+    if (existing) existing.assignments.push(a);
+    else bySection.set(a.section.id, { className: a.section.className, name: a.section.name, assignments: [a] });
+  }
 
   return (
     <div className="flex flex-col gap-md">
@@ -18,20 +24,21 @@ export default function TeacherClassesPage() {
         <p className="text-xs text-muted-foreground">Sections and subjects you teach</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
-        {[...bySection.entries()].map(([sectionId, subjectAssignments]) => {
-          const section = findSection(sectionId);
-          const studentCount = db.students.filter((s) => s.sectionId === sectionId && s.status === "active").length;
-          return (
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && assignments.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
+          {[...bySection.entries()].map(([sectionId, section]) => (
             <div key={sectionId} className="rounded-lg border border-border bg-surface p-sm">
               <p className="text-sm font-semibold text-foreground">
-                {section?.schoolClass.name} — Section {section?.section.name}
+                {section.className} — Section {section.name}
               </p>
-              <p className="text-xs text-muted-foreground">{studentCount} students</p>
               <div className="mt-sm flex flex-wrap gap-1">
-                {subjectAssignments.map((a) => (
+                {section.assignments.map((a) => (
                   <span key={a.id} className="rounded-pill bg-surface-secondary px-sm py-0.5 text-xs text-foreground">
-                    {db.subjects.find((s) => s.id === a.subjectId)?.name}
+                    {a.subject.name}
                   </span>
                 ))}
               </div>
@@ -42,15 +49,15 @@ export default function TeacherClassesPage() {
                 <Link href={`/academics/timetable?section=${sectionId}`} className="font-medium text-primary hover:underline">
                   Timetable
                 </Link>
-                <Link href={`/academics/classes/${findClass(section?.schoolClass.id ?? "")?.id}`} className="font-medium text-primary hover:underline">
+                <Link href={`/academics/classes/${section.assignments[0]?.section.classId}`} className="font-medium text-primary hover:underline">
                   Class page
                 </Link>
               </div>
             </div>
-          );
-        })}
-        {bySection.size === 0 && <p className="text-sm text-muted-foreground">No classes assigned yet.</p>}
-      </div>
+          ))}
+          {bySection.size === 0 && <p className="text-sm text-muted-foreground">No classes assigned yet — this needs a real teaching Staff profile linked to your account.</p>}
+        </div>
+      )}
     </div>
   );
 }

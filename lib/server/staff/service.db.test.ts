@@ -10,7 +10,8 @@ import {
   createStaff, getStaff, getTeachingStaff, listStaff, setStaffStatus, setStaffUser, updateStaff,
 } from "@/lib/server/staff/service";
 import {
-  createTeachingAssignment, listTeachingAssignments, removeTeachingAssignment,
+  createTeachingAssignment, getTeachingLoadSummary, listTeachingAssignments,
+  listTeachingAssignmentsForStaff, removeTeachingAssignment,
 } from "@/lib/server/academics/teaching-assignments-service";
 import type { OrgScope } from "@/lib/server/api/scope";
 import { ROLE_PERMISSIONS } from "@/lib/server/authz/catalog";
@@ -203,5 +204,34 @@ describe.skipIf(!dbReady)("teaching assignments (DB)", () => {
     expect(after.every((x) => x.id !== a.id)).toBe(true);
     const audit = await prisma.auditEvent.findFirst({ where: { tenantId, action: "TEACHING_ASSIGNMENT_REMOVED", entityId: a.id } });
     expect(audit).not.toBeNull();
+  });
+});
+
+describe.skipIf(!dbReady)("staff-scoped teaching assignments + load summary (Phase 9J, DB)", () => {
+  it("listTeachingAssignmentsForStaff returns a staff's own assignments across sections with real Section/Subject info", async () => {
+    const t = await mkStaff(scope, "P9J-1", { firstName: "Nine" });
+    await createTeachingAssignment(scope, sectionA, { subjectId, staffId: t.id });
+    const rows = await listTeachingAssignmentsForStaff(scope, t.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ subject: { id: subjectId, name: "Math" }, section: { id: sectionA, className: "Grade 5", name: "A" } });
+  });
+
+  it("listTeachingAssignmentsForStaff 404s for a foreign-school staff id", async () => {
+    await expect(listTeachingAssignmentsForStaff(scope, staffB)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("getTeachingLoadSummary aggregates subjects/sections per staff in one bulk query, real weeklyPeriods default to 0 with no timetable", async () => {
+    const t1 = await mkStaff(scope, "P9J-L1", { firstName: "LoadOne" });
+    const t2 = await mkStaff(scope, "P9J-L2", { firstName: "LoadTwo" });
+    await createTeachingAssignment(scope, sectionA, { subjectId, staffId: t1.id });
+    const summary = await getTeachingLoadSummary(scope, [t1.id, t2.id]);
+    expect(summary.get(t1.id)).toMatchObject({ sectionCount: 1, weeklyPeriods: 0 });
+    expect(summary.get(t1.id)?.subjects.map((s) => s.id)).toContain(subjectId);
+    expect(summary.get(t2.id)).toMatchObject({ sectionCount: 0, subjects: [], weeklyPeriods: 0 });
+  });
+
+  it("getTeachingLoadSummary returns an empty map for an empty staffIds list", async () => {
+    const summary = await getTeachingLoadSummary(scope, []);
+    expect(summary.size).toBe(0);
   });
 });

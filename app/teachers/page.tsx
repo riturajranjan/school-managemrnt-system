@@ -1,21 +1,47 @@
 "use client";
 
+// Teachers directory (Phase 9J) — real PostgreSQL/API cutover. A VIEW over
+// real Staff where isTeaching = true (GET /api/staff?teaching=true) — never a
+// separate teacher record. Subjects/classes/weekly-periods come from real
+// TeachingAssignment + TimetableEntry (GET /api/staff/load-summary), never
+// fabricated. hr.view — same gate as the Staff directory itself.
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/stat-tile";
-import { useSisStore } from "@/lib/hooks/use-store";
-import type { Teacher } from "@/lib/types/academics";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
+import { fetchTeachingLoadSummary, useStaffList } from "@/lib/hooks/api/use-staff-api";
+import type { StaffListItemDto, StaffStatus, TeachingLoadSummaryDto } from "@/lib/api/contracts";
 import { initialsOf } from "@/lib/utils";
-import { Presentation, UserCheck, Users } from "lucide-react";
+import { Presentation, UserCheck, UserX } from "lucide-react";
+
+const statusTone: Record<StaffStatus, "success" | "neutral" | "warning"> = { active: "success", inactive: "warning", archived: "neutral" };
 
 export default function TeachersPage() {
-  const db = useSisStore();
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: teachers, loading, error } = useStaffList({ teaching: true, pageSize: 200 });
+  const [load, setLoad] = useState<Map<string, TeachingLoadSummaryDto>>(new Map());
 
-  const columns: ColumnDef<Teacher>[] = [
+  useEffect(() => {
+    if (teachers.length === 0) return;
+    let active = true;
+    fetchTeachingLoadSummary(teachers.map((t) => t.id)).then((m) => active && setLoad(m));
+    return () => {
+      active = false;
+    };
+  }, [teachers]);
+
+  if (!capabilitiesLoading && !hasServerPermission("hr.view")) {
+    return <PermissionDenied action="view the teachers directory" role={roleLabels[role]} backHref="/" />;
+  }
+
+  const columns: ColumnDef<StaffListItemDto>[] = [
     {
       id: "name",
       header: "Teacher",
@@ -28,24 +54,20 @@ export default function TeachersPage() {
           </Avatar>
           <div>
             <p className="text-sm font-medium text-foreground">{t.name}</p>
-            <p className="text-xs text-muted-foreground">{t.employeeId}</p>
+            <p className="text-xs text-muted-foreground">{t.employeeCode}</p>
           </div>
         </div>
       ),
     },
-    { id: "department", header: "Department", cell: (t) => <span className="text-sm text-foreground">{t.department}</span> },
+    { id: "department", header: "Department", cell: (t) => <span className="text-sm text-foreground">{t.department ?? "—"}</span> },
     {
       id: "subjects",
       header: "Subjects",
-      cell: (t) => <span className="text-sm text-foreground">{db.subjects.filter((s) => t.subjectIds.includes(s.id)).map((s) => s.shortName).join(", ") || "—"}</span>,
+      cell: (t) => <span className="text-sm text-foreground">{load.get(t.id)?.subjects.map((s) => s.shortName).join(", ") || "—"}</span>,
     },
-    {
-      id: "classes",
-      header: "Classes",
-      cell: (t) => <span className="text-sm text-foreground">{new Set(db.subjectAssignments.filter((a) => a.primaryTeacherId === t.id).map((a) => a.sectionId)).size}</span>,
-    },
-    { id: "load", header: "Weekly periods", cell: (t) => <span className="text-sm text-foreground">{db.subjectAssignments.filter((a) => a.primaryTeacherId === t.id).reduce((sum, a) => sum + a.weeklyPeriods, 0)}/{t.maxWeeklyPeriods}</span>, defaultVisible: false },
-    { id: "status", header: "Status", align: "right", cell: (t) => <Badge tone={t.status === "active" ? "success" : t.status === "on-leave" ? "warning" : "neutral"}>{t.status.replace("-", " ")}</Badge> },
+    { id: "classes", header: "Sections", cell: (t) => <span className="text-sm text-foreground">{load.get(t.id)?.sectionCount ?? 0}</span> },
+    { id: "load", header: "Weekly periods", cell: (t) => <span className="text-sm text-foreground">{load.get(t.id)?.weeklyPeriods ?? 0}</span>, defaultVisible: false },
+    { id: "status", header: "Status", align: "right", cell: (t) => <Badge tone={statusTone[t.status]}>{t.status}</Badge> },
   ];
 
   return (
@@ -56,37 +78,43 @@ export default function TeachersPage() {
       </div>
 
       <section className="grid grid-cols-2 gap-sm sm:grid-cols-3">
-        <StatTile label="Total teachers" value={String(db.teachers.length)} icon={Presentation} tone="info" />
-        <StatTile label="Active today" value={String(db.teachers.filter((t) => t.status === "active").length)} icon={UserCheck} tone="success" />
-        <StatTile label="On leave" value={String(db.teachers.filter((t) => t.status === "on-leave").length)} icon={Users} tone="warning" />
+        <StatTile label="Total teachers" value={String(teachers.length)} icon={Presentation} tone="info" />
+        <StatTile label="Active" value={String(teachers.filter((t) => t.status === "active").length)} icon={UserCheck} tone="success" />
+        <StatTile label="Inactive" value={String(teachers.filter((t) => t.status !== "active").length)} icon={UserX} tone="warning" />
       </section>
 
-      <DataTable
-        columns={columns}
-        rows={db.teachers}
-        getRowId={(t) => t.id}
-        caption="Teachers"
-        onRowClick={(t) => router.push(`/teachers/${t.id}`)}
-        renderMobileCard={(t) => (
-          <button
-            type="button"
-            onClick={() => router.push(`/teachers/${t.id}`)}
-            className="surface-3d flex w-full items-center gap-sm rounded-lg border border-border bg-surface p-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
-          >
-            <Avatar className="size-10">
-              <AvatarFallback>{initialsOf(t.name.split(" ")[0], t.name.split(" ")[1] ?? "")}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-xs">
-                <p className="truncate text-sm font-semibold text-foreground">{t.name}</p>
-                <Badge tone={t.status === "active" ? "success" : "warning"}>{t.status.replace("-", " ")}</Badge>
+      {error ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{error}</p>
+      ) : loading && teachers.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={teachers}
+          getRowId={(t) => t.id}
+          caption="Teachers"
+          onRowClick={(t) => router.push(`/teachers/${t.id}`)}
+          renderMobileCard={(t) => (
+            <button
+              type="button"
+              onClick={() => router.push(`/teachers/${t.id}`)}
+              className="surface-3d flex w-full items-center gap-sm rounded-lg border border-border bg-surface p-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+            >
+              <Avatar className="size-10">
+                <AvatarFallback>{initialsOf(t.name.split(" ")[0], t.name.split(" ")[1] ?? "")}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-xs">
+                  <p className="truncate text-sm font-semibold text-foreground">{t.name}</p>
+                  <Badge tone={statusTone[t.status]}>{t.status}</Badge>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">{t.department ?? "—"}</p>
               </div>
-              <p className="truncate text-xs text-muted-foreground">{t.department}</p>
-            </div>
-          </button>
-        )}
-        emptyTitle="No teachers yet"
-      />
+            </button>
+          )}
+          emptyTitle="No teachers yet"
+        />
+      )}
     </div>
   );
 }

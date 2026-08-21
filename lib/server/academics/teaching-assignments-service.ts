@@ -15,7 +15,7 @@ import { recordAudit } from "@/lib/server/api/audit";
 import { parseInput } from "@/lib/server/validation";
 import { z } from "zod";
 import type { OrgScope } from "@/lib/server/api/scope";
-import type { TeachingAssignmentDto } from "@/lib/api/contracts";
+import type { StaffTeachingAssignmentDto, TeachingAssignmentDto, TeachingLoadSummaryDto } from "@/lib/api/contracts";
 import { getSubjectsForSection } from "./class-subjects-service";
 
 export const createAssignmentSchema = z.object({ subjectId: z.string().min(1), staffId: z.string().min(1), isPrimary: z.boolean().optional() });
@@ -58,6 +58,63 @@ export async function listTeachingAssignments(scope: OrgScope, sectionId: string
   await requireSectionInScope(scope, sectionId);
   const rows = await prisma.teachingAssignment.findMany({ where: { sectionId }, orderBy, select });
   return rows.map(dto);
+}
+
+const staffAssignmentSelect = {
+  id: true, isPrimary: true,
+  subject: { select: { id: true, code: true, name: true, color: true } },
+  section: { select: { id: true, name: true, classId: true, class: { select: { name: true } } } },
+} satisfies Prisma.TeachingAssignmentSelect;
+
+/** A Staff/teacher's own real assignments across all sections (Phase 9J — Teacher Classes/Detail). Session-scoped like every other TeachingAssignment read. */
+export async function listTeachingAssignmentsForStaff(scope: OrgScope, staffId: string): Promise<StaffTeachingAssignmentDto[]> {
+  const staff = await prisma.staff.findFirst({ where: { id: staffId, schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) }, select: { id: true } });
+  if (!staff) throw new HttpError("NOT_FOUND", "Staff member not found");
+  const rows = await prisma.teachingAssignment.findMany({
+    where: { staffId, academicSessionId: requireSession(scope) },
+    orderBy: [{ section: { name: "asc" } }, { subject: { name: "asc" } }],
+    select: staffAssignmentSelect,
+  });
+  return rows.map((r) => ({
+    id: r.id, isPrimary: r.isPrimary,
+    section: { id: r.section.id, name: r.section.name, classId: r.section.classId, className: r.section.class.name },
+    subject: { id: r.subject.id, code: r.subject.code, name: r.subject.name, color: r.subject.color },
+  }));
+}
+
+/**
+ * Bulk per-staff teaching load for a Teachers-directory list (Phase 9J) — one
+ * grouped query per domain instead of N+1 per row. `weeklyPeriods` counts each
+ * staff's real TimetableEntry rows this session (an honest, derived figure —
+ * never a fabricated workload number).
+ */
+export async function getTeachingLoadSummary(scope: OrgScope, staffIds: string[]): Promise<Map<string, TeachingLoadSummaryDto>> {
+  const result = new Map<string, TeachingLoadSummaryDto>();
+  if (staffIds.length === 0 || !scope.academicSessionId) return result;
+  const [assignments, periodCounts] = await Promise.all([
+    prisma.teachingAssignment.findMany({
+      where: { staffId: { in: staffIds }, academicSessionId: scope.academicSessionId },
+      select: { staffId: true, sectionId: true, subject: { select: { id: true, name: true, shortName: true } } },
+    }),
+    prisma.timetableEntry.groupBy({ by: ["staffId"], where: { staffId: { in: staffIds }, academicSessionId: scope.academicSessionId }, _count: { _all: true } }),
+  ]);
+  const weeklyPeriods = new Map(periodCounts.map((p) => [p.staffId, p._count._all]));
+  for (const staffId of staffIds) result.set(staffId, { staffId, subjects: [], sectionCount: 0, weeklyPeriods: weeklyPeriods.get(staffId) ?? 0 });
+  for (const a of assignments) {
+    const entry = result.get(a.staffId);
+    if (!entry) continue;
+    if (!entry.subjects.some((s) => s.id === a.subject.id)) entry.subjects.push({ id: a.subject.id, name: a.subject.name, shortName: a.subject.shortName });
+  }
+  const sections = new Map<string, Set<string>>();
+  for (const a of assignments) {
+    if (!sections.has(a.staffId)) sections.set(a.staffId, new Set());
+    sections.get(a.staffId)!.add(a.sectionId);
+  }
+  for (const [staffId, set] of sections) {
+    const entry = result.get(staffId);
+    if (entry) entry.sectionCount = set.size;
+  }
+  return result;
 }
 
 export async function createTeachingAssignment(scope: OrgScope, sectionId: string, raw: unknown): Promise<TeachingAssignmentDto> {

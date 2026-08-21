@@ -239,6 +239,26 @@ const MIGRATED_FILES = [
   "app/front-desk/visitors/page.tsx",
   "app/front-desk/visitors/new/page.tsx",
   "app/front-desk/appointments/page.tsx",
+  // Phase 9J — Teachers + Staff UI cutover. Staff remains the ONLY employee/
+  // teacher identity (Phase 6A) — Teachers is a real VIEW over
+  // Staff.isTeaching, not a second model. Real TeachingAssignment/Timetable/
+  // Homework/LessonPlans/StaffAttendance/Leave are aggregated via
+  // GET /api/staff/[staffId]/teacher-detail; Department/Designation stay
+  // plain text Staff fields (no separate model exists or was created).
+  // Performance/Goals/Training/Documents/Assets/Timeline/Contract/
+  // Qualifications/Bank/leave-balances have no real backing anywhere in the
+  // schema and show an honest "not tracked yet" state on the Staff 360 page
+  // — the rest of app/hr/* (leave, attendance, appraisals, recruitment,
+  // onboarding, etc.) stays on the separate, still-mock Employee/HR domain,
+  // out of this phase's scope, so only these files are guarded.
+  "app/teachers/page.tsx",
+  "app/teachers/[teacherId]/page.tsx",
+  "app/hr/staff/page.tsx",
+  "app/hr/staff/new/page.tsx",
+  "app/hr/staff/[staffId]/page.tsx",
+  "app/hr/staff/[staffId]/edit/page.tsx",
+  "app/teacher/classes/page.tsx",
+  "components/hr/staff-form.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
