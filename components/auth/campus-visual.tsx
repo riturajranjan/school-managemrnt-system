@@ -4,10 +4,10 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 
 /** Left-panel campus visual: branding + tagline over the product hero image
- * (public/login-left.png), which already carries its own "Student card /
- * Secure access / Parent access / 2026-2027" callouts — so no separate
- * floating chips are rendered here. Hidden below lg; the right-side login
- * form (AuthShell) is untouched by this component. */
+ * (public/login.png), which already carries its own "Student card / Secure
+ * access / Parent access / 2026-2027" callouts — so no separate floating
+ * chips are rendered here. Hidden below lg; the right-side login form
+ * (AuthShell) is untouched by this component. */
 export function CampusVisual() {
   const reduce = useReducedMotion();
   const enter = (d: number) => ({
