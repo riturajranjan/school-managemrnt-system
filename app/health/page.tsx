@@ -1,13 +1,16 @@
 "use client";
 
+// Health hub (Phase 9R) — real PostgreSQL/API cutover for stat tiles.
+// Medications/Incidents/Appointments/Reports quicklinks stay mock (deferred
+// — no real medication-schedule/incident/appointment infrastructure exists;
+// see route-mock-guard.test.ts for the full reasoning).
 import Link from "next/link";
 import { Activity, CalendarClock, ClipboardList, Gauge, HeartPulse, Pill, ShieldAlert, Stethoscope, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { healthSummary } from "@/lib/selectors/campus-brief";
+import { useHealthDashboard } from "@/lib/hooks/api/use-health-api";
 import { roleLabels } from "@/lib/permissions/roles";
 
 const links = [
@@ -22,10 +25,10 @@ const links = [
 ];
 
 export default function HealthHubPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  if (!can("health.view")) return <PermissionDenied action="view the health module" role={roleLabels[role]} backHref="/campus-life" />;
-  const s = healthSummary(db);
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: dashboard } = useHealthDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("health.view")) return <PermissionDenied action="view the health module" role={roleLabels[role]} backHref="/campus-life" />;
+  const s = dashboard ?? { visitsToday: 0, openVisits: 0, referredToday: 0, followUpsDue: 0 };
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -35,9 +38,9 @@ export default function HealthHubPage() {
       </div>
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
         <StatTile label="Visits today" value={String(s.visitsToday)} icon={Stethoscope} tone="neutral" />
-        <StatTile label="Resting" value={String(s.resting)} tone={s.resting > 0 ? "warning" : "success"} />
-        <StatTile label="Open incidents" value={String(s.openIncidents)} icon={ShieldAlert} tone={s.openIncidents > 0 ? "warning" : "success"} />
-        <StatTile label="Meds due" value={String(s.medicationsDue)} icon={Pill} tone={s.medicationsDue > 0 ? "warning" : "success"} />
+        <StatTile label="Open now" value={String(s.openVisits)} tone={s.openVisits > 0 ? "warning" : "success"} />
+        <StatTile label="Referred today" value={String(s.referredToday)} icon={ShieldAlert} tone={s.referredToday > 0 ? "warning" : "success"} />
+        <StatTile label="Follow-ups due" value={String(s.followUpsDue)} icon={CalendarClock} tone={s.followUpsDue > 0 ? "warning" : "success"} />
       </div>
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">
         {links.map(({ href, label, description, icon: Icon }) => (

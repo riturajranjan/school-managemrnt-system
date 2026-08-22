@@ -1,6 +1,6 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type { HostelLeaveStatus, ComplaintStatus, MaintenanceStatus, HostelVisitorStatus } from "@/lib/types/hostel";
-import type { VisitStatus, IncidentStatus, MedicationStatus, CounsellingStatus } from "@/lib/types/health";
+import type { IncidentStatus, MedicationStatus, CounsellingStatus } from "@/lib/types/health";
 import type { CafeteriaOrder, CafeteriaOrderItem, OrderStatus } from "@/lib/types/cafeteria";
 import { generateId } from "@/lib/utils";
 
@@ -39,21 +39,10 @@ export function setHostelVisitorStatus(id: string, status: HostelVisitorStatus):
 // Health
 // ---------------------------------------------------------------------------
 
-export type VisitDraft = { studentId: string; reason: string; symptomsReported?: string; observationNotes?: string; careAction?: string; guardianContacted: boolean; staffName: string };
-
-export function createHealthVisit(draft: VisitDraft): Result & { visitId?: string } {
-  if (!draft.reason.trim()) return { ok: false, error: "Reason for visit is required." };
-  const now = new Date().toISOString();
-  const visit = { id: generateId("hv"), studentId: draft.studentId, arrivalAt: now, reason: draft.reason.trim(), symptomsReported: draft.symptomsReported, observationNotes: draft.observationNotes, careAction: draft.careAction, guardianContacted: draft.guardianContacted, referredExternally: false, staffName: draft.staffName, status: "being-seen" as VisitStatus };
-  setState((db) => ({ ...db, healthVisits: [visit, ...db.healthVisits] }));
-  return { ok: true, visitId: visit.id };
-}
-
-export function setVisitStatus(visitId: string, status: VisitStatus): Result {
-  const now = new Date().toISOString();
-  setState((db) => ({ ...db, healthVisits: db.healthVisits.map((v) => (v.id === visitId ? { ...v, status, restStart: status === "resting" && !v.restStart ? now : v.restStart } : v)) }));
-  return { ok: true };
-}
+// createHealthVisit/setVisitStatus went real in Phase 9R (lib/server/health/*)
+// and were deleted here as dead mock authority — real surfaces must use
+// hooks/api/use-health-api. Medications/Incidents below stay mock (deferred
+// — no real medication-schedule/incident-workflow infrastructure exists).
 
 export function recordMedication(medId: string, staffName: string): Result {
   const now = new Date().toISOString();

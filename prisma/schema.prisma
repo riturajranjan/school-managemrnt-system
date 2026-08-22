@@ -700,6 +700,8 @@ model Student {
   inventoryIssues       InventoryIssue[] // Phase 9O — consumable issues to this student
   hostelAssignments     StudentHostelAssignment[] // Phase 9Q — hostel bed allocation history
   hostelRollCallRecords HostelRollCallRecord[] // Phase 9Q — nightly hostel roll call
+  healthProfile         HealthProfile? // Phase 9R — factual health profile
+  healthVisits          HealthVisit[] // Phase 9R — infirmary visit history
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2066,10 +2068,10 @@ model Staff {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  user                               User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  departmentRef                      Department?                @relation("StaffDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
-  designationRef                     Designation?               @relation("StaffDesignation", fields: [designationId], references: [id], onDelete: Restrict)
-  headOfDepartments                  Department[]               @relation("DepartmentHead")
+  user                               User?                            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  departmentRef                      Department?                      @relation("StaffDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
+  designationRef                     Designation?                     @relation("StaffDesignation", fields: [designationId], references: [id], onDelete: Restrict)
+  headOfDepartments                  Department[]                     @relation("DepartmentHead")
   teachingAssignments                TeachingAssignment[]
   timetableEntries                   TimetableEntry[] // Phase 7 — timetable
   examInvigilations                  ExamScheduleEntry[] // Phase 8A — optional invigilator
@@ -2081,15 +2083,20 @@ model Staff {
   salaryAssignments                  StaffSalaryAssignment[] // Phase 9H — effective-dated salary assignments
   payrollItems                       PayrollRunItem[] // Phase 9H — payroll snapshots
   hostedVisits                       VisitorVisit[] // Phase 9I — visits where this staff is the host
-  transportRouteDriverAssignments    TransportRouteAssignment[] @relation("TransportRouteDriver") // Phase 9M
-  transportRouteAttendantAssignments TransportRouteAssignment[] @relation("TransportRouteAttendant") // Phase 9M
-  transportTripsAsDriver             TransportTrip[]            @relation("TransportTripDriver") // Phase 9M
-  transportTripsAsAttendant          TransportTrip[]            @relation("TransportTripAttendant") // Phase 9M
+  transportRouteDriverAssignments    TransportRouteAssignment[]       @relation("TransportRouteDriver") // Phase 9M
+  transportRouteAttendantAssignments TransportRouteAssignment[]       @relation("TransportRouteAttendant") // Phase 9M
+  transportTripsAsDriver             TransportTrip[]                  @relation("TransportTripDriver") // Phase 9M
+  transportTripsAsAttendant          TransportTrip[]                  @relation("TransportTripAttendant") // Phase 9M
   staffTransportAssignments          StaffTransportAssignment[] // Phase 9M
   libraryLoans                       LibraryLoan[] // Phase 9N — library circulation
   assetAssignments                   AssetAssignment[] // Phase 9O — durable asset custody
   hostelStaffAssignments             HostelStaffAssignment[] // Phase 9Q — warden/assistant-warden assignment
   inventoryIssues                    InventoryIssue[] // Phase 9O — consumable issues to this staff member
+  healthProfile                      HealthProfile? // Phase 9R — factual health profile, when this Staff member is a patient
+  healthVisitsAsPatient              HealthVisit[]                    @relation("HealthVisitPatientStaff") // Phase 9R
+  healthVisitsAttended               HealthVisit[]                    @relation("HealthVisitAttendant") // Phase 9R — infirmary staff who attended
+  healthTreatmentsGiven              HealthTreatmentRecord[]          @relation("HealthTreatmentStaff") // Phase 9R
+  healthMedicationsGiven             HealthMedicationAdministration[] @relation("HealthMedicationStaff") // Phase 9R
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -5677,4 +5684,198 @@ model HostelRollCallRecord {
   @@unique([studentId, date])
   @@index([schoolId, hostelId, date])
   @@map("hostel_roll_call_records")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9R: Health / Infirmary Management. Administrative record-keeping
+// only — NOT a diagnosis, prescription, or triage engine. A patient always
+// resolves to a real Student.id or Staff.id (exactly one) — never a parallel
+// Patient/NurseUser/DoctorUser identity. No medical policy is invented: no
+// diagnoses, prescriptions, dosage rules, allergy interpretation, risk
+// scores, insurance eligibility, vaccination rules, or fitness certificates.
+// ---------------------------------------------------------------------------
+
+/**
+ * A thin, factual health-domain profile linked to exactly one real Student or
+ * Staff identity — never a second identity authority. Emergency contact
+ * information is deliberately NOT duplicated here: for a Student patient it
+ * is derived live from StudentGuardian.isEmergencyContact + real Guardian
+ * records; Staff have no emergency-contact model yet, so that section is
+ * simply absent for Staff patients. All fields are plain admin-entered text
+ * — never inferred, classified, or risk-scored.
+ */
+model HealthProfile {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  studentId String? @unique
+  staffId   String? @unique
+
+  bloodGroup            String?
+  allergiesText         String?
+  chronicConditionsText String?
+  careInstructions      String?
+  physicianName         String?
+  physicianPhone        String?
+  insuranceProvider     String?
+  insuranceNumberMasked String?
+
+  updatedByUserId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student Student? @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  staff   Staff?   @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId])
+  @@map("health_profiles")
+}
+
+enum HealthVisitStatus {
+  OPEN
+  CLOSED
+  REFERRED
+}
+
+/**
+ * A real infirmary visit. Patient is always exactly one of Student/Staff.
+ * Lifecycle is deliberately minimal (OPEN → CLOSED or OPEN → REFERRED, both
+ * terminal) — administrative record-keeping, not a clinical state machine.
+ * Server timestamps (checkedInAt/checkedOutAt) are authoritative.
+ * reason/symptomsReported/observationNotes/careAction are plain factual text
+ * entered by the recording staff member — never a diagnosis. guardianContacted
+ * is a manual factual flag the recorder sets themselves; the system never
+ * auto-sends a parent notification.
+ */
+model HealthVisit {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  studentId String?
+  staffId   String?
+
+  reason            String
+  symptomsReported  String?
+  observationNotes  String?
+  careAction        String?
+  guardianContacted Boolean           @default(false)
+  status            HealthVisitStatus @default(OPEN)
+
+  referralDestination String?
+  referralNotes       String?
+  followUpAt          DateTime?
+
+  attendedByStaffId String?
+  createdByUserId   String
+
+  checkedInAt  DateTime  @default(now()) @db.Timestamptz(6)
+  checkedOutAt DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student      Student? @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  staffPatient Staff?   @relation("HealthVisitPatientStaff", fields: [staffId], references: [id], onDelete: Restrict)
+  attendedBy   Staff?   @relation("HealthVisitAttendant", fields: [attendedByStaffId], references: [id], onDelete: Restrict)
+
+  vitals      HealthVitalObservation[]
+  treatments  HealthTreatmentRecord[]
+  medications HealthMedicationAdministration[]
+
+  @@index([schoolId, branchId, status])
+  @@index([studentId])
+  @@index([staffId])
+  @@map("health_visits")
+}
+
+/**
+ * Records measurements only — never interprets or diagnoses (no hypertension
+ * labeling, no fever classification, no risk score). Validation rejects only
+ * physically-impossible values, never clinical judgement.
+ */
+model HealthVitalObservation {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  visitId  String
+
+  temperatureC        Float?
+  pulseBpm            Int?
+  systolic            Int?
+  diastolic           Int?
+  oxygenSaturationPct Float?
+  weightKg            Float?
+  heightCm            Float?
+
+  recordedAt       DateTime @default(now()) @db.Timestamptz(6)
+  recordedByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  visit HealthVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([visitId])
+  @@map("health_vital_observations")
+}
+
+/**
+ * Factual first-aid/care given during a visit — never a prescription.
+ */
+model HealthTreatmentRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  visitId  String
+
+  description String
+
+  administeredByStaffId String?
+  createdByUserId       String
+  administeredAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  visit          HealthVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  administeredBy Staff?      @relation("HealthTreatmentStaff", fields: [administeredByStaffId], references: [id], onDelete: Restrict)
+
+  @@index([visitId])
+  @@map("health_treatment_records")
+}
+
+/**
+ * A factual record of a medication given during a visit — never a
+ * prescription, dosage recommendation, or refill schedule. medicationName is
+ * plain display text entered by the recording staff member; there is no
+ * medication-order/schedule authority behind it, and it never decrements
+ * Inventory (Health and Inventory stay separate domains in this phase).
+ */
+model HealthMedicationAdministration {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  visitId  String
+
+  medicationName String
+  quantity       String?
+  unit           String?
+  notes          String?
+
+  administeredByStaffId String?
+  createdByUserId       String
+  administeredAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  visit          HealthVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  administeredBy Staff?      @relation("HealthMedicationStaff", fields: [administeredByStaffId], references: [id], onDelete: Restrict)
+
+  @@index([visitId])
+  @@map("health_medication_administrations")
 }

@@ -158,6 +158,17 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "hostel.view", module: "hostel", action: "view", description: "View hostels, rooms, beds, residents and roll call" },
   { key: "hostel.manage", module: "hostel", action: "manage", description: "Manage hostels/rooms/beds, allocate/transfer/vacate residents, assign wardens, mark roll call" },
 
+  // Phase 9R — health/infirmary data is more sensitive than ordinary directory
+  // access, so it gets its own narrow keys rather than piggy-backing on
+  // students.view/hr.view. health.view sees a visit exists (status, dates,
+  // patient identity); health.viewSensitive additionally unlocks the factual
+  // clinical text (reason, notes, vitals, treatment, medication, profile
+  // allergy/condition fields). No permission ever grants diagnosis/prescription
+  // authority — there isn't one to grant.
+  { key: "health.view", module: "health", action: "view", description: "View that an infirmary visit/profile exists (non-sensitive fields only)" },
+  { key: "health.viewSensitive", module: "health", action: "viewSensitive", description: "View sensitive health details: reason, notes, vitals, treatment, medication, allergies/conditions" },
+  { key: "health.manage", module: "health", action: "manage", description: "Record infirmary visits, vitals, treatment, medication; manage health profiles" },
+
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
 
@@ -281,6 +292,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "inventory.view", "inventory.manage",
     "assets.view", "assets.manage",
     "hostel.view", "hostel.manage",
+    "health.view", "health.viewSensitive", "health.manage",
     "hr.view",
     "communication.view", "communication.send",
     "documents.view", "documents.manage",
@@ -311,6 +323,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "inventory.view",
     "assets.view",
     "hostel.view",
+    "health.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",

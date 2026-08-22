@@ -3102,3 +3102,159 @@ export type StudentHostelProfileDto = {
   } | null;
   history: { id: string; hostelName: string; roomNumber: string; bedNumber: string; assignedAt: string; vacatedAt: string | null; status: HostelAssignmentStatusDto }[];
 };
+
+// ── Phase 9R: Health / Infirmary Management. A patient is always exactly one
+// real Student.id or Staff.id. Administrative record-keeping only — never a
+// diagnosis/prescription/triage engine. Sensitive fields (reason, notes,
+// vitals, treatment, medication, allergy/condition text) are null unless the
+// caller holds health.viewSensitive — a redacted DTO, not a missing one.
+
+export type HealthPatientTypeDto = "student" | "staff";
+
+export type HealthProfileDto = {
+  id: string | null; // null when no profile has been created yet
+  patientType: HealthPatientTypeDto;
+  patientId: string;
+  bloodGroup: string | null;
+  allergiesText: string | null;
+  chronicConditionsText: string | null;
+  careInstructions: string | null;
+  physicianName: string | null;
+  physicianPhone: string | null;
+  insuranceProvider: string | null;
+  insuranceNumberMasked: string | null;
+  updatedAt: string | null;
+};
+
+export type UpsertHealthProfileRequest = {
+  bloodGroup?: string | null;
+  allergiesText?: string | null;
+  chronicConditionsText?: string | null;
+  careInstructions?: string | null;
+  physicianName?: string | null;
+  physicianPhone?: string | null;
+  insuranceProvider?: string | null;
+  insuranceNumberMasked?: string | null;
+};
+
+export type HealthVisitStatusDto = "open" | "closed" | "referred";
+
+export type HealthVisitDto = {
+  id: string;
+  patientType: HealthPatientTypeDto;
+  patientId: string;
+  patientName: string;
+  patientRef: string; // admissionNumber or employeeCode
+  status: HealthVisitStatusDto;
+  reason: string | null; // null when redacted (no health.viewSensitive)
+  symptomsReported: string | null;
+  observationNotes: string | null;
+  careAction: string | null;
+  guardianContacted: boolean;
+  referralDestination: string | null;
+  referralNotes: string | null;
+  followUpAt: string | null;
+  attendedByStaffId: string | null;
+  attendedByStaffName: string | null;
+  checkedInAt: string;
+  checkedOutAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HealthVitalObservationDto = {
+  id: string;
+  temperatureC: number | null;
+  pulseBpm: number | null;
+  systolic: number | null;
+  diastolic: number | null;
+  oxygenSaturationPct: number | null;
+  weightKg: number | null;
+  heightCm: number | null;
+  recordedAt: string;
+  recordedByUserId: string;
+};
+
+export type RecordHealthVitalsRequest = {
+  temperatureC?: number;
+  pulseBpm?: number;
+  systolic?: number;
+  diastolic?: number;
+  oxygenSaturationPct?: number;
+  weightKg?: number;
+  heightCm?: number;
+};
+
+export type HealthTreatmentRecordDto = {
+  id: string;
+  description: string;
+  administeredByStaffId: string | null;
+  administeredByStaffName: string | null;
+  administeredAt: string;
+};
+
+export type RecordHealthTreatmentRequest = { description: string };
+
+export type HealthMedicationAdministrationDto = {
+  id: string;
+  medicationName: string;
+  quantity: string | null;
+  unit: string | null;
+  notes: string | null;
+  administeredByStaffId: string | null;
+  administeredByStaffName: string | null;
+  administeredAt: string;
+};
+
+export type RecordHealthMedicationRequest = { medicationName: string; quantity?: string; unit?: string; notes?: string };
+
+export type HealthVisitDetailDto = HealthVisitDto & {
+  vitals: HealthVitalObservationDto[];
+  treatments: HealthTreatmentRecordDto[];
+  medications: HealthMedicationAdministrationDto[];
+};
+
+export type CreateHealthVisitRequest = {
+  studentId?: string;
+  staffId?: string;
+  reason: string;
+  symptomsReported?: string;
+  observationNotes?: string;
+  careAction?: string;
+  guardianContacted?: boolean;
+};
+
+export type UpdateHealthVisitRequest = {
+  reason?: string;
+  symptomsReported?: string;
+  observationNotes?: string;
+  careAction?: string;
+  guardianContacted?: boolean;
+  followUpAt?: string | null;
+};
+
+export type ReferHealthVisitRequest = { referralDestination?: string; referralNotes?: string; followUpAt?: string };
+
+/** Health Dashboard — DB-derived only. No fabricated risk score/outbreak
+ * alert/vaccination compliance/illness trend conclusions. */
+export type HealthDashboardDto = {
+  visitsToday: number;
+  studentVisitsToday: number;
+  staffVisitsToday: number;
+  openVisits: number;
+  referredToday: number;
+  followUpsDue: number;
+  medicationsRecordedToday: number;
+};
+
+/** Student 360 Health tab — real profile + visit history, redacted per
+ * caller's health.viewSensitive. Emergency contacts are derived live from
+ * real StudentGuardian.isEmergencyContact + Guardian records, never
+ * duplicated into a health-domain field. */
+export type StudentHealthProfileDto = {
+  profile: HealthProfileDto;
+  openVisit: HealthVisitDto | null;
+  recentVisits: HealthVisitDto[];
+  medicationHistory: HealthMedicationAdministrationDto[];
+  emergencyContacts: { name: string; phone: string | null; relation: string }[];
+};

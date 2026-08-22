@@ -435,6 +435,35 @@ const MIGRATED_FILES = [
   // components/students/profile/student-profile.tsx is already guarded above
   // (line ~193, added in an earlier phase) — its new Hostel tab is covered
   // by that existing entry.
+  // Phase 9R — Health / Infirmary Management. Real HealthProfile/HealthVisit/
+  // HealthVitalObservation/HealthTreatmentRecord/HealthMedicationAdministration
+  // via /api/health/* (PostgreSQL). A patient is always exactly one real
+  // Student.id or Staff.id — never a parallel Patient/NurseUser identity.
+  // Visit lifecycle is deliberately minimal (OPEN -> CLOSED or OPEN ->
+  // REFERRED) — the old mock's richer waiting/resting/guardian-pickup states
+  // were never migrated (an explicit simplification, not an oversight).
+  // Sensitive fields (reason/notes/vitals/treatment/medication/allergies) are
+  // redacted server-side to null unless the caller holds health.viewSensitive
+  // — students.view/hr.view alone never unlock them. Medication administration
+  // is real but only as a factual per-visit record (no schedule/dosage engine
+  // — that would require a real prescription authority this phase does not
+  // invent), so the standalone medications-due page stays mock. Incidents,
+  // Appointments, Immunisation, Documents, and Reports stay fully mock — no
+  // real Incident/Appointment-scheduling/Vaccination/document-storage
+  // infrastructure or policy exists for any of them, and Reports mixes real
+  // Visit data with deferred Incident data so a partial migration would be
+  // inconsistent. Counselling (app/counselling/**) is a fully separate
+  // domain, untouched by this phase.
+  "app/health/page.tsx",
+  "app/health/dashboard/page.tsx",
+  "app/health/infirmary/page.tsx",
+  "app/health/visits/page.tsx",
+  "app/health/visits/new/page.tsx",
+  "app/health/students/page.tsx",
+  "app/health/students/[studentId]/page.tsx",
+  // components/students/profile/student-profile.tsx is already guarded above
+  // (line ~193, added in an earlier phase) — its new Health tab is covered
+  // by that existing entry.
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -604,8 +633,8 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "allocateBed", why: "mock bed-allocation mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-hostel-api's assignHostelStudentRequest)" },
   { marker: "endAllocation", why: "mock allocation-end mutation (deleted — zero remaining consumers, dead import; real surfaces use vacateHostelAssignmentRequest/transferHostelAssignmentRequest)" },
   { marker: "markHostelAttendance", why: "mock hostel-attendance mutation (deleted — zero remaining consumers, dead import; real surfaces use markHostelRollCallRequest)" },
-  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Leave/Complaints/Maintenance + Health/Cafeteria mutation service — the hostel-allocation functions were deleted (real now), Leave/Complaints/Maintenance stay mock (deferred), Health/Cafeteria are a different domain entirely — real Hostel surfaces must use hooks/api/use-hostel-api" },
-  { marker: "selectors/campus-brief", why: "mock cross-domain (Hostel/Health/Cafeteria) summary selector — still consumed by the deferred Reports page and the campus-life hub, but real Hostel surfaces must use hooks/api/use-hostel-api" },
+  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Health/Cafeteria mutation service — the hostel-allocation and health-visit/medication functions were deleted (both real now, Phase 9Q/9R), Leave/Complaints/Maintenance/Counselling/Cafeteria stay mock (deferred) — real Hostel surfaces must use hooks/api/use-hostel-api, real Health surfaces must use hooks/api/use-health-api" },
+  { marker: "selectors/campus-brief", why: "mock cross-domain (Hostel/Health/Cafeteria) summary selector, including healthSummary() — still consumed by the deferred Reports page and the campus-life hub, but real Hostel/Health surfaces must use hooks/api/use-hostel-api / hooks/api/use-health-api" },
 ];
 
 function collectSources(dir: string): string[] {

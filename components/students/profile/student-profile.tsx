@@ -30,15 +30,17 @@ import { useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
 import { useStudentTransportProfile } from "@/lib/hooks/api/use-transport-api";
 import { useStudentLibraryProfile } from "@/lib/hooks/api/use-library-api";
 import { useStudentHostelProfile } from "@/lib/hooks/api/use-hostel-api";
+import { useStudentHealthProfile } from "@/lib/hooks/api/use-health-api";
+import { RestrictedHealth } from "@/components/campus/privacy";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
-  const { can } = usePermissions();
+  const { can, hasServerPermission } = usePermissions();
   const { data: student, loading, error, reload } = useStudentDetail(studentId);
   const [activeTab, setActiveTab] = useState(REAL_TABS.has(initialTab) ? initialTab : "overview");
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -75,6 +77,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="transport">Transport</TabsTrigger>
           <TabsTrigger value="library">Library</TabsTrigger>
           <TabsTrigger value="hostel">Hostel</TabsTrigger>
+          <TabsTrigger value="health">Health</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -101,6 +104,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="hostel" className="mt-md">
           <HostelSection studentId={student.id} />
+        </TabsContent>
+        <TabsContent value="health" className="mt-md">
+          {hasServerPermission("health.view") ? <HealthSection studentId={student.id} /> : <RestrictedHealth label="health information" />}
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -609,6 +615,54 @@ function HostelSection({ studentId }: { studentId: string }) {
           ))}
           {data.history.length === 0 && <p className="text-sm text-muted-foreground">No past allocations.</p>}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+function HealthSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentHealthProfile(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading health…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Current visit</h2>
+        {!data.openVisit ? (
+          <p className="text-sm text-muted-foreground">No open infirmary visit.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-sm sm:grid-cols-3">
+            <Field label="Reason" value={data.openVisit.reason ?? "Restricted"} />
+            <Field label="Checked in" value={new Date(data.openVisit.checkedInAt).toLocaleString("en-IN")} />
+            <Field label="Attended by" value={data.openVisit.attendedByStaffName ?? undefined} />
+          </div>
+        )}
+      </div>
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Recent visits</h2>
+        <ul className="flex flex-col gap-sm">
+          {data.recentVisits.map((v) => (
+            <li key={v.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+              <p className="truncate text-foreground">{v.reason ?? "Reason restricted"} · {new Date(v.checkedInAt).toLocaleDateString("en-IN")}</p>
+              <Badge tone={v.status === "referred" ? "error" : v.status === "open" ? "warning" : "neutral"}>{v.status}</Badge>
+            </li>
+          ))}
+          {data.recentVisits.length === 0 && <p className="text-sm text-muted-foreground">No infirmary visits recorded.</p>}
+        </ul>
+      </div>
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Allergies & conditions</h2>
+        {data.profile.allergiesText || data.profile.chronicConditionsText ? (
+          <div className="flex flex-col gap-1 text-sm text-foreground">
+            {data.profile.allergiesText && <p>Allergies: {data.profile.allergiesText}</p>}
+            {data.profile.chronicConditionsText && <p>Conditions: {data.profile.chronicConditionsText}</p>}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Nothing on file.</p>
+        )}
       </div>
     </div>
   );
