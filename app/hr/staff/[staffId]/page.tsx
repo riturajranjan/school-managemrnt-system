@@ -1,17 +1,18 @@
 "use client";
 
-// Staff 360 (Phase 9J) — real PostgreSQL/API cutover over the real Staff
-// model + the real domains that already exist for it (Staff Attendance,
-// Leave). Performance/Goals/Training/Documents/Assets/Timeline/Contract/
-// Qualifications/Bank details have no real backing anywhere in the schema —
-// each of those tabs stays on the page (no redesign) but shows an honest
-// "not tracked yet" state instead of the old mock db.performanceReviews/
-// goals/trainingEnrollments/staffDocuments/employeeAssets/employeeTimeline/
-// contracts/qualifications/bank fields. Salary is never duplicated here —
-// Payroll RBAC (payroll.view) gates a link only, never an amount.
+// Staff 360 (Phase 9J; Employment tab + Assets tab now real, Phase 9P) —
+// real PostgreSQL/API cutover over the real Staff model + the real domains
+// that already exist for it (Staff Attendance, Leave, Assets). Performance/
+// Goals/Training/Documents/Timeline/Contract/Qualifications/Bank details
+// have no real backing anywhere in the schema — each of those tabs stays on
+// the page (no redesign) but shows an honest "not tracked yet" state instead
+// of the old mock db.performanceReviews/goals/trainingEnrollments/
+// staffDocuments/employeeTimeline/contracts/qualifications/bank fields.
+// Salary is never duplicated here — Payroll RBAC (payroll.view) gates a link
+// only, never an amount.
 import Link from "next/link";
 import { use, useState } from "react";
-import { ArrowLeft, Archive, CalendarDays, CheckCircle2, Pencil, Wallet, XCircle } from "lucide-react";
+import { ArrowLeft, Archive, CalendarDays, CheckCircle2, HardDrive, Pencil, Wallet, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { usePermissions } from "@/components/providers/permissions-provider";
 import { setStaffStatusRequest, setStaffUserRequest, useStaff } from "@/lib/hooks/api/use-staff-api";
 import { useStaffAttendanceDetail } from "@/lib/hooks/api/use-staff-attendance-api";
 import { useLeaveRequests } from "@/lib/hooks/api/use-leave-api";
+import { useAssetAssignments } from "@/lib/hooks/api/use-assets-api";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { EmploymentType, StaffStatus } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
@@ -47,6 +49,8 @@ export default function Staff360Page({ params }: { params: Promise<{ staffId: st
   const { data: staff, loading, error, reload } = useStaff(staffId);
   const { data: attendance } = useStaffAttendanceDetail(staffId, daysAgo(90), today());
   const { data: leaves } = useLeaveRequests({ staffId });
+  const canViewAssets = hasServerPermission("assets.view");
+  const { data: assetAssignments } = useAssetAssignments({ staffId });
   const [linkUserId, setLinkUserId] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
@@ -128,6 +132,7 @@ export default function Staff360Page({ params }: { params: Promise<{ staffId: st
           {staff.status !== "inactive" && <Button size="sm" variant="ghost" disabled={statusBusy} onClick={() => changeStatus("inactive")}><XCircle className="size-3.5" /> Deactivate</Button>}
           {staff.status !== "archived" && <Button size="sm" variant="ghost" disabled={statusBusy} onClick={() => changeStatus("archived")}><Archive className="size-3.5" /> Archive</Button>}
           <Button asChild size="sm" variant="ghost"><Link href="/hr/leave"><CalendarDays className="size-3.5" /> Leave</Link></Button>
+          {canViewAssets && <Button asChild size="sm" variant="ghost"><Link href="/assets/assignments"><HardDrive className="size-3.5" /> Assets</Link></Button>}
           {canPayroll && <Button asChild size="sm" variant="ghost"><Link href="/payroll/payslips"><Wallet className="size-3.5" /> Payroll</Link></Button>}
         </div>
       )}
@@ -226,7 +231,25 @@ export default function Staff360Page({ params }: { params: Promise<{ staffId: st
         <TabsContent value="goals" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
         <TabsContent value="training" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
         <TabsContent value="documents" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
-        <TabsContent value="assets" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
+        <TabsContent value="assets" className="mt-md">
+          {!canViewAssets ? (
+            <Empty message="You do not have permission to view asset assignments." />
+          ) : assetAssignments.length === 0 ? (
+            <Empty message="No assets assigned." />
+          ) : (
+            <div className="flex flex-col gap-xs">
+              {assetAssignments.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-sm rounded-md border border-border bg-surface p-sm text-sm">
+                  <div className="min-w-0">
+                    <Link href={`/assets/${a.assetId}`} className="truncate font-medium text-foreground hover:underline">{a.assetName}</Link>
+                    <p className="text-xs text-muted-foreground">{a.assetTag} · since {formatDate(a.assignedAt)}{a.returnedAt ? ` · returned ${formatDate(a.returnedAt)}` : ""}</p>
+                  </div>
+                  <Badge tone={a.status === "active" ? "info" : "neutral"}>{a.status === "active" ? "Active" : "Returned"}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
         <TabsContent value="timeline" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
       </Tabs>
     </div>

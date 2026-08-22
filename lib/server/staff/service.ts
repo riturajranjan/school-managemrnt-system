@@ -38,6 +38,8 @@ export const createStaffSchema = z.object({
   phone: z.string().trim().max(32).optional(),
   designation: z.string().trim().max(60).optional(),
   department: z.string().trim().max(60).optional(),
+  departmentId: z.string().min(1).optional(),
+  designationId: z.string().min(1).optional(),
   employmentType: empEnum.optional(),
   isTeaching: z.boolean().optional(),
   joiningDate: dateStr.optional(),
@@ -52,6 +54,8 @@ export const updateStaffSchema = z.object({
   phone: z.string().trim().max(32).nullable().optional(),
   designation: z.string().trim().max(60).nullable().optional(),
   department: z.string().trim().max(60).nullable().optional(),
+  departmentId: z.string().nullable().optional(),
+  designationId: z.string().nullable().optional(),
   employmentType: empEnum.nullable().optional(),
   isTeaching: z.boolean().optional(),
   joiningDate: dateStr.nullable().optional(),
@@ -62,6 +66,7 @@ export const updateStaffSchema = z.object({
 type StaffRow = {
   id: string; employeeCode: string; firstName: string; lastName: string | null; displayName: string | null;
   email: string | null; phone: string | null; designation: string | null; department: string | null;
+  departmentId: string | null; designationId: string | null;
   employmentType: string | null; isTeaching: boolean; status: string; branchId: string; joiningDate: Date | null;
   userId: string | null; user?: { email: string } | null;
 };
@@ -71,6 +76,7 @@ const displayName = (s: { displayName: string | null; firstName: string; lastNam
 function listDto(s: StaffRow): StaffListItemDto {
   return {
     id: s.id, employeeCode: s.employeeCode, name: displayName(s), designation: s.designation, department: s.department,
+    departmentId: s.departmentId, designationId: s.designationId,
     employmentType: empToUi(s.employmentType), isTeaching: s.isTeaching, status: statusToUi(s.status),
     branchId: s.branchId, email: s.email, hasUser: Boolean(s.userId),
   };
@@ -84,17 +90,77 @@ function detailDto(s: StaffRow): StaffDetailDto {
 }
 const listSelect = {
   id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, email: true, phone: true,
-  designation: true, department: true, employmentType: true, isTeaching: true, status: true, branchId: true,
+  designation: true, department: true, departmentId: true, designationId: true,
+  employmentType: true, isTeaching: true, status: true, branchId: true,
   joiningDate: true, userId: true,
 } satisfies Prisma.StaffSelect;
 const detailSelect = { ...listSelect, user: { select: { email: true } } } satisfies Prisma.StaffSelect;
 
+/**
+ * Resolve real Department/Designation FKs into the { departmentId,
+ * designationId, department (name), designation (name) } write payload for
+ * Staff.create/update. The FK is the authority; `department`/`designation`
+ * become a transactionally-consistent display-name cache (never independently
+ * settable once a real FK is provided) so every pre-Phase-9P consumer that
+ * reads the plain string keeps working. Validates: same school, and (if the
+ * designation is department-scoped) that it matches the EFFECTIVE department
+ * on BOTH sides of the update — a designation-only change is checked against
+ * the staff's current department, and a department-only change is checked
+ * against the staff's current designation — so neither can silently drift
+ * into a mismatch.
+ */
+async function resolveDeptDesigWrite(
+  scope: OrgScope,
+  input: { department?: string | null; designation?: string | null; departmentId?: string | null; designationId?: string | null },
+  current: { departmentId: string | null; designationId: string | null } = { departmentId: null, designationId: null },
+): Promise<{ department?: string | null; designation?: string | null; departmentId?: string | null; designationId?: string | null }> {
+  const out: { department?: string | null; designation?: string | null; departmentId?: string | null; designationId?: string | null } = {};
+
+  if (input.departmentId !== undefined) {
+    if (input.departmentId === null) {
+      out.departmentId = null;
+    } else {
+      const dept = await prisma.department.findFirst({ where: { id: input.departmentId, schoolId: scope.schoolId }, select: { id: true, name: true } });
+      if (!dept) throw new HttpError("INVALID_DEPARTMENT", "Department not found in this school");
+      out.departmentId = dept.id;
+      out.department = dept.name;
+    }
+  } else if (input.department !== undefined) {
+    out.department = input.department;
+  }
+
+  if (input.designationId !== undefined) {
+    if (input.designationId === null) {
+      out.designationId = null;
+    } else {
+      const desig = await prisma.designation.findFirst({ where: { id: input.designationId, schoolId: scope.schoolId }, select: { id: true, name: true, departmentId: true } });
+      if (!desig) throw new HttpError("INVALID_DESIGNATION", "Designation not found in this school");
+      const effectiveDeptId = input.departmentId !== undefined ? out.departmentId : current.departmentId;
+      if (desig.departmentId && effectiveDeptId && effectiveDeptId !== desig.departmentId) {
+        throw new HttpError("DESIGNATION_DEPARTMENT_MISMATCH", "This designation belongs to a different department");
+      }
+      out.designationId = desig.id;
+      out.designation = desig.name;
+    }
+  } else if (input.designation !== undefined) {
+    out.designation = input.designation;
+  } else if (input.departmentId !== undefined && current.designationId) {
+    // Department-only change: re-validate the staff's EXISTING designation against the new department.
+    const currentDesig = await prisma.designation.findUnique({ where: { id: current.designationId }, select: { departmentId: true } });
+    if (currentDesig?.departmentId && out.departmentId !== undefined && out.departmentId !== currentDesig.departmentId) {
+      throw new HttpError("DESIGNATION_DEPARTMENT_MISMATCH", "The staff member's current designation belongs to a different department");
+    }
+  }
+
+  return out;
+}
+
 // ── Scope + link helpers ────────────────────────────────────────────────────
 
-async function requireStaffInScope(scope: OrgScope, staffId: string): Promise<{ id: string; userId: string | null }> {
+async function requireStaffInScope(scope: OrgScope, staffId: string): Promise<{ id: string; userId: string | null; departmentId: string | null; designationId: string | null }> {
   const s = await prisma.staff.findFirst({
     where: { id: staffId, schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, departmentId: true, designationId: true },
   });
   if (!s) throw new HttpError("NOT_FOUND", "Staff member not found");
   return s;
@@ -118,7 +184,7 @@ async function validateUserLink(scope: OrgScope, userId: string, exceptStaffId?:
 
 // ── Reads ──────────────────────────────────────────────────────────────────
 
-export type ListStaffParams = { search?: string; status?: string; branchId?: string; teaching?: boolean; sort?: string; page?: number; pageSize?: number };
+export type ListStaffParams = { search?: string; status?: string; branchId?: string; teaching?: boolean; departmentId?: string; designationId?: string; sort?: string; page?: number; pageSize?: number };
 
 export async function listStaff(scope: OrgScope, params: ListStaffParams = {}): Promise<StaffListItemDto[]> {
   const where: Prisma.StaffWhereInput = { schoolId: scope.schoolId };
@@ -126,6 +192,8 @@ export async function listStaff(scope: OrgScope, params: ListStaffParams = {}): 
   else if (params.branchId) where.branchId = params.branchId;
   if (params.status && params.status in STATUS_TO_DB) where.status = STATUS_TO_DB[params.status as StaffStatus] as never;
   if (params.teaching !== undefined) where.isTeaching = params.teaching;
+  if (params.departmentId) where.departmentId = params.departmentId;
+  if (params.designationId) where.designationId = params.designationId;
   if (params.search?.trim()) {
     const q = params.search.trim();
     where.OR = [
@@ -196,12 +264,14 @@ export async function createStaff(scope: OrgScope, raw: unknown): Promise<StaffD
   await assertCodeFree(scope, input.employeeCode);
   const branchId = await resolveStaffBranch(scope);
   if (input.userId) await validateUserLink(scope, input.userId);
+  const deptDesig = await resolveDeptDesigWrite(scope, input);
   const created = await prisma.$transaction(async (tx) => {
     const row = await tx.staff.create({
       data: {
         tenantId: scope.tenantId, schoolId: scope.schoolId, branchId, employeeCode: input.employeeCode,
         firstName: input.firstName, lastName: input.lastName, displayName: input.displayName, email: input.email,
-        phone: input.phone, designation: input.designation, department: input.department,
+        phone: input.phone, department: deptDesig.department, designation: deptDesig.designation,
+        departmentId: deptDesig.departmentId, designationId: deptDesig.designationId,
         employmentType: input.employmentType ? (EMP_TO_DB[input.employmentType] as never) : undefined,
         isTeaching: input.isTeaching ?? false,
         joiningDate: input.joiningDate ? new Date(`${input.joiningDate}T00:00:00.000Z`) : undefined,
@@ -218,14 +288,16 @@ export async function createStaff(scope: OrgScope, raw: unknown): Promise<StaffD
 
 export async function updateStaff(scope: OrgScope, staffId: string, raw: unknown): Promise<StaffDetailDto> {
   const input = parseInput(updateStaffSchema, raw);
-  await requireStaffInScope(scope, staffId);
+  const current = await requireStaffInScope(scope, staffId);
   if (input.employeeCode) await assertCodeFree(scope, input.employeeCode, staffId);
+  const deptDesig = await resolveDeptDesigWrite(scope, input, { departmentId: current.departmentId, designationId: current.designationId });
   const updated = await prisma.$transaction(async (tx) => {
     const row = await tx.staff.update({
       where: { id: staffId },
       data: {
         employeeCode: input.employeeCode, firstName: input.firstName, lastName: input.lastName, displayName: input.displayName,
-        email: input.email, phone: input.phone, designation: input.designation, department: input.department,
+        email: input.email, phone: input.phone, department: deptDesig.department, designation: deptDesig.designation,
+        departmentId: deptDesig.departmentId, designationId: deptDesig.designationId,
         employmentType: input.employmentType === undefined ? undefined : input.employmentType === null ? null : (EMP_TO_DB[input.employmentType] as never),
         isTeaching: input.isTeaching,
         joiningDate: input.joiningDate === undefined ? undefined : input.joiningDate === null ? null : new Date(`${input.joiningDate}T00:00:00.000Z`),

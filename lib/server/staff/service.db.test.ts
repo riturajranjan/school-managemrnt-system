@@ -13,6 +13,7 @@ import {
   createTeachingAssignment, getTeachingLoadSummary, listTeachingAssignments,
   listTeachingAssignmentsForStaff, removeTeachingAssignment,
 } from "@/lib/server/academics/teaching-assignments-service";
+import { HttpError } from "@/lib/server/api/guard";
 import type { OrgScope } from "@/lib/server/api/scope";
 import { ROLE_PERMISSIONS } from "@/lib/server/authz/catalog";
 
@@ -70,7 +71,9 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!dbReady || !tenantId) return;
   await prisma.auditEvent.deleteMany({ where: { tenantId } });
-  await prisma.staff.deleteMany({ where: { tenantId } }); // release userId links before user delete
+  await prisma.staff.deleteMany({ where: { tenantId } }); // release userId + department/designation links before user/master delete
+  await prisma.designation.deleteMany({ where: { tenantId } });
+  await prisma.department.deleteMany({ where: { tenantId } });
   await prisma.user.deleteMany({ where: { id: { in: [memberUserId, nonMemberUserId] } } });
   await prisma.tenant.delete({ where: { id: tenantId } });
 });
@@ -233,5 +236,65 @@ describe.skipIf(!dbReady)("staff-scoped teaching assignments + load summary (Pha
   it("getTeachingLoadSummary returns an empty map for an empty staffIds list", async () => {
     const summary = await getTeachingLoadSummary(scope, []);
     expect(summary.size).toBe(0);
+  });
+});
+
+describe.skipIf(!dbReady)("staff <-> department/designation (Phase 9P, DB)", () => {
+  it("assigns a real department + designation; syncs the legacy display-name cache", async () => {
+    const dept = await prisma.department.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DEPT-${stamp}`, name: "Science" }, select: { id: true } });
+    const desig = await prisma.designation.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DESIG-${stamp}`, name: "PGT Physics", departmentId: dept.id }, select: { id: true } });
+    const staff = await mkStaff(scope, `P9P-1-${stamp}`, { departmentId: dept.id, designationId: desig.id });
+    expect(staff.departmentId).toBe(dept.id);
+    expect(staff.designationId).toBe(desig.id);
+    expect(staff.department).toBe("Science");
+    expect(staff.designation).toBe("PGT Physics");
+
+    // Rename the department — the cache re-syncs on the next write that touches it, but the FK is always authoritative.
+    await prisma.department.update({ where: { id: dept.id }, data: { name: "Science & Math" } });
+    const reread = await getStaff(scope, staff.id);
+    expect(reread.departmentId).toBe(dept.id); // FK unchanged by a rename
+  });
+
+  it("rejects an invalid/foreign department and designation", async () => {
+    await expect(mkStaff(scope, `P9P-2-${stamp}`, { departmentId: "nonexistent" })).rejects.toThrow(HttpError);
+    await expect(mkStaff(scope, `P9P-3-${stamp}`, { designationId: "nonexistent" })).rejects.toThrow(HttpError);
+
+    const foreignDept = await prisma.department.create({ data: { tenantId, schoolId: schoolB, branchId: (await prisma.branch.findFirstOrThrow({ where: { schoolId: schoolB }, select: { id: true } })).id, code: `${NS}-FDEPT-${stamp}`, name: "Foreign" }, select: { id: true } });
+    await expect(mkStaff(scope, `P9P-4-${stamp}`, { departmentId: foreignDept.id })).rejects.toThrow(HttpError);
+  });
+
+  it("rejects a designation whose department doesn't match the staff's department", async () => {
+    const deptA = await prisma.department.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DA-${stamp}`, name: "Dept A" }, select: { id: true } });
+    const deptB = await prisma.department.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DB-${stamp}`, name: "Dept B" }, select: { id: true } });
+    const desigB = await prisma.designation.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DGB-${stamp}`, name: "Desig B", departmentId: deptB.id }, select: { id: true } });
+    await expect(mkStaff(scope, `P9P-5-${stamp}`, { departmentId: deptA.id, designationId: desigB.id })).rejects.toThrow(HttpError);
+
+    // A department-agnostic designation is fine with any department.
+    const freeDesig = await prisma.designation.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-FREE-${stamp}`, name: "Free Desig" }, select: { id: true } });
+    const staff = await mkStaff(scope, `P9P-6-${stamp}`, { departmentId: deptA.id, designationId: freeDesig.id });
+    expect(staff.departmentId).toBe(deptA.id);
+  });
+
+  it("changing department on an existing staff validates against the CURRENT designation, not just this call's payload", async () => {
+    const deptA = await prisma.department.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DA2-${stamp}`, name: "Dept A2" }, select: { id: true } });
+    const deptB = await prisma.department.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DB2-${stamp}`, name: "Dept B2" }, select: { id: true } });
+    const desigA = await prisma.designation.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-DGA2-${stamp}`, name: "Desig A2", departmentId: deptA.id }, select: { id: true } });
+    const staff = await mkStaff(scope, `P9P-7-${stamp}`, { departmentId: deptA.id, designationId: desigA.id });
+    // Moving to Dept B while still holding a Dept-A-scoped designation must be rejected.
+    await expect(updateStaff(scope, staff.id, { departmentId: deptB.id })).rejects.toThrow(HttpError);
+  });
+
+  it("historical safety: archiving/renaming a department never touches existing Staff assignment", async () => {
+    const dept = await prisma.department.create({ data: { tenantId, schoolId, branchId: branchA, code: `${NS}-HIST-${stamp}`, name: "History Dept" }, select: { id: true } });
+    const staff = await mkStaff(scope, `P9P-8-${stamp}`, { departmentId: dept.id });
+    await prisma.department.update({ where: { id: dept.id }, data: { status: "ARCHIVED", name: "Renamed History Dept" } });
+    const reread = await getStaff(scope, staff.id);
+    expect(reread.departmentId).toBe(dept.id);
+  });
+
+  it("cross-school department/designation update is rejected", async () => {
+    const foreignDeptId = (await prisma.department.create({ data: { tenantId, schoolId: schoolB, branchId: (await prisma.branch.findFirstOrThrow({ where: { schoolId: schoolB }, select: { id: true } })).id, code: `${NS}-XS-${stamp}`, name: "Cross School" }, select: { id: true } })).id;
+    const staff = await mkStaff(scope, `P9P-9-${stamp}`);
+    await expect(updateStaff(scope, staff.id, { departmentId: foreignDeptId })).rejects.toThrow(HttpError);
   });
 });

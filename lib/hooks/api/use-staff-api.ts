@@ -18,6 +18,8 @@ export type StaffListFilters = {
   status?: string;
   branchId?: string;
   teaching?: boolean;
+  departmentId?: string;
+  designationId?: string;
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -56,6 +58,8 @@ export type CreateStaffInput = {
   phone?: string;
   designation?: string;
   department?: string;
+  departmentId?: string | null;
+  designationId?: string | null;
   employmentType?: StaffDetailDto["employmentType"];
   isTeaching?: boolean;
   joiningDate?: string;

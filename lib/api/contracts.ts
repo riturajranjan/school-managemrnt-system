@@ -872,8 +872,10 @@ export type StaffListItemDto = {
   id: string;
   employeeCode: string;
   name: string; // displayName, else "first last"
-  designation: string | null;
+  designation: string | null; // display cache — see departmentId/designationId for the real relationship authority (Phase 9P)
   department: string | null;
+  departmentId: string | null;
+  designationId: string | null;
   employmentType: EmploymentType | null;
   isTeaching: boolean;
   status: StaffStatus;
@@ -2902,3 +2904,57 @@ export type AssetDashboardDto = {
 };
 
 export type AssetHistoryEventDto = { id: string; action: string; actorName: string | null; meta: Record<string, unknown> | null; createdAt: string };
+
+// ── Phase 9P: HR Core — Department/Designation master data. Staff.id remains
+// the sole canonical employee identity; these are attribute lookups extending
+// the real Phase 6A Staff model, never a parallel employee model. ─────────
+
+export type HrMasterStatusDto = "active" | "archived";
+
+export type DepartmentDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  headStaffId: string | null;
+  headStaffName: string | null; // resolved live from Staff — never a stored name
+  status: HrMasterStatusDto;
+  staffCount: number; // real count of Staff currently assigned (any status)
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateDepartmentRequest = { code: string; name: string; description?: string; headStaffId?: string };
+export type UpdateDepartmentRequest = { name?: string; description?: string | null; headStaffId?: string | null };
+
+export type DesignationDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  departmentId: string | null; // optional — a designation need not be department-scoped
+  departmentName: string | null;
+  level: number | null; // display/sort order only — not a hierarchy or promotion policy
+  status: HrMasterStatusDto;
+  staffCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateDesignationRequest = { code: string; name: string; description?: string; departmentId?: string; level?: number };
+export type UpdateDesignationRequest = { name?: string; description?: string | null; departmentId?: string | null; level?: number | null };
+
+/** HR Core dashboard — DB-derived only. Present/absent/late/on-leave/
+ * not-marked reuse the canonical Phase 9E Staff Attendance summary verbatim.
+ * No fabricated attrition/retention/engagement/performance/recruitment-
+ * pipeline metrics. */
+export type HrDashboardDto = {
+  activeStaff: number;
+  teachingStaff: number;
+  nonTeachingStaff: number;
+  departments: number;
+  presentToday: number;
+  absentToday: number;
+  lateToday: number;
+  onLeaveToday: number;
+  notMarkedToday: number;
+  newHiresThisMonth: number; // real Staff.joiningDate within the current calendar month
+};

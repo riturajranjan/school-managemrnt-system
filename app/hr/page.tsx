@@ -1,5 +1,13 @@
 "use client";
 
+// HR hub (Phase 9P) — headline stats are real (PostgreSQL/API); the
+// quickLinks below still legitimately point at Recruitment/Onboarding/
+// Offboarding/Contracts/Documents/Performance/Training/Self-service/Letters/
+// Analytics/Policies/Announcements/Shifts/Org-chart, which stay fully mock —
+// none of those have a real backing policy/infrastructure in this phase
+// (see the phase's own non-negotiable rules against fabricating HR policy).
+// Matches the Inventory/Assets hub precedent: a hybrid hub is not itself in
+// the migrated-route mock guard.
 import Link from "next/link";
 import {
   Award,
@@ -25,14 +33,13 @@ import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { hrSummary } from "@/lib/selectors/hr-brief";
+import { useHrDashboard } from "@/lib/hooks/api/use-hr-api";
 import { roleLabels } from "@/lib/permissions/roles";
 
 const quickLinks = [
   { href: "/hr/staff", label: "Staff directory", description: "All employees with filters and preview", icon: Users },
   { href: "/hr/departments", label: "Departments", description: "Structure, heads and staffing", icon: Network },
-  { href: "/hr/designations", label: "Designations", description: "Roles, levels and hierarchy", icon: BadgeCheck },
+  { href: "/hr/designations", label: "Designations", description: "Roles and levels", icon: BadgeCheck },
   { href: "/hr/org-chart", label: "Organization chart", description: "Reporting structure", icon: Network },
   { href: "/hr/recruitment", label: "Recruitment", description: "Jobs, candidates and interviews", icon: BriefcaseBusiness },
   { href: "/hr/onboarding", label: "Onboarding", description: "New-joiner journeys", icon: UserPlus },
@@ -52,21 +59,16 @@ const quickLinks = [
 ];
 
 export default function HrHubPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  if (!can("hr.view") && !can("hr.viewOwn")) return <PermissionDenied action="view HR" role={roleLabels[role]} backHref="/" />;
-  if (!can("hr.view")) {
-    // Non-HR staff land on self-service.
-    return <PermissionDenied action="view the HR workspace" role={roleLabels[role]} backHref="/hr/employee-self-service" />;
-  }
-  const summary = hrSummary(db);
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: summary } = useHrDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("hr.view")) return <PermissionDenied action="view HR" role={roleLabels[role]} backHref="/" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Human Resources</h1>
-          <p className="text-xs text-muted-foreground">Staff, recruitment, attendance, leave, performance and development</p>
+          <p className="text-xs text-muted-foreground">Staff, departments, attendance and leave</p>
         </div>
         <Button asChild size="sm">
           <Link href="/hr/dashboard">
@@ -76,10 +78,10 @@ export default function HrHubPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Active staff" value={String(summary.activeStaff)} icon={Users} tone="neutral" />
-        <StatTile label="Present today" value={String(summary.presentToday)} icon={ClipboardCheck} tone="success" />
-        <StatTile label="On leave" value={String(summary.onLeave)} icon={CalendarDays} tone={summary.onLeave > 0 ? "info" : "neutral"} />
-        <StatTile label="Open positions" value={String(summary.openPositions)} icon={BriefcaseBusiness} tone={summary.openPositions > 0 ? "warning" : "success"} />
+        <StatTile label="Active staff" value={String(summary?.activeStaff ?? 0)} icon={Users} tone="neutral" />
+        <StatTile label="Present today" value={String(summary?.presentToday ?? 0)} icon={ClipboardCheck} tone="success" />
+        <StatTile label="On leave" value={String(summary?.onLeaveToday ?? 0)} icon={CalendarDays} tone={(summary?.onLeaveToday ?? 0) > 0 ? "info" : "neutral"} />
+        <StatTile label="Departments" value={String(summary?.departments ?? 0)} icon={Network} tone="neutral" />
       </div>
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">

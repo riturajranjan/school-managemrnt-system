@@ -1,10 +1,9 @@
 "use client";
 
-// Staff directory (Phase 9J) — real PostgreSQL/API cutover. GET /api/staff —
-// no mock employee/department/designation store. Department/Designation stay
-// plain text fields on Staff (Phase 6A) — no separate Department/Designation
-// model exists, and none is needed for this page. hr.view.
+// Staff directory (Phase 9J; department/designation filters now backed by the
+// real Phase 9P masters) — real PostgreSQL/API cutover. GET /api/staff. hr.view.
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Download, Eye, Plus, Search, Users } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -18,6 +17,7 @@ import { EmployeeAvatar } from "@/components/hr/employee-avatar";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStaffList } from "@/lib/hooks/api/use-staff-api";
+import { useDepartments } from "@/lib/hooks/api/use-hr-api";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { EmploymentType, StaffListItemDto, StaffStatus } from "@/lib/api/contracts";
 import { downloadTextFile } from "@/lib/utils";
@@ -28,19 +28,19 @@ const employmentTypeLabels: Record<EmploymentType, string> = { "full-time": "Ful
 
 export default function StaffDirectoryPage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const departmentIdFromUrl = useSearchParams().get("departmentId") ?? "all";
   const [query, setQuery] = useState("");
-  const [dept, setDept] = useState("all");
+  const [dept, setDept] = useState(departmentIdFromUrl);
   const [status, setStatus] = useState("all");
   const [preview, setPreview] = useState<StaffListItemDto | null>(null);
 
   const { data: staff, loading, error } = useStaffList({ pageSize: 200 });
-
-  const departments = useMemo(() => [...new Set(staff.map((s) => s.department).filter((d): d is string => Boolean(d)))].sort(), [staff]);
+  const { data: departments } = useDepartments();
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return staff
-      .filter((e) => (dept === "all" ? true : e.department === dept))
+      .filter((e) => (dept === "all" ? true : e.departmentId === dept))
       .filter((e) => (status === "all" ? true : e.status === status))
       .filter((e) => (q ? e.name.toLowerCase().includes(q) || e.employeeCode.toLowerCase().includes(q) || (e.email ?? "").toLowerCase().includes(q) : true));
   }, [staff, query, dept, status]);
@@ -112,7 +112,7 @@ export default function StaffDirectoryPage() {
             <SelectTrigger className="w-40" aria-label="Filter by department"><SelectValue placeholder="Department" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All departments</SelectItem>
-              {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>

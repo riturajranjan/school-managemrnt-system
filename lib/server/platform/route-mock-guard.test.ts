@@ -243,12 +243,16 @@ const MIGRATED_FILES = [
   // teacher identity (Phase 6A) — Teachers is a real VIEW over
   // Staff.isTeaching, not a second model. Real TeachingAssignment/Timetable/
   // Homework/LessonPlans/StaffAttendance/Leave are aggregated via
-  // GET /api/staff/[staffId]/teacher-detail; Department/Designation stay
-  // plain text Staff fields (no separate model exists or was created).
-  // Performance/Goals/Training/Documents/Assets/Timeline/Contract/
+  // GET /api/staff/[staffId]/teacher-detail. Department/Designation are now
+  // real FKs (Staff.departmentId/designationId, Phase 9P) — the legacy
+  // department/designation TEXT fields on Staff are kept as a
+  // transactionally-maintained display-name cache (synced by
+  // lib/server/staff/service.ts), never independently settable once a real
+  // FK is provided. Performance/Goals/Training/Documents/Timeline/Contract/
   // Qualifications/Bank/leave-balances have no real backing anywhere in the
-  // schema and show an honest "not tracked yet" state on the Staff 360 page
-  // — the rest of app/hr/* (leave, attendance, appraisals, recruitment,
+  // schema and show an honest "not tracked yet" state on the Staff 360 page;
+  // Assets IS real (Phase 9O AssetAssignment, gated by assets.view) — the
+  // rest of app/hr/* (leave, attendance, appraisals, recruitment,
   // onboarding, etc.) stays on the separate, still-mock Employee/HR domain,
   // out of this phase's scope, so only these files are guarded.
   "app/teachers/page.tsx",
@@ -380,6 +384,24 @@ const MIGRATED_FILES = [
   "app/assets/maintenance/page.tsx",
   "app/assets/audit/page.tsx",
   "app/assets/reports/page.tsx",
+  // Phase 9P — HR Core: real Department/Designation master data via
+  // /api/hr/* (PostgreSQL), extending the real Phase 6A Staff model — never
+  // a parallel Employee/HRStaff identity. Staff.departmentId/designationId
+  // are the relationship authority; `department`/`designation` stay as a
+  // synced display-name cache for the many pre-existing consumers that read
+  // them as plain strings. HR dashboard metrics reuse the canonical Phase
+  // 9E Staff Attendance summary verbatim — no new percentage formula, no
+  // fabricated attrition/engagement/recruitment-pipeline metrics.
+  // Recruitment/Onboarding/Offboarding/Contracts/Documents/Performance/
+  // Training/Self-service/Letters/Analytics/Policies/Announcements/Shifts/
+  // Org-chart have no real policy or infrastructure backing them and stay
+  // fully mock — app/hr/page.tsx (hub) is a hybrid, its headline stats are
+  // real but its quickLinks still legitimately point at those still-mock
+  // pages, so it is NOT guarded here, matching the Inventory/Assets hub
+  // precedent.
+  "app/hr/departments/page.tsx",
+  "app/hr/designations/page.tsx",
+  "app/hr/dashboard/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -541,6 +563,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "data/seed/inventory", why: "mock inventory seed data — still consumed by the deferred Purchases page's store slice, but real surfaces must never read seed data" },
   { marker: "data/seed/assets", why: "mock asset seed data — still consumed by the deferred Depreciation/Disposal pages' store slice, but real surfaces must never read seed data" },
   { marker: "library/resource-audit-trail", why: "mock append-only resource-audit-log component with zero real backing — real Inventory/Asset surfaces use the movement ledger / a real AuditEvent-backed history endpoint instead" },
+  // Phase 9P — HR Core mock authority (real surfaces must use hooks/api/use-hr-api, hooks/api/use-staff-api).
+  { marker: "selectors/hr-brief", why: "mock HR summary/today-items selector (deleted — zero remaining consumers, dead import)" },
+  { marker: "selectors/people-pulse", why: "mock People Pulse composite-score selector (deleted — zero remaining consumers, dead import; no real basis for a composite HR score exists)" },
+  { marker: "services/hr-service", why: "mock Employee/Department/Designation/recruitment mutation service — still consumed by the deferred Recruitment/Onboarding/Offboarding/Appraisals/Goals/Letters pages, but real surfaces must use hooks/api/use-hr-api" },
 ];
 
 function collectSources(dir: string): string[] {

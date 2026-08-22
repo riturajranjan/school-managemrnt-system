@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
       status: singleParam(sp, "status"),
       branchId: singleParam(sp, "branchId"),
       teaching: teaching === undefined ? undefined : teaching === "true",
+      departmentId: singleParam(sp, "departmentId"),
+      designationId: singleParam(sp, "designationId"),
       sort: singleParam(sp, "sort"),
       page: pageRaw ? Number(pageRaw) : undefined,
       pageSize: pageSizeRaw ? Number(pageSizeRaw) : undefined,

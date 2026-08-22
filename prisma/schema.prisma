@@ -2041,8 +2041,20 @@ model Staff {
   displayName    String?
   email          String?
   phone          String?
+  // Legacy free-text fields (Phase 6A, predate Department/Designation
+  // masters). Kept for backward compatibility with the many existing
+  // consumers that read them as plain strings (dashboards, teacher
+  // directory, Action Inbox, timetable, …) — NOT the relationship
+  // authority. When departmentId/designationId is set, these are a
+  // transactionally-maintained display cache kept in lockstep with the
+  // real master's current name by lib/server/staff/service.ts, the same
+  // documented-cache pattern as Phase 9O's InventoryStockBalance. A Staff
+  // row created before Phase 9P (or never assigned a real department/
+  // designation) may still carry only the free-text value with null FKs.
   designation    String?
   department     String?
+  departmentId   String?
+  designationId  String?
   employmentType EmploymentType?
   isTeaching     Boolean         @default(false)
   status         StaffStatus     @default(ACTIVE)
@@ -2053,6 +2065,9 @@ model Staff {
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
   user                               User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  departmentRef                      Department?                @relation("StaffDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
+  designationRef                     Designation?               @relation("StaffDesignation", fields: [designationId], references: [id], onDelete: Restrict)
+  headOfDepartments                  Department[]               @relation("DepartmentHead")
   teachingAssignments                TeachingAssignment[]
   timetableEntries                   TimetableEntry[] // Phase 7 — timetable
   examInvigilations                  ExamScheduleEntry[] // Phase 8A — optional invigilator
@@ -2078,7 +2093,79 @@ model Staff {
   @@index([tenantId])
   @@index([schoolId, branchId, status])
   @@index([schoolId, isTeaching, status])
+  @@index([departmentId])
+  @@index([designationId])
   @@map("staff")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9P — HR Core: Department + Designation master data. Staff.id remains
+// the sole canonical employee identity — these are attribute lookups, not a
+// parallel employee model. Archived (never hard-deleted) when referenced by
+// Staff, so historical Payroll/Attendance/Leave/TeachingAssignment rows are
+// never affected by a later department/designation rename or archive.
+// ---------------------------------------------------------------------------
+
+enum DepartmentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Department {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code        String
+  name        String
+  description String?
+  headStaffId String?
+
+  status DepartmentStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  headStaff    Staff?        @relation("DepartmentHead", fields: [headStaffId], references: [id], onDelete: SetNull)
+  staff        Staff[]       @relation("StaffDepartment")
+  designations Designation[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId, status])
+  @@index([headStaffId])
+  @@map("departments")
+}
+
+enum DesignationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Designation {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  departmentId String?
+  code         String
+  name         String
+  description  String?
+  level        Int? // optional display/sort order only (e.g. "level 1 is most senior") — not a promotion/hierarchy policy
+
+  status DesignationStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  staff      Staff[]     @relation("StaffDesignation")
+
+  @@unique([schoolId, code])
+  @@index([schoolId, status])
+  @@index([departmentId])
+  @@map("designations")
 }
 
 // A teacher (Staff) teaching a Subject in a Section for the section's academic

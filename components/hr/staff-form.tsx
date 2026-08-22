@@ -1,16 +1,17 @@
 "use client";
 
-// Real Staff create/edit form (Phase 9J) — wired to POST/PATCH /api/staff.
-// Fields match the real Staff model exactly (Phase 6A): no department/
-// designation picker (plain text on Staff, no separate model), no gender/DOB/
-// address/reporting-manager/bank/emergency-contact/qualification fields —
-// those were mock-only (lib/schemas/hr-form.ts) with nothing real backing
-// them and are dropped, not carried forward. A single page, not the old
-// 6-step wizard: every one of the wizard's later steps mapped to fields that
-// don't exist on the real Staff row.
+// Real Staff create/edit form (Phase 9J, department/designation pickers
+// added Phase 9P) — wired to POST/PATCH /api/staff. Fields match the real
+// Staff model exactly (Phase 6A): no gender/DOB/address/reporting-manager/
+// bank/emergency-contact/qualification fields — those were mock-only
+// (lib/schemas/hr-form.ts) with nothing real backing them and are dropped,
+// not carried forward. Department/Designation are now real FKs (Phase 9P) —
+// picked from the live master lists, never typed free text. A single page,
+// not the old 6-step wizard: every one of the wizard's later steps mapped to
+// fields that don't exist on the real Staff row.
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { createStaffRequest, updateStaffRequest } from "@/lib/hooks/api/use-staff-api";
+import { useDepartments, useDesignations } from "@/lib/hooks/api/use-hr-api";
 import type { StaffDetailDto } from "@/lib/api/contracts";
+
+const NONE = "__none__";
 
 const formSchema = z.object({
   employeeCode: z.string().trim().min(1, "Employee code is required").max(24),
@@ -28,8 +32,8 @@ const formSchema = z.object({
   displayName: z.string().trim().max(120).optional(),
   email: z.string().trim().email("Enter a valid email").max(320).optional().or(z.literal("")),
   phone: z.string().trim().max(32).optional(),
-  designation: z.string().trim().max(60).optional(),
-  department: z.string().trim().max(60).optional(),
+  departmentId: z.string().optional(),
+  designationId: z.string().optional(),
   employmentType: z.enum(["full-time", "part-time", "contract", "temporary"]).optional(),
   isTeaching: z.boolean(),
   joiningDate: z.string().optional(),
@@ -40,6 +44,7 @@ export function StaffForm({ staff }: { staff?: StaffDetailDto }) {
   const router = useRouter();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { data: departments } = useDepartments({ status: "active" });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -47,12 +52,19 @@ export function StaffForm({ staff }: { staff?: StaffDetailDto }) {
       ? {
           employeeCode: staff.employeeCode, firstName: staff.firstName, lastName: staff.lastName ?? "",
           displayName: staff.displayName ?? "", email: staff.email ?? "", phone: staff.phone ?? "",
-          designation: staff.designation ?? "", department: staff.department ?? "",
+          departmentId: staff.departmentId ?? NONE, designationId: staff.designationId ?? NONE,
           employmentType: staff.employmentType ?? undefined, isTeaching: staff.isTeaching,
           joiningDate: staff.joiningDate ?? "",
         }
-      : { isTeaching: false },
+      : { isTeaching: false, departmentId: NONE, designationId: NONE },
   });
+
+  const selectedDepartmentId = form.watch("departmentId");
+  const { data: allDesignations } = useDesignations({ status: "active" });
+  const designationOptions = useMemo(
+    () => (!selectedDepartmentId || selectedDepartmentId === NONE ? allDesignations : allDesignations.filter((d) => !d.departmentId || d.departmentId === selectedDepartmentId)),
+    [allDesignations, selectedDepartmentId],
+  );
 
   async function onSubmit(values: FormValues) {
     setSaving(true);
@@ -61,7 +73,8 @@ export function StaffForm({ staff }: { staff?: StaffDetailDto }) {
       employeeCode: values.employeeCode, firstName: values.firstName,
       lastName: values.lastName || undefined, displayName: values.displayName || undefined,
       email: values.email || undefined, phone: values.phone || undefined,
-      designation: values.designation || undefined, department: values.department || undefined,
+      departmentId: values.departmentId && values.departmentId !== NONE ? values.departmentId : null,
+      designationId: values.designationId && values.designationId !== NONE ? values.designationId : null,
       employmentType: values.employmentType, isTeaching: values.isTeaching,
       joiningDate: values.joiningDate || undefined,
     };
@@ -105,12 +118,45 @@ export function StaffForm({ staff }: { staff?: StaffDetailDto }) {
           <Input id="staff-phone" {...form.register("phone")} />
         </div>
         <div>
-          <Label htmlFor="staff-designation">Designation</Label>
-          <Input id="staff-designation" {...form.register("designation")} placeholder="e.g. PGT Mathematics" />
+          <Label htmlFor="staff-department">Department</Label>
+          <Controller
+            control={form.control}
+            name="departmentId"
+            render={({ field }) => (
+              <Select
+                value={field.value ?? NONE}
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  // Clear a designation that no longer belongs to the newly chosen department.
+                  const currentDesignationId = form.getValues("designationId");
+                  const current = allDesignations.find((d) => d.id === currentDesignationId);
+                  if (current?.departmentId && v !== NONE && current.departmentId !== v) form.setValue("designationId", NONE);
+                }}
+              >
+                <SelectTrigger id="staff-department"><SelectValue placeholder="Select department" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>No department</SelectItem>
+                  {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
         <div>
-          <Label htmlFor="staff-department">Department</Label>
-          <Input id="staff-department" {...form.register("department")} placeholder="e.g. Science" />
+          <Label htmlFor="staff-designation">Designation</Label>
+          <Controller
+            control={form.control}
+            name="designationId"
+            render={({ field }) => (
+              <Select value={field.value ?? NONE} onValueChange={field.onChange}>
+                <SelectTrigger id="staff-designation"><SelectValue placeholder="Select designation" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>No designation</SelectItem>
+                  {designationOptions.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
         <div>
           <Label htmlFor="staff-employment-type">Employment type</Label>
