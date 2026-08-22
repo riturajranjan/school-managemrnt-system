@@ -1,31 +1,34 @@
 "use client";
 
+// Inventory stocktake (Phase 9O) — real PostgreSQL/API cutover. A physical
+// count that differs from the system quantity posts a real ADJUSTMENT
+// movement — quantities never change without a movement record.
 import { useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { adjustStock } from "@/lib/services/inventory-service";
+import { adjustStockRequest, useInventoryItems } from "@/lib/hooks/api/use-inventory-api";
 import { roleLabels } from "@/lib/permissions/roles";
 
 export default function InventoryStocktakePage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  const actor = { name: "Storekeeper", role: roleLabels[role] };
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: items, reload } = useInventoryItems();
   const [counts, setCounts] = useState<Record<string, string>>({});
-  const [, force] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  if (!can("inventory.manageStocktake")) return <PermissionDenied action="run inventory stocktake" role={roleLabels[role]} backHref="/inventory" />;
+  if (!capabilitiesLoading && !hasServerPermission("inventory.manage")) return <PermissionDenied action="run inventory stocktake" role={roleLabels[role]} backHref="/inventory" />;
 
-  function reconcile(itemId: string, expected: number) {
+  async function reconcile(itemId: string, expected: number) {
     const counted = Number(counts[itemId]);
     if (Number.isNaN(counted)) return;
     const variance = counted - expected;
-    if (variance !== 0) adjustStock(itemId, variance, actor, `Stocktake reconciliation (counted ${counted}, system ${expected})`);
+    setBusyId(itemId);
+    if (variance !== 0) await adjustStockRequest({ itemId, quantity: variance, reason: `Stocktake reconciliation (counted ${counted}, system ${expected})` });
+    setBusyId(null);
     setCounts((c) => ({ ...c, [itemId]: "" }));
-    force((n) => n + 1);
+    reload();
   }
 
   return (
@@ -47,7 +50,7 @@ export default function InventoryStocktakePage() {
             </tr>
           </thead>
           <tbody>
-            {db.inventoryItems.map((i) => {
+            {items.map((i) => {
               const counted = counts[i.id];
               const variance = counted !== undefined && counted !== "" ? Number(counted) - i.quantity : null;
               return (
@@ -59,7 +62,7 @@ export default function InventoryStocktakePage() {
                   </td>
                   <td className={`p-sm text-right font-medium ${variance === null ? "text-muted-foreground" : variance === 0 ? "text-success" : "text-warning"}`}>{variance === null ? "—" : variance > 0 ? `+${variance}` : variance}</td>
                   <td className="p-sm text-right">
-                    <Button size="sm" variant="outline" disabled={counted === undefined || counted === ""} onClick={() => reconcile(i.id, i.quantity)}>Reconcile</Button>
+                    <Button size="sm" variant="outline" disabled={counted === undefined || counted === "" || busyId === i.id} onClick={() => reconcile(i.id, i.quantity)}>Reconcile</Button>
                   </td>
                 </tr>
               );

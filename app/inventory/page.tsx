@@ -1,18 +1,21 @@
 "use client";
 
+// Inventory hub (Phase 9O) — headline stats are real (PostgreSQL/API); the
+// quickLinks below still legitimately point at Purchases/Vendors, which stay
+// fully mock (procurement/vendor systems are explicitly out of scope for
+// this phase) — matching the Library/Transport hub precedent, so this page
+// is a hybrid and is not itself in the migrated-route mock guard.
 import Link from "next/link";
 import { AlertTriangle, ArrowLeftRight, Boxes, ClipboardList, PackageSearch, Tags, TrendingDown, Truck, Undo2, Warehouse } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { inventorySummary } from "@/lib/selectors/inventory-brief";
+import { useInventoryDashboard } from "@/lib/hooks/api/use-inventory-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { formatMoney } from "@/lib/finance/money";
 
 const quickLinks = [
   { href: "/inventory/items", label: "Items", description: "Stock register with live quantities", icon: Boxes },
-  { href: "/inventory/issues", label: "Issues", description: "Issue stock to departments and classes", icon: ClipboardList },
+  { href: "/inventory/issues", label: "Issues", description: "Issue stock to staff, students and departments", icon: ClipboardList },
   { href: "/inventory/returns", label: "Returns", description: "Receive returned issued stock", icon: Undo2 },
   { href: "/inventory/transfers", label: "Transfers", description: "Move stock between locations", icon: ArrowLeftRight },
   { href: "/inventory/low-stock", label: "Low stock", description: "Reorder alerts and thresholds", icon: TrendingDown },
@@ -20,14 +23,13 @@ const quickLinks = [
   { href: "/inventory/vendors", label: "Vendors", description: "Supplier directory", icon: Warehouse },
   { href: "/inventory/stocktake", label: "Stocktake", description: "Physical count and variance", icon: PackageSearch },
   { href: "/inventory/categories", label: "Categories", description: "Item classification", icon: Tags },
-  { href: "/inventory/reports", label: "Reports", description: "Valuation, movement and expiry", icon: ClipboardList },
+  { href: "/inventory/reports", label: "Reports", description: "Stock-on-hand, low-stock and movement history", icon: ClipboardList },
 ];
 
 export default function InventoryHubPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  if (!can("inventory.view")) return <PermissionDenied action="view inventory" role={roleLabels[role]} backHref="/" />;
-  const summary = inventorySummary(db);
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: summary } = useInventoryDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("inventory.view")) return <PermissionDenied action="view inventory" role={roleLabels[role]} backHref="/" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -37,10 +39,10 @@ export default function InventoryHubPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Total items" value={String(summary.totalItems)} icon={Boxes} tone="neutral" />
-        <StatTile label="Stock value" value={formatMoney(summary.stockValue, { compact: true })} icon={Warehouse} tone="neutral" />
-        <StatTile label="Low stock" value={String(summary.lowStock)} icon={TrendingDown} tone={summary.lowStock > 0 ? "warning" : "success"} />
-        <StatTile label="Out of stock" value={String(summary.outOfStock)} icon={AlertTriangle} tone={summary.outOfStock > 0 ? "error" : "success"} />
+        <StatTile label="Total items" value={String(summary?.totalItems ?? 0)} icon={Boxes} tone="neutral" />
+        <StatTile label="Units on hand" value={String(summary?.totalUnitsOnHand ?? 0)} icon={Warehouse} tone="neutral" />
+        <StatTile label="Low stock" value={String(summary?.lowStockCount ?? 0)} icon={TrendingDown} tone={(summary?.lowStockCount ?? 0) > 0 ? "warning" : "success"} />
+        <StatTile label="Out of stock" value={String(summary?.outOfStockCount ?? 0)} icon={AlertTriangle} tone={(summary?.outOfStockCount ?? 0) > 0 ? "error" : "success"} />
       </div>
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">

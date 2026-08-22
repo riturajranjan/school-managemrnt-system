@@ -11,6 +11,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   library: "Library",
   documents: "Documents",
   hr: "HR",
+  inventory: "Inventory",
+  assets: "Assets",
 };
 
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS);

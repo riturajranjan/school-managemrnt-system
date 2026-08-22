@@ -138,6 +138,17 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "library.view", module: "library", action: "view", description: "View library" },
   { key: "library.manage", module: "library", action: "manage", description: "Manage library" },
 
+  // Phase 9O — Inventory (consumables) and Assets (durable, individually
+  // tracked). No real "storekeeper"/"asset manager" DB role exists, so —
+  // matching the Visitor Management precedent — these are granted to
+  // SCHOOL_ADMIN (full) / PRINCIPAL (view, oversight) rather than inventing
+  // a new role.
+  { key: "inventory.view", module: "inventory", action: "view", description: "View inventory items, stock and movements" },
+  { key: "inventory.manage", module: "inventory", action: "manage", description: "Manage inventory items/locations and post receipts, issues, transfers, adjustments" },
+
+  { key: "assets.view", module: "assets", action: "view", description: "View the asset register, assignments and maintenance" },
+  { key: "assets.manage", module: "assets", action: "manage", description: "Manage assets, assignments, status and maintenance" },
+
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
 
@@ -258,6 +269,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "visitors.view", "visitors.manage",
     "transport.view",
     "library.view",
+    "inventory.view", "inventory.manage",
+    "assets.view", "assets.manage",
     "hr.view",
     "communication.view", "communication.send",
     "documents.view", "documents.manage",
@@ -285,6 +298,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "accounting.view",
     "payroll.view",
     "visitors.view",
+    "inventory.view",
+    "assets.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",

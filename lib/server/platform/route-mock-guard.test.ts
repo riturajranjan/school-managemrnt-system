@@ -335,6 +335,51 @@ const MIGRATED_FILES = [
   "app/transport/trips/page.tsx",
   "app/transport/trips/[tripId]/page.tsx",
   "app/transport/dashboard/page.tsx",
+  // Phase 9O — Inventory Management. Real InventoryItem/InventoryLocation/
+  // InventoryStockMovement/InventoryIssue via /api/inventory/* (PostgreSQL).
+  // The movement ledger + a transactionally-maintained InventoryStockBalance
+  // cache are the sole stock authority — no mutable quantity column exists
+  // anywhere else. `category` is plain text (no independent category CRUD
+  // existed pre-migration). Issue recipients are a real Staff.id/Student.id,
+  // or a genuine OTHER descriptive label (department/classroom/event) — never
+  // a name string standing in for a person. Vendors/Purchases/Stocktake's
+  // procurement angle stay fully mock (no vendor/procurement system built,
+  // per the phase's explicit non-negotiable rules); Stocktake itself IS real
+  // (a physical count posts a real adjustment movement). app/inventory/page.tsx
+  // (hub) is a hybrid — its headline stats are real but its quickLinks still
+  // legitimately point at the still-mock Purchases/Vendors pages — so it is
+  // NOT guarded here, matching the Library/Transport hub precedent.
+  "app/inventory/dashboard/page.tsx",
+  "app/inventory/items/page.tsx",
+  "app/inventory/items/new/page.tsx",
+  "app/inventory/items/[itemId]/page.tsx",
+  "app/inventory/issues/page.tsx",
+  "app/inventory/returns/page.tsx",
+  "app/inventory/transfers/page.tsx",
+  "app/inventory/low-stock/page.tsx",
+  "app/inventory/categories/page.tsx",
+  "app/inventory/stocktake/page.tsx",
+  "app/inventory/reports/page.tsx",
+  // Phase 9O — Asset Management. Real Asset/AssetAssignment/
+  // AssetMaintenanceRecord via /api/assets/* (PostgreSQL). Every physical
+  // unit is its own row with a server-generated, unique assetTag — never "10
+  // laptops" as one row. Assignment is Staff-only (real Staff.id, never a
+  // name string) — no existing UI ever offered a real student picker for
+  // asset issue, so student assignment stays out of scope rather than being
+  // fabricated. No depreciation/disposal/procurement/vendor system: `cost` is
+  // shown exactly as entered. Depreciation/Disposal stay fully mock (no
+  // accounting policy exists for either) — app/assets/page.tsx (hub) is a
+  // hybrid — its headline stats are real but its quickLinks still legitimately
+  // point at those still-mock pages — so it is NOT guarded here, matching the
+  // Library/Transport hub precedent.
+  "app/assets/dashboard/page.tsx",
+  "app/assets/register/page.tsx",
+  "app/assets/register/new/page.tsx",
+  "app/assets/[assetId]/page.tsx",
+  "app/assets/assignments/page.tsx",
+  "app/assets/maintenance/page.tsx",
+  "app/assets/audit/page.tsx",
+  "app/assets/reports/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -484,6 +529,18 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/library-reports", why: "mock reading-engagement/popular-book/trend selector — no real backing exists" },
   { marker: '"@/lib/types/library"', why: "mock Library types (Book/BookCopy/LibraryMember/LibraryLoan/LibraryReservation/LibraryFine) — real surfaces use lib/api/contracts.ts DTOs instead" },
   { marker: "components/library/catalogue-view", why: "mock catalogue component bound to the mock Book/BookCopy/Author/Publisher/Category types — real surfaces render their own real list" },
+  // Phase 9O — inventory/asset mock authority (real surfaces must use
+  // hooks/api/use-inventory-api, hooks/api/use-assets-api).
+  { marker: "services/inventory-service", why: "mock inventory mutation service (deleted — zero remaining consumers, dead import)" },
+  { marker: "services/asset-service", why: "mock asset mutation service — still consumed by the deferred Depreciation page, but real surfaces must use hooks/api/use-assets-api" },
+  { marker: "selectors/inventory-brief", why: "mock inventory summary selector (deleted — zero remaining consumers, dead import)" },
+  { marker: "selectors/asset-brief", why: "mock asset summary selector (deleted — zero remaining consumers, dead import)" },
+  { marker: "selectors/asset-depreciation", why: "mock depreciation-schedule/book-value selector — this phase does not fabricate depreciation" },
+  { marker: '"@/lib/types/inventory"', why: "mock Inventory types (InventoryItem/InventoryCategory/InventoryIssue/InventoryTransfer/PurchaseRequest) — still consumed by the deferred Purchases page, but real surfaces use lib/api/contracts.ts DTOs instead" },
+  { marker: '"@/lib/types/assets"', why: "mock Asset types (Asset/AssetCategory/AssetDisposal/depreciation fields) — still consumed by the deferred Depreciation/Disposal pages, but real surfaces use lib/api/contracts.ts DTOs instead" },
+  { marker: "data/seed/inventory", why: "mock inventory seed data — still consumed by the deferred Purchases page's store slice, but real surfaces must never read seed data" },
+  { marker: "data/seed/assets", why: "mock asset seed data — still consumed by the deferred Depreciation/Disposal pages' store slice, but real surfaces must never read seed data" },
+  { marker: "library/resource-audit-trail", why: "mock append-only resource-audit-log component with zero real backing — real Inventory/Asset surfaces use the movement ledger / a real AuditEvent-backed history endpoint instead" },
 ];
 
 function collectSources(dir: string): string[] {

@@ -1736,7 +1736,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned";
 
 export type NotificationDto = {
   id: string;
@@ -1802,7 +1802,7 @@ export type SendMessageRequest = { body: string };
 // `<sourceType>:<sourceId>:<actionKind>`. `dueAt`/`priority` only ever come
 // from a real domain field — never fabricated. ---
 
-export type ActionCategoryDto = "lesson_plan" | "leave" | "marks" | "fees" | "payroll" | "visitor" | "communication" | "library";
+export type ActionCategoryDto = "lesson_plan" | "leave" | "marks" | "fees" | "payroll" | "visitor" | "communication" | "library" | "inventory";
 export type ActionPriorityDto = "urgent" | "high" | "normal" | "low";
 
 export type ActionItemDto = {
@@ -2713,3 +2713,192 @@ export type StudentLibraryProfileDto = {
   activeLoans: LibraryLoanDto[];
   recentHistory: LibraryLoanDto[];
 };
+
+// ── Phase 9O: Inventory Management — consumable / stock-counted items. The
+// movement ledger is the sole stock authority; `quantity`/`status` on
+// InventoryItemDto are always server-computed, never client-cached. ────────
+
+export type InventoryLocationDto = { id: string; name: string; status: "active" | "archived"; createdAt: string };
+export type CreateInventoryLocationRequest = { name: string };
+
+export type InventoryItemStatusDto = "in-stock" | "low-stock" | "out-of-stock" | "discontinued";
+
+export type InventoryItemDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  unit: string;
+  reorderLevel: number | null;
+  quantity: number; // always derived from the ledger/balance cache — never stored
+  status: InventoryItemStatusDto;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateInventoryItemRequest = {
+  code: string; name: string; description?: string; category?: string; unit: string;
+  reorderLevel?: number; openingQuantity?: number; locationId?: string;
+};
+export type UpdateInventoryItemRequest = {
+  name?: string; description?: string | null; category?: string | null; unit?: string;
+  reorderLevel?: number | null; status?: "active" | "archived";
+};
+
+export type InventoryMovementTypeDto = "opening" | "receipt" | "issue" | "return" | "transfer-out" | "transfer-in" | "adjustment-in" | "adjustment-out";
+
+export type InventoryMovementDto = {
+  id: string;
+  itemId: string;
+  itemName: string;
+  itemCode: string;
+  locationId: string;
+  locationName: string;
+  movementType: InventoryMovementTypeDto;
+  quantityDelta: number; // signed — positive for inbound, negative for outbound
+  referenceType: string | null;
+  referenceId: string | null;
+  notes: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export type ReceiveStockRequest = { itemId: string; locationId?: string; quantity: number; reference?: string; notes?: string };
+export type AdjustStockRequest = { itemId: string; locationId?: string; quantity: number; reason: string };
+export type TransferStockRequest = { itemId: string; fromLocationId: string; toLocationId?: string; toLocationName?: string; quantity: number; notes?: string };
+
+export type InventoryTransferDto = {
+  id: string; // the shared movement referenceId (correlation id), not a separate table row
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  fromLocationId: string;
+  fromLocationName: string;
+  toLocationId: string;
+  toLocationName: string;
+  createdAt: string;
+};
+
+export type InventoryRecipientKindDto = "staff" | "student" | "other";
+export type InventoryIssueStatusDto = "issued" | "partially-returned" | "returned";
+
+export type InventoryIssueDto = {
+  id: string;
+  itemId: string;
+  itemName: string;
+  itemCode: string;
+  locationId: string;
+  locationName: string;
+  quantity: number;
+  returnedQuantity: number;
+  outstandingQuantity: number;
+  recipientKind: InventoryRecipientKindDto;
+  recipientName: string; // resolved live from Staff/Student, or the OTHER label — never a stored snapshot
+  purpose: string | null;
+  returnable: boolean;
+  status: InventoryIssueStatusDto;
+  createdAt: string;
+  updatedAt: string;
+};
+export type IssueStockRequest = {
+  itemId: string; locationId?: string; quantity: number;
+  recipientKind: InventoryRecipientKindDto; recipientStaffId?: string; recipientStudentId?: string; recipientLabel?: string;
+  purpose?: string; returnable?: boolean;
+};
+export type ReturnIssueRequest = { quantity: number; condition?: "good" | "damaged" };
+
+export type InventoryDashboardDto = {
+  totalItems: number;
+  totalLocations: number;
+  totalUnitsOnHand: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  movementsToday: number;
+  lowStockItems: { id: string; name: string; quantity: number; reorderLevel: number }[];
+};
+
+// ── Phase 9O: Asset Management — individually tracked durable assets. No
+// depreciation/procurement/vendor system; `cost` is shown as entered, never
+// derived. Assignment is Staff-only — no existing UI ever offered a real
+// student picker for asset issue. ───────────────────────────────────────
+
+export type AssetStatusDto = "available" | "assigned" | "maintenance" | "lost" | "damaged" | "retired";
+export type AssetConditionDto = "good" | "fair" | "poor" | "damaged";
+
+export type AssetDto = {
+  id: string;
+  assetTag: string; // server-generated, unique per school
+  name: string;
+  category: string | null;
+  serialNumber: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  purchaseDate: string | null;
+  cost: number | null; // admin-entered acquisition price, shown as-is — never depreciated
+  warrantyUntil: string | null;
+  notes: string | null;
+  locationId: string | null;
+  locationName: string | null;
+  status: AssetStatusDto;
+  condition: AssetConditionDto;
+  assignedToStaffId: string | null;
+  assignedToName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateAssetRequest = {
+  name: string; category?: string; serialNumber?: string; manufacturer?: string; model?: string;
+  purchaseDate?: string; cost?: number; warrantyUntil?: string; notes?: string; locationId?: string; condition?: AssetConditionDto;
+};
+export type UpdateAssetRequest = Partial<CreateAssetRequest>;
+export type SetAssetStatusRequest = { status: "lost" | "damaged" | "retired" | "available" };
+
+export type AssetAssignmentDto = {
+  id: string;
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  staffId: string;
+  staffName: string;
+  assignedAt: string;
+  returnedAt: string | null;
+  status: "active" | "returned";
+  notes: string | null;
+  createdAt: string;
+};
+export type AssignAssetRequest = { assetId: string; staffId: string; notes?: string };
+
+export type AssetMaintenanceTypeDto = "preventive" | "repair" | "inspection" | "other";
+export type AssetMaintenanceStatusDto = "open" | "in-progress" | "completed" | "cancelled";
+
+export type AssetMaintenanceDto = {
+  id: string;
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  type: AssetMaintenanceTypeDto;
+  status: AssetMaintenanceStatusDto;
+  description: string;
+  vendorName: string | null;
+  cost: number | null; // display only — no accounting posting
+  openedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+};
+export type OpenMaintenanceRequest = { assetId: string; type?: AssetMaintenanceTypeDto; description: string; vendorName?: string; cost?: number };
+export type CompleteMaintenanceRequest = { status?: "completed" | "cancelled"; cost?: number };
+
+export type AssetDashboardDto = {
+  total: number;
+  available: number;
+  assigned: number;
+  maintenance: number;
+  lost: number;
+  damaged: number;
+  retired: number;
+  totalCost: number; // sum of admin-entered acquisition prices — not a depreciated book value
+  maintenanceOpen: { id: string; assetId: string; assetName: string; type: string }[];
+  warrantyExpiringSoon: { id: string; name: string; warrantyUntil: string; status: string }[];
+};
+
+export type AssetHistoryEventDto = { id: string; action: string; actorName: string | null; meta: Record<string, unknown> | null; createdAt: string };

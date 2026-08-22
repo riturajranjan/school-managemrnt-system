@@ -697,6 +697,7 @@ model Student {
   feeCharges           FeeCharge[] // Phase 9F — billable fee items
   libraryLoans         LibraryLoan[] // Phase 9N — library circulation
   feePayments          FeePayment[] // Phase 9F — fee collections
+  inventoryIssues      InventoryIssue[] // Phase 9O — consumable issues to this student
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2069,6 +2070,8 @@ model Staff {
   transportTripsAsAttendant          TransportTrip[]            @relation("TransportTripAttendant") // Phase 9M
   staffTransportAssignments          StaffTransportAssignment[] // Phase 9M
   libraryLoans                       LibraryLoan[] // Phase 9N — library circulation
+  assetAssignments                   AssetAssignment[] // Phase 9O — durable asset custody
+  inventoryIssues                    InventoryIssue[] // Phase 9O — consumable issues to this staff member
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3093,6 +3096,8 @@ enum NotificationType {
   MESSAGE_RECEIVED
   LIBRARY_BOOK_ISSUED
   LIBRARY_BOOK_RETURNED
+  ASSET_ASSIGNED
+  ASSET_RETURNED
 }
 
 model Notification {
@@ -4965,4 +4970,368 @@ model LibraryLoan {
   @@index([studentId])
   @@index([staffId])
   @@map("library_loans")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9O — Inventory Management. Consumable / stock-counted items. The
+// movement ledger (InventoryStockMovement) is the sole source of truth for
+// quantity — there is no mutable "quantity" column anywhere; every read
+// derives current stock live from SUM(ledger). `category` and location names
+// are plain text/lightweight lookups (no independent category CRUD existed
+// in the pre-migration UI, and no location UI existed at all — locations are
+// the minimal real infrastructure Transfers needs to be honest, per the
+// phase's own suggested schema). No vendor/purchase-order/valuation model —
+// procurement stays out of scope; a stock RECEIPT is a physical fact, never
+// a purchase-accounting event.
+// ---------------------------------------------------------------------------
+
+enum InventoryItemStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model InventoryItem {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code         String // SKU — unique within a school, never the item name
+  name         String
+  description  String?
+  category     String?
+  unit         String
+  reorderLevel Int?
+
+  status InventoryItemStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  movements InventoryStockMovement[]
+  issues    InventoryIssue[]
+  balances  InventoryStockBalance[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId, status])
+  @@index([schoolId, category])
+  @@map("inventory_items")
+}
+
+enum InventoryLocationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/**
+ * A named stock-holding place (e.g. "Main Store", "Science Lab Store"). One
+ * "Main Store" is auto-created per branch on first use (get-or-create, same
+ * pattern as LibraryPolicy) so Receipts/Issues/Adjustments always have a real
+ * location to post against even before an admin has created any others.
+ */
+model InventoryLocation {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  name String
+
+  status InventoryLocationStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  movements InventoryStockMovement[]
+  issues    InventoryIssue[]
+  assets    Asset[]
+  balances  InventoryStockBalance[]
+
+  @@unique([schoolId, branchId, name])
+  @@map("inventory_locations")
+}
+
+/**
+ * A transactionally-maintained CACHE of the ledger sum for one (item,
+ * location) pair — NOT the authority. The invariant: every
+ * InventoryStockMovement insert updates this row atomically in the SAME
+ * transaction via a conditional `updateMany` (never letting quantity go
+ * below zero) — the exact "conditional update" concurrency idiom this
+ * codebase already uses (e.g. LibraryBookCopy status), applied here because
+ * there is no natural status column on a stock ledger to condition on.
+ * Existence of this table is verified against SUM(ledger) in DB tests; the
+ * ledger remains the append-only audit-of-record for movement history.
+ */
+model InventoryStockBalance {
+  itemId     String
+  locationId String
+  quantity   Int    @default(0)
+
+  item     InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@id([itemId, locationId])
+  @@map("inventory_stock_balances")
+}
+
+enum InventoryMovementType {
+  OPENING
+  RECEIPT
+  ISSUE
+  RETURN
+  TRANSFER_OUT
+  TRANSFER_IN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+}
+
+/**
+ * Append-only stock ledger — the ONLY authority for quantity. `quantity` is
+ * always positive; direction comes from `movementType`. A TRANSFER pair
+ * shares `referenceId` (a correlation id, not a separate Transfer table —
+ * the two rows created atomically in one transaction ARE the transfer
+ * record). An ISSUE/RETURN pair links back to its InventoryIssue via
+ * referenceType="InventoryIssue"/referenceId=issue.id. Never updated or
+ * deleted after creation.
+ */
+model InventoryStockMovement {
+  id         String @id @default(cuid())
+  tenantId   String
+  schoolId   String
+  branchId   String
+  itemId     String
+  locationId String
+
+  movementType InventoryMovementType
+  quantity     Int // always > 0; sign comes from movementType
+
+  referenceType String?
+  referenceId   String?
+  notes         String?
+
+  createdByUserId String
+  createdByName   String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  item     InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, itemId, createdAt])
+  @@index([schoolId, locationId, itemId])
+  @@index([referenceType, referenceId])
+  @@map("inventory_stock_movements")
+}
+
+enum InventoryRecipientKind {
+  STAFF
+  STUDENT
+  OTHER
+}
+
+enum InventoryIssueStatus {
+  ISSUED
+  PARTIALLY_RETURNED
+  RETURNED
+}
+
+/**
+ * A returnable-or-not consumable issue. The borrower/recipient is always a
+ * real Staff.id or Student.id when it is a person — never a name string —
+ * except OTHER (a department/classroom/event/purpose, which has no real
+ * identity model in this codebase; `recipientLabel` is a genuine descriptive
+ * label there, not a stand-in for a person). `returnedQuantity` is a
+ * transactionally-maintained cache (always updated in the same transaction
+ * as the RETURN movement that backs it) — never authoritative for item
+ * stock, which always comes from the movement ledger.
+ */
+model InventoryIssue {
+  id         String @id @default(cuid())
+  tenantId   String
+  schoolId   String
+  branchId   String
+  itemId     String
+  locationId String
+
+  quantity         Int
+  returnedQuantity Int @default(0)
+
+  recipientKind      InventoryRecipientKind
+  recipientStaffId   String?
+  recipientStudentId String?
+  recipientLabel     String?
+  purpose            String?
+  returnable         Boolean                @default(false)
+
+  status InventoryIssueStatus @default(ISSUED)
+
+  issuedByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  item     InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  location InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  staff    Staff?            @relation(fields: [recipientStaffId], references: [id], onDelete: Restrict)
+  student  Student?          @relation(fields: [recipientStudentId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, itemId])
+  @@index([schoolId, status])
+  @@index([recipientStaffId])
+  @@index([recipientStudentId])
+  @@map("inventory_issues")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9O — Asset Management. Individually tracked durable assets — never
+// "10 laptops" as one row. No depreciation/disposal/procurement/vendor
+// system: cost is the admin-entered acquisition price, shown as-is, never
+// depreciated or posted to Accounting.
+// ---------------------------------------------------------------------------
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  MAINTENANCE
+  LOST
+  DAMAGED
+  RETIRED
+}
+
+enum AssetCondition {
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+/**
+ * Race-safe, school-scoped asset-tag numbering — same atomic
+ * `UPDATE ... RETURNING` strategy as LibraryAccessionCounter/VisitorPassCounter.
+ */
+model AssetTagCounter {
+  schoolId String @id
+  counter  Int    @default(0)
+
+  @@map("asset_tag_counters")
+}
+
+model Asset {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  assetTag String // server-generated (see AssetTagCounter), unique per school
+
+  name          String
+  category      String?
+  serialNumber  String?
+  manufacturer  String?
+  model         String?
+  purchaseDate  DateTime? @db.Date
+  cost          Decimal?  @db.Decimal(12, 2) // admin-entered acquisition price — informational only, never depreciated/posted
+  warrantyUntil DateTime? @db.Date
+  notes         String?
+
+  locationId String?
+
+  status    AssetStatus    @default(AVAILABLE)
+  condition AssetCondition @default(GOOD)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  location    InventoryLocation?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  assignments AssetAssignment[]
+  maintenance AssetMaintenanceRecord[]
+
+  @@unique([schoolId, assetTag])
+  @@index([schoolId, status])
+  @@index([schoolId, category])
+  @@map("assets")
+}
+
+/**
+ * Real custody record — the holder is always a real Staff.id, never a name
+ * string. No Student assignment: no existing UI ever offered a student
+ * picker for asset issue (only a free-text "teacher/department/room" field),
+ * so it stays out of scope rather than being fabricated. Exactly one ACTIVE
+ * (returnedAt IS NULL) assignment per asset is enforced by a partial unique
+ * index (see the follow-up migration), mirroring Phase 9N's library loans.
+ */
+model AssetAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  assetId  String
+  staffId  String
+
+  assignedAt DateTime  @default(now()) @db.Timestamptz(6)
+  returnedAt DateTime?
+  notes      String?
+
+  assignedByUserId String
+  returnedByUserId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, assetId])
+  @@index([staffId])
+  @@map("asset_assignments")
+}
+
+enum AssetMaintenanceType {
+  PREVENTIVE
+  REPAIR
+  INSPECTION
+  OTHER
+}
+
+enum AssetMaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * Structurally simple, non-financial-workflow maintenance record (per the
+ * phase's own guidance — `cost`/`vendorName` are plain display fields with no
+ * accounting implication, never posted anywhere). Opening a record requires
+ * the asset to be AVAILABLE (moves it to MAINTENANCE); completing/cancelling
+ * returns it to AVAILABLE. An asset already ASSIGNED must be returned first —
+ * this codebase invents no "maintenance while assigned" semantics.
+ */
+model AssetMaintenanceRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  assetId  String
+
+  type        AssetMaintenanceType   @default(REPAIR)
+  status      AssetMaintenanceStatus @default(OPEN)
+  description String
+  vendorName  String?
+  cost        Decimal?               @db.Decimal(12, 2)
+
+  openedAt    DateTime  @default(now()) @db.Timestamptz(6)
+  completedAt DateTime?
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, assetId])
+  @@index([schoolId, status])
+  @@map("asset_maintenance_records")
 }

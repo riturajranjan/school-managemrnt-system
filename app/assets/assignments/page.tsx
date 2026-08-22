@@ -1,5 +1,6 @@
 "use client";
 
+// Asset assignments (Phase 9O) — real PostgreSQL/API cutover.
 import Link from "next/link";
 import { useState } from "react";
 import { Users } from "lucide-react";
@@ -7,22 +8,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { returnAsset } from "@/lib/services/asset-service";
+import { returnAssetRequest, useAssetAssignments } from "@/lib/hooks/api/use-assets-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { assignmentStatusLabels, assignmentTargetTypeLabels } from "@/lib/types/assets";
 import { formatDate } from "@/lib/utils";
 
 export default function AssetAssignmentsPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  const actor = { name: "Asset Manager", role: roleLabels[role] };
-  const [, force] = useState(0);
-  if (!can("assets.view")) return <PermissionDenied action="view assignments" role={roleLabels[role]} backHref="/assets" />;
-  const canAssign = can("assets.assign");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: active, reload } = useAssetAssignments({ status: "active" });
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const active = db.assetAssignments.filter((a) => a.status === "active");
-  const assetName = (id: string) => db.assets.find((x) => x.id === id)?.name ?? id;
+  if (!capabilitiesLoading && !hasServerPermission("assets.view")) return <PermissionDenied action="view assignments" role={roleLabels[role]} backHref="/assets" />;
+  const canAssign = hasServerPermission("assets.manage");
+
+  async function handleReturn(assignmentId: string) {
+    setBusyId(assignmentId);
+    await returnAssetRequest(assignmentId);
+    setBusyId(null);
+    reload();
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -41,12 +44,12 @@ export default function AssetAssignmentsPage() {
           {active.map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm">
               <div className="min-w-0">
-                <Link href={`/assets/${a.assetId}`} className="truncate text-sm font-medium text-foreground hover:underline">{assetName(a.assetId)}</Link>
-                <p className="text-xs text-muted-foreground">{assignmentTargetTypeLabels[a.targetType]} · {a.targetName} · since {formatDate(a.assignedAt)}{a.acknowledged ? " · acknowledged" : ""}</p>
+                <Link href={`/assets/${a.assetId}`} className="truncate text-sm font-medium text-foreground hover:underline">{a.assetName}</Link>
+                <p className="text-xs text-muted-foreground">{a.staffName} · since {formatDate(a.assignedAt)}</p>
               </div>
               <div className="flex items-center gap-xs">
-                <Badge tone="info">{assignmentStatusLabels[a.status]}</Badge>
-                {canAssign && <Button size="sm" variant="outline" onClick={() => { returnAsset(a.id, actor, "good"); force((n) => n + 1); }}>Return</Button>}
+                <Badge tone="info">Active</Badge>
+                {canAssign && <Button size="sm" variant="outline" disabled={busyId === a.id} onClick={() => handleReturn(a.id)}>Return</Button>}
               </div>
             </div>
           ))}

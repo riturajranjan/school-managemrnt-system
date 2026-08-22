@@ -1,5 +1,9 @@
 "use client";
 
+// Inventory issues (Phase 9O) — real PostgreSQL/API cutover. A Staff/Student
+// recipient is always a real Staff.id/Student.id (picked from the real
+// directories) — "Other" (department/classroom/event/purpose) is a genuine
+// descriptive label, never a stand-in identity.
 import { useState } from "react";
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,85 +12,118 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { issueStock } from "@/lib/services/inventory-service";
+import { useStudentList } from "@/lib/hooks/api/use-students";
+import { useStaffList } from "@/lib/hooks/api/use-staff-api";
+import { issueStockRequest, useInventoryIssues, useInventoryItems } from "@/lib/hooks/api/use-inventory-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { issueRecipientTypeLabels, issueStatusLabels, type IssueRecipientType, type IssueStatus } from "@/lib/types/inventory";
+import type { InventoryIssueStatusDto, InventoryRecipientKindDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
 
-const statusTone: Record<IssueStatus, "success" | "warning" | "info" | "neutral"> = {
+const statusTone: Record<InventoryIssueStatusDto, "success" | "warning" | "info"> = {
   issued: "info",
   "partially-returned": "warning",
   returned: "success",
-  consumed: "neutral",
-  overdue: "warning",
+};
+const statusLabels: Record<InventoryIssueStatusDto, string> = {
+  issued: "Issued", "partially-returned": "Partially returned", returned: "Returned",
 };
 
 export default function InventoryIssuesPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
-  const actor = { name: "Storekeeper", role: roleLabels[role] };
-  const [itemId, setItemId] = useState(db.inventoryItems[0]?.id ?? "");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const { data: items } = useInventoryItems();
+  const { data: issues, reload } = useInventoryIssues();
+  const { data: students } = useStudentList({ status: ["active"], pageSize: 150 });
+  const { data: staff } = useStaffList({ status: "active", pageSize: 200 });
+
+  const [itemId, setItemId] = useState("");
   const [qty, setQty] = useState("1");
-  const [recipient, setRecipient] = useState("");
-  const [recipientType, setRecipientType] = useState<IssueRecipientType>("classroom");
+  const [recipientKind, setRecipientKind] = useState<InventoryRecipientKindDto>("other");
+  const [recipientId, setRecipientId] = useState("");
+  const [recipientLabel, setRecipientLabel] = useState("");
+  const [returnable, setReturnable] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [, force] = useState(0);
+  const [busy, setBusy] = useState(false);
 
-  if (!can("inventory.view")) return <PermissionDenied action="view issues" role={roleLabels[role]} backHref="/inventory" />;
-  const canIssue = can("inventory.issue");
-  const itemName = (id: string) => db.inventoryItems.find((i) => i.id === id)?.name ?? id;
+  if (!capabilitiesLoading && !hasServerPermission("inventory.view")) return <PermissionDenied action="view issues" role={roleLabels[role]} backHref="/inventory" />;
+  const canIssue = hasServerPermission("inventory.manage");
+  const effectiveItemId = itemId || items[0]?.id || "";
 
-  function submit() {
+  async function submit() {
     setError(null);
-    if (!recipient.trim()) return setError("Recipient is required.");
-    const r = issueStock({ itemId, quantity: Number(qty) || 0, recipientType, recipientName: recipient.trim(), returnable: recipientType === "department" || recipientType === "laboratory", purpose: "Issued from desk" }, actor);
-    if (!r.ok) return setError(r.error);
-    setRecipient("");
-    setQty("1");
-    force((n) => n + 1);
+    if (recipientKind === "other" && !recipientLabel.trim()) return setError("A recipient label is required.");
+    if (recipientKind !== "other" && !recipientId) return setError("Select a recipient.");
+    setBusy(true);
+    const res = await issueStockRequest({
+      itemId: effectiveItemId, quantity: Number(qty) || 0, recipientKind,
+      recipientStaffId: recipientKind === "staff" ? recipientId : undefined,
+      recipientStudentId: recipientKind === "student" ? recipientId : undefined,
+      recipientLabel: recipientKind === "other" ? recipientLabel.trim() : undefined,
+      returnable, purpose: "Issued from desk",
+    });
+    setBusy(false);
+    if (!res.success) return setError(res.error.message);
+    setRecipientId(""); setRecipientLabel(""); setQty("1");
+    reload();
   }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">Inventory issues</h1>
-        <p className="text-xs text-muted-foreground">Issue stock to classes, departments and events</p>
+        <p className="text-xs text-muted-foreground">Issue stock to staff, students or a department/classroom/event</p>
       </div>
 
       {canIssue && (
         <div className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-md">
           <div className="grid grid-cols-1 gap-sm sm:grid-cols-4">
-            <Select value={itemId} onValueChange={setItemId}>
+            <Select value={effectiveItemId} onValueChange={setItemId}>
               <SelectTrigger aria-label="Item"><SelectValue placeholder="Item" /></SelectTrigger>
-              <SelectContent>{db.inventoryItems.map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.quantity})</SelectItem>)}</SelectContent>
+              <SelectContent>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.quantity})</SelectItem>)}</SelectContent>
             </Select>
             <Input type="number" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Qty" aria-label="Quantity" />
-            <Select value={recipientType} onValueChange={(v) => setRecipientType(v as IssueRecipientType)}>
+            <Select value={recipientKind} onValueChange={(v) => { setRecipientKind(v as InventoryRecipientKindDto); setRecipientId(""); setRecipientLabel(""); }}>
               <SelectTrigger aria-label="Recipient type"><SelectValue /></SelectTrigger>
-              <SelectContent>{(Object.keys(issueRecipientTypeLabels) as IssueRecipientType[]).map((t) => <SelectItem key={t} value={t}>{issueRecipientTypeLabels[t]}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                <SelectItem value="staff">Staff</SelectItem>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="other">Department / classroom / event</SelectItem>
+              </SelectContent>
             </Select>
-            <Input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Recipient name" aria-label="Recipient" />
+            {recipientKind === "other" ? (
+              <Input value={recipientLabel} onChange={(e) => setRecipientLabel(e.target.value)} placeholder="e.g. Science Lab" aria-label="Recipient label" />
+            ) : (
+              <Select value={recipientId} onValueChange={setRecipientId}>
+                <SelectTrigger aria-label="Recipient"><SelectValue placeholder="Select recipient" /></SelectTrigger>
+                <SelectContent>
+                  {recipientKind === "staff"
+                    ? staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
+                    : students.map((s) => <SelectItem key={s.id} value={s.id}>{s.fullName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={returnable} onChange={(e) => setReturnable(e.target.checked)} /> Returnable (durable item — expected back)
+          </label>
           {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}
-          <div className="flex justify-end"><Button size="sm" onClick={submit}>Issue stock</Button></div>
+          <div className="flex justify-end"><Button size="sm" onClick={submit} disabled={busy}>Issue stock</Button></div>
         </div>
       )}
 
       <div className="flex flex-col gap-sm">
-        {db.inventoryIssues.length === 0 ? (
+        {issues.length === 0 ? (
           <div className="flex flex-col items-center gap-sm rounded-lg border border-dashed border-border bg-surface px-md py-xl text-center">
             <ClipboardList className="size-6 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">No issues recorded yet.</p>
           </div>
         ) : (
-          [...db.inventoryIssues].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((issue) => (
+          issues.map((issue) => (
             <div key={issue.id} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{itemName(issue.itemId)} × {issue.quantity}</p>
-                <p className="text-xs text-muted-foreground">{issueRecipientTypeLabels[issue.recipientType]} · {issue.recipientName} · {formatDate(issue.issueDate)}</p>
+                <p className="truncate text-sm font-medium text-foreground">{issue.itemName} × {issue.quantity}</p>
+                <p className="text-xs text-muted-foreground">{issue.recipientName} · {formatDate(issue.createdAt)}</p>
               </div>
-              <Badge tone={statusTone[issue.status]}>{issueStatusLabels[issue.status]}</Badge>
+              <Badge tone={statusTone[issue.status]}>{statusLabels[issue.status]}</Badge>
             </div>
           ))
         )}

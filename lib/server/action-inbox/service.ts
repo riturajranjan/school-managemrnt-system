@@ -29,12 +29,14 @@ import { isBroadVisitorManager } from "@/lib/server/visitors/access";
 import { getUnreadCount } from "@/lib/server/communication/service";
 import { listLoans } from "@/lib/server/library/loans";
 import { isBroadLibraryManager } from "@/lib/server/library/access";
+import { getInventoryDashboard } from "@/lib/server/inventory/dashboard";
+import { isBroadInventoryManager } from "@/lib/server/inventory/access";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { ActionCategoryDto, ActionInboxSummaryDto, ActionItemDto, ActionPriorityDto } from "@/lib/api/contracts";
 
 export type ActionInboxPermFlags = { communication: boolean };
 
-const CATEGORIES: ActionCategoryDto[] = ["lesson_plan", "leave", "marks", "fees", "payroll", "visitor", "communication", "library"];
+const CATEGORIES: ActionCategoryDto[] = ["lesson_plan", "leave", "marks", "fees", "payroll", "visitor", "communication", "library", "inventory"];
 const PRIORITIES: ActionPriorityDto[] = ["urgent", "high", "normal", "low"];
 
 function todayIso(): string {
@@ -224,6 +226,21 @@ async function libraryActions(scope: OrgScope): Promise<ActionItemDto[]> {
     }));
 }
 
+async function inventoryActions(scope: OrgScope): Promise<ActionItemDto[]> {
+  if (!(await isBroadInventoryManager(scope))) return [];
+  const dashboard = await getInventoryDashboard(scope);
+  return dashboard.lowStockItems.map((i) => ({
+    id: `INVENTORY_ITEM:${i.id}:REORDER`,
+    sourceType: "InventoryItem", sourceId: i.id,
+    category: "inventory" as const, title: `Low stock — ${i.name}`,
+    description: `${i.quantity} on hand · reorder at ${i.reorderLevel}`,
+    priority: i.quantity <= 0 ? "high" : "normal",
+    createdAt: new Date().toISOString(), dueAt: null,
+    href: "/inventory/low-stock", actionLabel: "Review",
+    status: i.quantity <= 0 ? "out-of-stock" : "low-stock",
+  }));
+}
+
 function priorityRank(p: ActionPriorityDto): number {
   return { urgent: 0, high: 1, normal: 2, low: 3 }[p];
 }
@@ -240,6 +257,7 @@ export async function getActionInbox(scope: OrgScope, perms: ActionInboxPermFlag
     visitorActions(scope),
     communicationActions(scope, perms),
     libraryActions(scope),
+    inventoryActions(scope),
   ]);
   let items = groups.flat();
   if (filters.category) items = items.filter((i) => i.category === filters.category);
