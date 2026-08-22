@@ -32,13 +32,14 @@ import { useStudentLibraryProfile } from "@/lib/hooks/api/use-library-api";
 import { useStudentHostelProfile } from "@/lib/hooks/api/use-hostel-api";
 import { useStudentHealthProfile } from "@/lib/hooks/api/use-health-api";
 import { createCounselingReferralRequest, useStudentCounselingProfile } from "@/lib/hooks/api/use-counseling-api";
+import { useStudentCafeteriaProfile } from "@/lib/hooks/api/use-cafeteria-api";
 import { RestrictedHealth } from "@/components/campus/privacy";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health", "counseling"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health", "counseling", "cafeteria"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can, hasServerPermission } = usePermissions();
@@ -80,6 +81,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="hostel">Hostel</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
           <TabsTrigger value="counseling">Counselling</TabsTrigger>
+          <TabsTrigger value="cafeteria">Cafeteria</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -118,6 +120,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           ) : (
             <RestrictedHealth label="counselling information" />
           )}
+        </TabsContent>
+        <TabsContent value="cafeteria" className="mt-md">
+          <CafeteriaSection studentId={student.id} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -724,6 +729,29 @@ function CounselingReferralPanel({ studentId }: { studentId: string }) {
       <Label htmlFor="counseling-reason">Reason (optional)</Label>
       <Input id="counseling-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Factual, non-diagnostic description" />
       <Button size="sm" className="w-fit" onClick={submit}>Submit referral</Button>
+    </div>
+  );
+}
+
+function CafeteriaSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentCafeteriaProfile(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading meal history…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="rounded-lg border border-border p-sm">
+      <h2 className="mb-sm text-sm font-semibold text-foreground">Recent meals</h2>
+      <ul className="flex flex-col gap-sm">
+        {data.recentMeals.map((m) => (
+          <li key={m.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+            <p className="truncate text-foreground">{m.itemName ?? m.mealType} <span className="text-xs text-muted-foreground">· {new Date(m.servedAt).toLocaleDateString("en-IN")}</span></p>
+            <Badge tone="neutral">{m.mealType}</Badge>
+          </li>
+        ))}
+        {data.recentMeals.length === 0 && <p className="text-sm text-muted-foreground">No meal records yet.</p>}
+      </ul>
     </div>
   );
 }

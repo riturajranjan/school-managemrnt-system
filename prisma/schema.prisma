@@ -703,6 +703,7 @@ model Student {
   healthProfile         HealthProfile? // Phase 9R — factual health profile
   healthVisits          HealthVisit[] // Phase 9R — infirmary visit history
   counselingCases       CounselingCase[] // Phase 9S — counseling case history (confidential domain)
+  cafeteriaMealRecords  CafeteriaMealRecord[] // Phase 9T — meal service history
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2100,6 +2101,7 @@ model Staff {
   healthMedicationsGiven             HealthMedicationAdministration[] @relation("HealthMedicationStaff") // Phase 9R
   counselingCasesAssigned            CounselingCase[]                 @relation("CounselingCaseCounselor") // Phase 9S — cases where this Staff member is the assigned counselor
   counselingSessionsConducted        CounselingSession[]              @relation("CounselingSessionCounselor") // Phase 9S
+  cafeteriaMealRecordsAsConsumer     CafeteriaMealRecord[]            @relation("CafeteriaMealStaffConsumer") // Phase 9T
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -6031,4 +6033,175 @@ model CounselingSessionNote {
 
   @@index([sessionId])
   @@map("counseling_session_notes")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9T: Cafeteria / Meal Management. A meal consumer always resolves to a
+// real, active Student.id or Staff.id — never a parallel identity. No
+// wallet, no online ordering, no payment gateway, no second money/stock
+// engine. Item pricing (if recorded) is informational only — never a Fees or
+// Accounting receivable authority. Ingredient/stock consumption is
+// deliberately NOT auto-deducted from real Inventory (no recipe/BOM
+// structure exists to do so honestly).
+// ---------------------------------------------------------------------------
+
+enum CafeteriaStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model CafeteriaLocation {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code        String
+  name        String
+  description String?
+  status      CafeteriaStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  menus CafeteriaMenu[]
+
+  @@unique([schoolId, code])
+  @@map("cafeteria_locations")
+}
+
+/**
+ * A cafeteria menu item (dish). dietaryTags is informational only (e.g.
+ * "vegetarian", "contains-nuts") — never a medical/allergy authority; Health
+ * confidential allergy data is never read by this domain. priceMinorUnits,
+ * if set, is informational display text only — it is never posted to Fees
+ * or Accounting.
+ */
+model CafeteriaItem {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  code            String
+  name            String
+  category        String?
+  description     String?
+  dietaryTags     String[]
+  priceMinorUnits Int?
+  status          CafeteriaItemStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  menuItems   CafeteriaMenuItem[]
+  mealRecords CafeteriaMealRecord[]
+
+  @@unique([schoolId, code])
+  @@map("cafeteria_items")
+}
+
+enum CafeteriaItemStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum CafeteriaMealType {
+  BREAKFAST
+  LUNCH
+  SNACKS
+  DINNER
+  A_LA_CARTE
+}
+
+/**
+ * A published menu for one serving slot (location + date + meal type). No
+ * draft/publish lifecycle is modeled — the old mock's weekly planner had no
+ * such concept, and inventing an approval workflow is explicitly out of
+ * scope; a created menu is immediately the live menu for its slot.
+ */
+model CafeteriaMenu {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  locationId String
+  date       DateTime          @db.Date
+  mealType   CafeteriaMealType
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  location CafeteriaLocation     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  items    CafeteriaMenuItem[]
+  meals    CafeteriaMealRecord[]
+
+  @@unique([locationId, date, mealType])
+  @@index([schoolId, branchId, date])
+  @@map("cafeteria_menus")
+}
+
+model CafeteriaMenuItem {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  menuId          String
+  cafeteriaItemId String
+  servingOrder    Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  menu CafeteriaMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  item CafeteriaItem @relation(fields: [cafeteriaItemId], references: [id], onDelete: Restrict)
+
+  @@unique([menuId, cafeteriaItemId])
+  @@map("cafeteria_menu_items")
+}
+
+/**
+ * A factual record that a real Student or Staff member was served a meal
+ * from a published menu. This is deliberately NOT called Attendance — meal
+ * consumption is a separate operational fact from academic/staff attendance.
+ * Policy (explicitly chosen, not guessed): one meal redemption per consumer
+ * per menu slot — the typical institutional cafeteria policy, preventing a
+ * duplicate serving of the same lunch to the same person. Enforced via
+ * @@unique([menuId, studentId]) / @@unique([menuId, staffId]) — Postgres
+ * treats each NULL as distinct, so these act as "at most one row per menu
+ * per non-null consumer" without needing a partial index. If a school's real
+ * policy allows multiple servings (e.g. seconds), this would need a schema
+ * change — not assumed here.
+ */
+model CafeteriaMealRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  menuId          String
+  cafeteriaItemId String?
+
+  studentId String?
+  staffId   String?
+
+  servedAt       DateTime @default(now()) @db.Timestamptz(6)
+  quantity       Int      @default(1)
+  servedByUserId String
+  notes          String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  menu         CafeteriaMenu  @relation(fields: [menuId], references: [id], onDelete: Restrict)
+  item         CafeteriaItem? @relation(fields: [cafeteriaItemId], references: [id], onDelete: Restrict)
+  student      Student?       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  staffPatient Staff?         @relation("CafeteriaMealStaffConsumer", fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@unique([menuId, studentId])
+  @@unique([menuId, staffId])
+  @@index([schoolId, branchId, servedAt])
+  @@map("cafeteria_meal_records")
 }

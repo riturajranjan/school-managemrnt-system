@@ -3367,3 +3367,111 @@ export type StudentCounselingProfileDto = {
   } | null;
   caseCount: number;
 };
+
+// ── Phase 9T: Cafeteria / Meal Management. A meal consumer is always exactly
+// one real Student.id or Staff.id. No wallet, no online ordering, no
+// payment gateway. priceMinorUnits (if set) is informational display text
+// only — never a Fees/Accounting receivable.
+
+export type CafeteriaStatusDto = "active" | "inactive" | "archived";
+
+export type CafeteriaLocationDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  status: CafeteriaStatusDto;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateCafeteriaLocationRequest = { code: string; name: string; description?: string };
+export type UpdateCafeteriaLocationRequest = { name?: string; description?: string | null; status?: CafeteriaStatusDto };
+
+export type CafeteriaItemStatusDto = "active" | "archived";
+
+export type CafeteriaItemDto = {
+  id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  dietaryTags: string[]; // informational only — never a medical/allergy authority
+  priceMinorUnits: number | null; // informational only — never a Fees/Accounting receivable
+  status: CafeteriaItemStatusDto;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateCafeteriaItemRequest = {
+  code: string; name: string; category?: string; description?: string; dietaryTags?: string[]; priceMinorUnits?: number;
+};
+export type UpdateCafeteriaItemRequest = {
+  name?: string; category?: string | null; description?: string | null; dietaryTags?: string[]; priceMinorUnits?: number | null; status?: CafeteriaItemStatusDto;
+};
+
+export type CafeteriaMealTypeDto = "breakfast" | "lunch" | "snacks" | "dinner" | "a-la-carte";
+
+export type CafeteriaMenuItemDto = {
+  id: string;
+  cafeteriaItemId: string;
+  name: string;
+  category: string | null;
+  dietaryTags: string[];
+  priceMinorUnits: number | null;
+  servingOrder: number | null;
+};
+
+export type CafeteriaMenuDto = {
+  id: string;
+  locationId: string;
+  locationName: string;
+  date: string; // YYYY-MM-DD
+  mealType: CafeteriaMealTypeDto;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CafeteriaMenuDetailDto = CafeteriaMenuDto & { items: CafeteriaMenuItemDto[] };
+
+export type CreateCafeteriaMenuRequest = { locationId?: string; date: string; mealType: CafeteriaMealTypeDto; itemIds?: string[] };
+export type SetCafeteriaMenuItemsRequest = { itemIds: string[] };
+
+export type CafeteriaConsumerTypeDto = "student" | "staff";
+
+export type CafeteriaMealRecordDto = {
+  id: string;
+  menuId: string;
+  menuDate: string;
+  mealType: CafeteriaMealTypeDto;
+  cafeteriaItemId: string | null;
+  itemName: string | null;
+  consumerType: CafeteriaConsumerTypeDto;
+  consumerId: string;
+  consumerName: string;
+  consumerRef: string; // admissionNumber or employeeCode
+  servedAt: string;
+  quantity: number;
+  servedByUserId: string;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type RecordCafeteriaMealRequest = { menuId: string; studentId?: string; staffId?: string; cafeteriaItemId?: string; quantity?: number; notes?: string };
+
+/** Cafeteria Dashboard — DB-derived only. No fabricated sales/revenue/
+ * profit/wastage%/nutrition or satisfaction score. */
+export type CafeteriaDashboardDto = {
+  mealsServedToday: number;
+  studentMealsToday: number;
+  staffMealsToday: number;
+  activeItems: number;
+  menusToday: number;
+  locationCount: number;
+};
+
+/** Student 360 Cafeteria tab — recent real meal history only. */
+export type StudentCafeteriaProfileDto = {
+  recentMeals: CafeteriaMealRecordDto[];
+};

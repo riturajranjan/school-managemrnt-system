@@ -182,6 +182,15 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "counseling.viewConfidential", module: "counseling", action: "viewConfidential", description: "View confidential counseling session notes for the counselor's own assigned cases" },
   { key: "counseling.refer", module: "counseling", action: "refer", description: "Refer a real student to counseling (opens a new case; grants no read access)" },
 
+  // Phase 9T — Cafeteria operations. No financial/payment authority — meal
+  // pricing (if recorded) is informational only, never a Fees/Accounting
+  // receivable. cafeteria.serve is separate from .manage so a counter
+  // operator can record meal service without also being able to edit the
+  // menu catalog.
+  { key: "cafeteria.view", module: "cafeteria", action: "view", description: "View cafeteria menus, items, and meal service records" },
+  { key: "cafeteria.manage", module: "cafeteria", action: "manage", description: "Manage cafeteria locations, items, and menus" },
+  { key: "cafeteria.serve", module: "cafeteria", action: "serve", description: "Record meal service to a real Student or Staff" },
+
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
 
@@ -307,6 +316,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "hostel.view", "hostel.manage",
     "health.view", "health.viewSensitive", "health.manage",
     "counseling.view",
+    "cafeteria.view",
     "hr.view",
     "communication.view", "communication.send",
     "documents.view", "documents.manage",
@@ -339,6 +349,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "hostel.view",
     "health.view",
     "counseling.view",
+    "cafeteria.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",
@@ -371,6 +382,9 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   // is enforced uniformly at the service layer for every COUNSELOR, never
   // bypassed by holding this role — see lib/server/counseling/access.ts.
   COUNSELOR: ["dashboard.view", "students.view", "counseling.view", "counseling.manage", "counseling.viewConfidential", "counseling.refer"],
+  // Phase 9T — mirrors the LIBRARIAN/TRANSPORT_MANAGER/COUNSELOR precedent:
+  // SCHOOL_ADMIN gets view only, the dedicated specialist role gets manage.
+  CAFETERIA_MANAGER: ["dashboard.view", "students.view", "cafeteria.view", "cafeteria.manage", "cafeteria.serve"],
 };
 
 // ---------------------------------------------------------------------------
@@ -479,6 +493,7 @@ export const DB_ROLE_TO_UI: Record<string, string> = {
   TRANSPORT_MANAGER: "transport-manager",
   HR_ADMIN: "hr-manager",
   COUNSELOR: "counsellor",
+  CAFETERIA_MANAGER: "cafeteria-manager",
 };
 export const PLATFORM_UI_ROLE = "super-admin";
 

@@ -96,7 +96,8 @@ export function setOrderStatus(orderId: string, status: OrderStatus): Result {
   return { ok: true };
 }
 
-export function toggleMenuAvailability(itemId: string): Result {
-  setState((db) => ({ ...db, menuItems: db.menuItems.map((m) => (m.id === itemId ? { ...m, available: !m.available } : m)) }));
-  return { ok: true };
-}
+// toggleMenuAvailability went real in Phase 9T (lib/server/cafeteria/*) and
+// was deleted here as dead mock authority — real surfaces must use
+// hooks/api/use-cafeteria-api's updateCafeteriaItemRequest. placeOrder/
+// setOrderStatus above stay mock (deferred — no real payment/ordering
+// identity exists).

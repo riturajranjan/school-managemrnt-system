@@ -483,6 +483,36 @@ const MIGRATED_FILES = [
   // components/students/profile/student-profile.tsx is already guarded above
   // (line ~193, added in an earlier phase) — its new Counselling tab is
   // covered by that existing entry.
+  // Phase 9T — Cafeteria / Meal Management. Real CafeteriaLocation/
+  // CafeteriaItem/CafeteriaMenu/CafeteriaMenuItem/CafeteriaMealRecord via
+  // /api/cafeteria/* (PostgreSQL). A meal consumer is always exactly one
+  // real Student.id or Staff.id. No wallet, no online ordering/payment
+  // gateway, no second stock/money engine. The old mock's self-order/
+  // cart/checkout/pickup-token workflow (app/cafeteria/orders,
+  // app/student/cafeteria, app/parent/cafeteria) is deliberately NOT
+  // migrated — no real Student/Guardian→User portal identity exists, so
+  // building authenticated ordering would be fake. Instead, meal
+  // consumption is tracked via a real staff-operated "meal service" record
+  // (CafeteriaMealRecord, embedded in the Menu page's per-slot drawer) —
+  // one redemption per consumer per menu slot, a deliberately chosen policy
+  // (see the model's own doc-comment), not a guess. Meal Plans (mixes
+  // financial-subscription and operational-entitlement semantics
+  // ambiguously), Inventory (already self-labeled "mock" in its own UI
+  // copy — no recipe/BOM integration with real Inventory exists), and
+  // Feedback stay fully mock — no real policy/infrastructure exists for
+  // any of them, and none are mentioned in this phase's own model
+  // suggestions. Reports stays mock (mixes real Item data with deferred
+  // Orders/Inventory data). Hostel Mess (app/hostel/mess/page.tsx) is left
+  // untouched — its UI has no clean mapping onto per-date real
+  // CafeteriaMenu without a larger rework, so its cutover is deferred while
+  // sharing the same future Cafeteria domain.
+  "app/cafeteria/page.tsx",
+  "app/cafeteria/dashboard/page.tsx",
+  "app/cafeteria/menu/page.tsx",
+  "app/cafeteria/counters/page.tsx",
+  // components/students/profile/student-profile.tsx is already guarded above
+  // (line ~193, added in an earlier phase) — its new Cafeteria tab is
+  // covered by that existing entry.
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -653,7 +683,8 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "endAllocation", why: "mock allocation-end mutation (deleted — zero remaining consumers, dead import; real surfaces use vacateHostelAssignmentRequest/transferHostelAssignmentRequest)" },
   { marker: "markHostelAttendance", why: "mock hostel-attendance mutation (deleted — zero remaining consumers, dead import; real surfaces use markHostelRollCallRequest)" },
   { marker: "setCounsellingStatus", why: "mock counselling-appointment-status mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-counseling-api)" },
-  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Health/Counselling/Cafeteria mutation service — the hostel-allocation, health-visit/medication, and setCounsellingStatus functions were all deleted (real now, Phase 9Q/9R/9S), Leave/Complaints/Maintenance/Cafeteria stay mock (deferred) — real Hostel surfaces must use hooks/api/use-hostel-api, real Health surfaces must use hooks/api/use-health-api, real Counseling surfaces must use hooks/api/use-counseling-api" },
+  { marker: "toggleMenuAvailability", why: "mock menu-item-availability mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-cafeteria-api's updateCafeteriaItemRequest)" },
+  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Health/Counselling/Cafeteria mutation service — the hostel-allocation, health-visit/medication, setCounsellingStatus, and toggleMenuAvailability functions were all deleted (real now, Phase 9Q/9R/9S/9T); Leave/Complaints/Maintenance stay mock (deferred), placeOrder/setOrderStatus stay mock (deferred — no real ordering/payment identity exists) — real Hostel surfaces must use hooks/api/use-hostel-api, real Health surfaces must use hooks/api/use-health-api, real Counseling surfaces must use hooks/api/use-counseling-api, real Cafeteria surfaces must use hooks/api/use-cafeteria-api" },
   { marker: "selectors/campus-brief", why: "mock cross-domain (Hostel/Health/Cafeteria) summary selector, including healthSummary() — still consumed by the deferred Reports page and the campus-life hub, but real Hostel/Health surfaces must use hooks/api/use-hostel-api / hooks/api/use-health-api" },
 ];
 
