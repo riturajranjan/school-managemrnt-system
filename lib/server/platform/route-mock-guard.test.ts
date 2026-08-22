@@ -543,6 +543,51 @@ const MIGRATED_FILES = [
   // components/students/profile/student-profile.tsx is already guarded above
   // (line ~193, added in an earlier phase) — its new Activities tab is
   // covered by that existing entry.
+  // Phase 9V — Document Studio. Real DocumentTemplate/GeneratedDocument via
+  // /api/document-studio/* (PostgreSQL). A subject is always a real
+  // Student.id or Staff.id — never a parallel identity. Scope is
+  // deliberately narrow: only student-id/staff-id/bonafide/study/achievement/
+  // employment-certificate have real backing (see the schema doc-comment on
+  // DocumentTemplate) — transfer/character/conduct/salary certificates, most
+  // HR letters, admit cards, and receipts are NOT built. Dropped rather than
+  // fabricated: template.signatoryId/numberingRuleId (no real
+  // SignatoryProfile/DocumentNumberingRule config entities — signatory is a
+  // plain optional text placeholder, numbering is a fixed server-side
+  // scheme) and every achievement-certificate level/position/points concept
+  // (no such field exists on the real StudentAchievement). The original
+  // mock-bound TemplateBuilder/DocumentSheet/IdCard/DocumentGenerator/
+  // GeneratedDocList/IdCardManager components were deliberately left
+  // UNTOUCHED — they still back the deferred admit-cards/letters/id-cards-
+  // library-transport-hostel mock pages; new Real* sibling components were
+  // added instead (real-document-generator.tsx, real-generated-doc-list.tsx,
+  // real-id-card-list.tsx). app/id-cards/page.tsx is a deliberate HYBRID (2
+  // real tiles + 3 still-mock tiles) and is NOT listed here — see its own
+  // top-of-file comment.
+  "app/documents/page.tsx",
+  "app/documents/templates/page.tsx",
+  "app/documents/templates/[templateId]/page.tsx",
+  "app/documents/templates/new/page.tsx",
+  "app/documents/generate/page.tsx",
+  "app/documents/history/page.tsx",
+  "app/documents/history/[id]/page.tsx",
+  "app/certificates/page.tsx",
+  "app/certificates/student/page.tsx",
+  "app/certificates/staff/page.tsx",
+  "app/certificates/activities/page.tsx",
+  "app/certificates/generate/page.tsx",
+  "app/certificates/templates/page.tsx",
+  "app/id-cards/students/page.tsx",
+  "app/id-cards/staff/page.tsx",
+  "app/id-cards/generate/page.tsx",
+  "app/id-cards/templates/page.tsx",
+  "components/documents/real-document-generator.tsx",
+  "components/documents/real-generated-doc-list.tsx",
+  "components/documents/real-id-card-list.tsx",
+  // components/students/profile/student-profile.tsx is already guarded above
+  // (line ~193, added in an earlier phase) — its new "Certificates" tab is
+  // covered by that existing entry. app/hr/staff/[staffId]/page.tsx is
+  // already guarded (Phase 9J/9P, line ~262) — its real Documents tab is
+  // covered by that existing entry.
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -727,6 +772,16 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: 'hooks/use-activities"', why: "mock per-entity Activities hooks (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-activities-api)" },
   { marker: "selectors/activities-brief", why: "mock activitiesSummary/houseStandings/studentParticipation selector — still consumed by the deferred Analytics/Houses/student-and-parent-activities pages, but real surfaces must use hooks/api/use-activities-api" },
   { marker: "services/activities-service", why: "mock Event-Journey/Club/Sports/Competition/House-points/Certificate mutation service — setEventStage/registerForEvent still back the deferred Journey and student/parent self-service pages, but real surfaces must use hooks/api/use-activities-api" },
+  // Phase 9V — Document Studio mock authority (real surfaces must use hooks/api/use-document-studio-api).
+  { marker: "components/documents/document-generator", why: "mock generation workflow component (frontend-only simulation) — still backs the deferred admit-cards/letters pages, but real surfaces use components/documents/real-document-generator" },
+  { marker: "components/documents/generated-doc-list", why: "mock generated-document list component — still backs the deferred admit-cards page, but real surfaces use components/documents/real-generated-doc-list" },
+  { marker: "components/documents/id-card-manager", why: "mock ID card list/lifecycle component — still backs the deferred Library/Transport/Hostel ID card pages, but real Student/Staff surfaces use components/documents/real-id-card-list" },
+  { marker: "setDocumentStatus", why: "mock generated-document status mutation (deleted — zero remaining consumers, dead import; real surfaces use voidDocumentRequest)" },
+  { marker: "revokeDocument", why: "mock document-revoke mutation (deleted — zero remaining consumers, dead import; real surfaces use voidDocumentRequest)" },
+  { marker: "reissueDocument", why: "mock document-reissue-as-new-version mutation (deleted — zero remaining consumers, dead import; this phase has no reissue-as-version concept, only void)" },
+  { marker: "selectors/documents-brief", why: "mock Document Studio hub summary/flow-stage selector (deleted — zero remaining consumers, dead import)" },
+  { marker: 'hooks/use-documents"', why: "mock per-entity Documents hooks (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-document-studio-api)" },
+  { marker: "services/documents-service", why: "mock numbering/template-validation/generation/ID-card/batch/print-queue/verification service — generateDocument/checkRecipient/validateTemplate/previewNumber/formatNumber/reprintDocument/setIdCardStatus/reissueIdCard/batch+print-queue+verifyToken still back the deferred admit-cards/letters/id-cards-library-transport-hostel/batch/print-queue/verification mock pages, but real surfaces must use hooks/api/use-document-studio-api" },
 ];
 
 function collectSources(dir: string): string[] {

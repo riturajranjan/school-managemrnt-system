@@ -306,6 +306,12 @@ export type IdCardRecord = {
   verificationToken: string;
   // Extra fields per kind (route/stop, building/room, member id, etc.).
   extra: Record<string, string>;
+  // Real School/Branch data (Phase 9V) — falls back to the mock DOC_BRANDING
+  // constant only when absent.
+  schoolName?: string;
+  schoolAddress?: string;
+  schoolContact?: string;
+  schoolWebsite?: string;
 };
 
 // -------------------------------------------------------------------------

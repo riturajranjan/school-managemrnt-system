@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
   generateDocument,
-  reissueDocument,
-  revokeDocument,
   setBatchStatus,
   updatePrintItem,
   validateTemplate,
@@ -54,26 +52,6 @@ describe("document generation", () => {
     const qBefore = getSnapshot().printQueue.length;
     generateDocument({ type: "bonafide-certificate", template: tpl, recipient: { id: "r1", type: "student", refId: student.id, name: "Test", subtitle: "5" }, fields: {}, generatedBy: "T", addToQueue: true });
     expect(getSnapshot().printQueue.length).toBe(qBefore + 1);
-  });
-});
-
-describe("document lifecycle (append-only versions)", () => {
-  beforeEach(() => resetDemoData());
-
-  it("reissue creates a new version without deleting prior ones", () => {
-    const doc = getSnapshot().generatedDocuments[0];
-    const versionsBefore = getSnapshot().documentVersions.filter((v) => v.documentId === doc.id).length;
-    reissueDocument(doc.id, "Tester", "correction");
-    const db = getSnapshot();
-    expect(db.generatedDocuments.find((d) => d.id === doc.id)!.version).toBe(doc.version + 1);
-    expect(db.documentVersions.filter((v) => v.documentId === doc.id).length).toBe(versionsBefore + 1);
-  });
-
-  it("revoke sets status revoked and cannot be repeated", () => {
-    const doc = getSnapshot().generatedDocuments.find((d) => d.status !== "revoked")!;
-    expect(revokeDocument(doc.id, "T").ok).toBe(true);
-    expect(getSnapshot().generatedDocuments.find((d) => d.id === doc.id)!.status).toBe("revoked");
-    expect(revokeDocument(doc.id, "T").ok).toBe(false);
   });
 });
 

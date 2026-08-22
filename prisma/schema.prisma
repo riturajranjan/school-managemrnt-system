@@ -707,6 +707,7 @@ model Student {
   activityMemberships    ActivityStudentMembership[] // Phase 9U — club/activity membership history
   activityParticipations ActivityEventParticipant[] // Phase 9U — event registration/attendance
   achievements           StudentAchievement[] // Phase 9U — factual achievement records
+  generatedDocuments     GeneratedDocument[] // Phase 9V — Document Studio generated-document history
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2106,6 +2107,7 @@ model Staff {
   counselingSessionsConducted        CounselingSession[]              @relation("CounselingSessionCounselor") // Phase 9S
   cafeteriaMealRecordsAsConsumer     CafeteriaMealRecord[]            @relation("CafeteriaMealStaffConsumer") // Phase 9T
   activityStaffAssignments           ActivityStaffAssignment[] // Phase 9U — coordinator/coach/mentor assignments
+  generatedDocuments                 GeneratedDocument[] // Phase 9V — Document Studio generated-document history
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -6453,4 +6455,165 @@ model StudentAchievement {
 
   @@index([schoolId, studentId])
   @@map("student_achievements")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9V — Document Studio: templates + generated snapshots. Reuses real
+// Student/Staff/School/Branch/AcademicSession/Activity/StudentAchievement —
+// never a parallel identity. Merge fields are server-side allowlisted (see
+// lib/server/document-studio/merge-fields.ts) — never an arbitrary Prisma
+// property-path lookup. A GeneratedDocument's sourceSnapshotJson/
+// renderedSnapshot are the historical authority forever: later edits to the
+// Student/Staff/School/template never change an already-generated document.
+// Scope is deliberately narrow — only document types with genuine real-data
+// backing (bonafide/study/achievement certificates, employment certificate,
+// student/staff ID cards). Transfer/character/conduct/salary certificates and
+// most HR letters are NOT built here (no real policy exists for any of
+// them) — see the frontend cutover notes for the full deferred list.
+// ---------------------------------------------------------------------------
+
+enum DocumentTemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// The rendering family — which presentational component/branch renders it.
+enum DocumentTemplateKind {
+  ID_CARD
+  STUDENT_CERTIFICATE
+  STAFF_CERTIFICATE
+}
+
+enum DocumentSubjectType {
+  STUDENT
+  STAFF
+}
+
+// The specific document type. Deliberately small — only types with real
+// source-data backing. See the schema-block comment above for what was
+// excluded and why.
+enum DocumentType {
+  STUDENT_ID
+  STAFF_ID
+  BONAFIDE_CERTIFICATE
+  STUDY_CERTIFICATE
+  ACHIEVEMENT_CERTIFICATE
+  EMPLOYMENT_CERTIFICATE
+}
+
+enum GeneratedDocumentStatus {
+  GENERATED
+  VOID
+}
+
+/**
+ * A reusable document template. `contentJson` stores the structured,
+ * declarative layout (paper size/orientation/accent/style/sections/variables/
+ * signatoryName) consumed as-is by the existing TemplateBuilder/DocumentSheet/
+ * IdCard presentational components — never executable code, never raw HTML
+ * (React text-interpolation only; there is no dangerouslySetInnerHTML
+ * anywhere in the rendering pipeline). `variables` is validated against the
+ * merge-field registry for `subjectType` before the template can go ACTIVE.
+ * Editing an ACTIVE template's content increments `version`; old
+ * GeneratedDocument rows keep the version (and full snapshot) they were
+ * produced with and are never re-rendered from the current template.
+ */
+model DocumentTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code        String
+  name        String
+  description String?
+  kind        DocumentTemplateKind
+  docType     DocumentType
+  subjectType DocumentSubjectType
+  status      DocumentTemplateStatus @default(DRAFT)
+  version     Int                    @default(1)
+  contentJson Json
+
+  createdByUserId String
+  updatedByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  generatedDocuments GeneratedDocument[]
+
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@index([schoolId, docType, status])
+  @@map("document_templates")
+}
+
+/**
+ * An immutable historical snapshot. `sourceSnapshotJson` holds the raw
+ * resolved merge-field values (key -> string) at generation time;
+ * `renderedSnapshot` holds the ready-to-render DocumentSheetData/IdCardRecord
+ * shape built from them. Neither is ever recomputed from live data — viewing
+ * history always reads these columns, never the current Student/Staff/School/
+ * template. `documentNumber` is allocated from DocumentNumberCounter inside
+ * the same transaction as the insert (concurrency-safe, never Math.random()
+ * or count()+1).
+ */
+model GeneratedDocument {
+  id                String  @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String?
+
+  templateId      String
+  templateVersion Int
+
+  subjectType DocumentSubjectType
+  studentId   String?
+  staffId     String?
+
+  documentNumber     String
+  sourceSnapshotJson Json
+  renderedSnapshot   Json
+  status             GeneratedDocumentStatus @default(GENERATED)
+
+  generatedByUserId String
+  generatedByName   String
+  generatedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  voidedAt          DateTime? @db.Timestamptz(6)
+  voidReason        String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  student  Student?         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  staff    Staff?           @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, documentNumber])
+  @@index([tenantId])
+  @@index([schoolId, studentId])
+  @@index([schoolId, staffId])
+  @@index([templateId])
+  @@map("generated_documents")
+}
+
+/**
+ * DB-backed atomic sequence per (school, docType, year) — the concurrency-safe
+ * source of the human-readable documentNumber. Never read-then-write from
+ * application code; always an atomic upsert (INSERT ... ON CONFLICT DO UPDATE
+ * ... RETURNING, a single Postgres statement via Prisma's upsert).
+ */
+model DocumentNumberCounter {
+  id       String       @id @default(cuid())
+  tenantId String
+  schoolId String
+  docType  DocumentType
+  year     Int
+  nextSeq  Int          @default(1)
+
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([schoolId, docType, year])
+  @@map("document_number_counters")
 }

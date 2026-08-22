@@ -1,15 +1,19 @@
 "use client";
 
-// Staff 360 (Phase 9J; Employment tab + Assets tab now real, Phase 9P) —
-// real PostgreSQL/API cutover over the real Staff model + the real domains
-// that already exist for it (Staff Attendance, Leave, Assets). Performance/
-// Goals/Training/Documents/Timeline/Contract/Qualifications/Bank details
+// Staff 360 (Phase 9J; Employment tab + Assets tab now real, Phase 9P;
+// Documents tab now real, Phase 9V) — real PostgreSQL/API cutover over the
+// real Staff model + the real domains that already exist for it (Staff
+// Attendance, Leave, Assets, Document Studio generated documents).
+// Performance/Goals/Training/Timeline/Contract/Qualifications/Bank details
 // have no real backing anywhere in the schema — each of those tabs stays on
 // the page (no redesign) but shows an honest "not tracked yet" state instead
 // of the old mock db.performanceReviews/goals/trainingEnrollments/
-// staffDocuments/employeeTimeline/contracts/qualifications/bank fields.
-// Salary is never duplicated here — Payroll RBAC (payroll.view) gates a link
-// only, never an amount.
+// employeeTimeline/contracts/qualifications/bank fields. The Documents tab
+// now shows real GeneratedDocument history (Document Studio certificates/ID
+// cards) — a DIFFERENT concept from the old mock's uploaded-compliance-file
+// db.staffDocuments, which had no real backing and is not what this tab ever
+// showed. Salary is never duplicated here — Payroll RBAC (payroll.view) gates
+// a link only, never an amount.
 import Link from "next/link";
 import { use, useState } from "react";
 import { ArrowLeft, Archive, CalendarDays, CheckCircle2, HardDrive, Pencil, Wallet, XCircle } from "lucide-react";
@@ -24,6 +28,7 @@ import { setStaffStatusRequest, setStaffUserRequest, useStaff } from "@/lib/hook
 import { useStaffAttendanceDetail } from "@/lib/hooks/api/use-staff-attendance-api";
 import { useLeaveRequests } from "@/lib/hooks/api/use-leave-api";
 import { useAssetAssignments } from "@/lib/hooks/api/use-assets-api";
+import { useStaffGeneratedDocuments } from "@/lib/hooks/api/use-document-studio-api";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { EmploymentType, StaffStatus } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
@@ -230,7 +235,9 @@ export default function Staff360Page({ params }: { params: Promise<{ staffId: st
         <TabsContent value="performance" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
         <TabsContent value="goals" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
         <TabsContent value="training" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
-        <TabsContent value="documents" className="mt-md"><Empty message="Not tracked in this system yet." /></TabsContent>
+        <TabsContent value="documents" className="mt-md">
+          <StaffGeneratedDocumentsSection staffId={staff.id} />
+        </TabsContent>
         <TabsContent value="assets" className="mt-md">
           {!canViewAssets ? (
             <Empty message="You do not have permission to view asset assignments." />
@@ -276,4 +283,23 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Empty({ message }: { message: string }) {
   return <div className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">{message}</div>;
+}
+
+const genStatusTone = { generated: "success", void: "error" } as const;
+
+function StaffGeneratedDocumentsSection({ staffId }: { staffId: string }) {
+  const { data, loading, error } = useStaffGeneratedDocuments(staffId);
+  if (loading) return <p className="py-md text-center text-sm text-muted-foreground">Loading…</p>;
+  if (error) return <p className="rounded-md border border-error/30 bg-error/8 p-sm text-xs text-error">{error}</p>;
+  if (data.length === 0) return <Empty message="No certificates or ID cards issued yet." />;
+  return (
+    <div className="flex flex-col gap-xs">
+      {data.map((d) => (
+        <div key={d.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+          <div className="min-w-0"><p className="truncate text-foreground">{d.docType}</p><p className="truncate text-xs text-muted-foreground">{d.documentNumber} · {formatDate(d.generatedAt)}</p></div>
+          <Badge tone={genStatusTone[d.status]}>{d.status}</Badge>
+        </div>
+      ))}
+    </div>
+  );
 }

@@ -21,9 +21,15 @@ export type DocumentSheetData = {
   issuedDate?: string;
   token?: string;
   showSeal?: boolean;
+  // Real School/Branch data (Phase 9V) — falls back to the mock DOC_BRANDING
+  // constant only when absent (e.g. the template-builder's own local preview,
+  // which has no real school in scope).
+  schoolName?: string;
+  schoolAddress?: string;
+  schoolContact?: string;
 };
 
-function Letterhead({ accent }: { accent: string }) {
+function Letterhead({ accent, name, address, contact }: { accent: string; name?: string; address?: string; contact?: string }) {
   return (
     <div
       className="flex items-center gap-3 border-b pb-2"
@@ -35,10 +41,10 @@ function Letterhead({ accent }: { accent: string }) {
       </span>
       <div className="min-w-0">
         <p className="text-base font-bold leading-tight text-neutral-900">
-          {DOC_BRANDING.name}
+          {name ?? DOC_BRANDING.name}
         </p>
-        <p className="text-[10px] text-neutral-500">{DOC_BRANDING.address}</p>
-        <p className="text-[10px] text-neutral-500">{DOC_BRANDING.contact}</p>
+        <p className="text-[10px] text-neutral-500">{address ?? DOC_BRANDING.address}</p>
+        <p className="text-[10px] text-neutral-500">{contact ?? DOC_BRANDING.contact}</p>
       </div>
     </div>
   );
@@ -85,18 +91,18 @@ function certificateBody(data: DocumentSheetData): {
     case "bonafide-certificate":
       return {
         title: "Bonafide Certificate",
-        body: `This is to certify that ${name} is a bonafide student of ${f.class ?? data.recipientSubtitle ?? ""} at ${DOC_BRANDING.name} for the academic session ${f.session ?? DOC_BRANDING.session}. This certificate is issued for the purpose of ${f.purpose ?? "official use"}.`,
+        body: `This is to certify that ${name} is a bonafide student of ${f.class ?? data.recipientSubtitle ?? ""} at ${(data.schoolName ?? DOC_BRANDING.name)} for the academic session ${f.session ?? DOC_BRANDING.session}. This certificate is issued for the purpose of ${f.purpose ?? "official use"}.`,
       };
     case "character-certificate":
     case "conduct-certificate":
       return {
         title: "Character Certificate",
-        body: `This is to certify that ${name} of ${f.class ?? data.recipientSubtitle ?? ""} bore a ${f.conduct ?? "good"} moral character during their time at ${DOC_BRANDING.name} for the session ${f.session ?? DOC_BRANDING.session}. We wish them success in all future endeavours.`,
+        body: `This is to certify that ${name} of ${f.class ?? data.recipientSubtitle ?? ""} bore a ${f.conduct ?? "good"} moral character during their time at ${(data.schoolName ?? DOC_BRANDING.name)} for the session ${f.session ?? DOC_BRANDING.session}. We wish them success in all future endeavours.`,
       };
     case "study-certificate":
       return {
         title: "Study Certificate",
-        body: `This is to certify that ${name} studied in ${f.class ?? data.recipientSubtitle ?? ""} at ${DOC_BRANDING.name} during the academic session ${f.session ?? DOC_BRANDING.session}.`,
+        body: `This is to certify that ${name} studied in ${f.class ?? data.recipientSubtitle ?? ""} at ${(data.schoolName ?? DOC_BRANDING.name)} during the academic session ${f.session ?? DOC_BRANDING.session}.`,
       };
     case "attendance-certificate":
       return {
@@ -107,23 +113,23 @@ function certificateBody(data: DocumentSheetData): {
     case "school-leaving-certificate":
       return {
         title: "Transfer Certificate",
-        body: `This is to certify that ${name} (Admission No. ${f.admissionNumber ?? data.fields.admissionNumber ?? "—"}), ${f.fatherName ? `son/daughter of ${f.fatherName}, ` : ""}was a student of ${f.class ?? data.recipientSubtitle ?? ""} at ${DOC_BRANDING.name}. Conduct: ${f.conduct ?? "Good"}. Reason for leaving: ${f.reason ?? "—"}.`,
+        body: `This is to certify that ${name} (Admission No. ${f.admissionNumber ?? data.fields.admissionNumber ?? "—"}), ${f.fatherName ? `son/daughter of ${f.fatherName}, ` : ""}was a student of ${f.class ?? data.recipientSubtitle ?? ""} at ${(data.schoolName ?? DOC_BRANDING.name)}. Conduct: ${f.conduct ?? "Good"}. Reason for leaving: ${f.reason ?? "—"}.`,
       };
     case "participation-certificate":
       return {
         title: "Certificate of Participation",
-        body: `This certificate is proudly presented to ${name} for participation in ${f.eventName ?? f.purpose ?? "the school activity"} held at ${DOC_BRANDING.name}.`,
+        body: `This certificate is proudly presented to ${name} for participation in ${f.eventName ?? f.purpose ?? "the school activity"} held at ${(data.schoolName ?? DOC_BRANDING.name)}.`,
       };
     case "sports-certificate":
     case "achievement-certificate":
       return {
         title: "Certificate of Achievement",
-        body: `Awarded to ${name} in recognition of ${f.position ?? "outstanding performance"} in ${f.eventName ?? "the event"} at ${DOC_BRANDING.name}.`,
+        body: `Awarded to ${name} in recognition of ${f.position ?? "outstanding performance"} in ${f.eventName ?? "the event"} at ${(data.schoolName ?? DOC_BRANDING.name)}.`,
       };
     default:
       return {
         title: documentTypeLabels[data.type],
-        body: f.custom_text ?? `Issued to ${name} by ${DOC_BRANDING.name}.`,
+        body: f.custom_text ?? `Issued to ${name} by ${(data.schoolName ?? DOC_BRANDING.name)}.`,
       };
   }
 }
@@ -138,7 +144,7 @@ export function DocumentSheet({ data }: { data: DocumentSheetData }) {
     return (
       <PaperFrame size="thermal" maxWidth={280}>
         <div className="flex h-full flex-col p-3 font-mono text-[10px] text-neutral-900">
-          <p className="text-center text-xs font-bold">{DOC_BRANDING.name}</p>
+          <p className="text-center text-xs font-bold">{(data.schoolName ?? DOC_BRANDING.name)}</p>
           <p className="text-center text-[9px] text-neutral-500">
             {documentTypeLabels[data.type]}
           </p>
@@ -176,7 +182,7 @@ export function DocumentSheet({ data }: { data: DocumentSheetData }) {
     return (
       <PaperFrame size={data.paperSize} maxWidth={420}>
         <div className="flex h-full flex-col p-4 text-neutral-900">
-          <Letterhead accent={accent} />
+          <Letterhead accent={accent} name={data.schoolName} address={data.schoolAddress} contact={data.schoolContact} />
           <p
             className="mt-2 text-center text-sm font-bold uppercase tracking-wide"
             style={{ color: accent }}>
@@ -200,7 +206,7 @@ export function DocumentSheet({ data }: { data: DocumentSheetData }) {
               />
               <Row
                 label="Centre"
-                value={data.fields.centre ?? DOC_BRANDING.name}
+                value={data.fields.centre ?? (data.schoolName ?? DOC_BRANDING.name)}
               />
             </div>
             <div className="flex size-20 shrink-0 items-center justify-center rounded border border-neutral-300 bg-neutral-50 text-[9px] text-neutral-400">
@@ -229,7 +235,7 @@ export function DocumentSheet({ data }: { data: DocumentSheetData }) {
     return (
       <PaperFrame size={data.paperSize} maxWidth={520}>
         <div className="flex h-full flex-col p-6 text-neutral-900">
-          <Letterhead accent={accent} />
+          <Letterhead accent={accent} name={data.schoolName} address={data.schoolAddress} contact={data.schoolContact} />
           <div className="mt-2 flex items-center justify-between text-[10px] text-neutral-500">
             <span>Ref: {data.number ?? "—"}</span>
             <span>Date: {dateStr}</span>
@@ -251,7 +257,7 @@ export function DocumentSheet({ data }: { data: DocumentSheetData }) {
             {data.fields.employeeId
               ? `(Employee ID ${data.fields.employeeId})`
               : ""}{" "}
-            has been associated with {DOC_BRANDING.name} as{" "}
+            has been associated with {(data.schoolName ?? DOC_BRANDING.name)} as{" "}
             {data.fields.designation ?? "a member of staff"}
             {data.fields.joiningDate ? ` since ${data.fields.joiningDate}` : ""}
             . This letter is issued on request for official purposes.
@@ -285,7 +291,7 @@ export function DocumentSheet({ data }: { data: DocumentSheetData }) {
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.3em]"
           style={{ color: accent }}>
-          {DOC_BRANDING.name}
+          {(data.schoolName ?? DOC_BRANDING.name)}
         </p>
         {data.number && (
           <p className="absolute right-4 top-4 text-[9px] text-neutral-400">

@@ -116,7 +116,7 @@ export function IdCard({
               </span>
               <div className="min-w-0">
                 <p className="truncate text-[11px] font-bold leading-tight">
-                  {DOC_BRANDING.name}
+                  {card.schoolName ?? DOC_BRANDING.name}
                 </p>
                 <p className="truncate text-[8px] opacity-80">
                   {idCardStyleLabels[card.style]}
@@ -183,7 +183,7 @@ export function IdCard({
               style={{ borderTop: `2px solid ${style.accent}` }}>
               <span>Valid till {card.expiryDate}</span>
               <span className="font-semibold" style={{ color: style.accent }}>
-                {DOC_BRANDING.website}
+                {card.schoolWebsite ?? DOC_BRANDING.website}
               </span>
             </div>
           </div>
@@ -198,9 +198,9 @@ export function IdCard({
                 <p className="mb-1 text-[10px] font-semibold text-neutral-900">
                   If found, please return to:
                 </p>
-                <p>{DOC_BRANDING.name}</p>
-                <p className="text-neutral-500">{DOC_BRANDING.address}</p>
-                <p className="mt-1">{DOC_BRANDING.contact}</p>
+                <p>{card.schoolName ?? DOC_BRANDING.name}</p>
+                <p className="text-neutral-500">{card.schoolAddress ?? DOC_BRANDING.address}</p>
+                <p className="mt-1">{card.schoolContact ?? DOC_BRANDING.contact}</p>
                 {card.extra.guardianPhone && (
                   <p className="mt-1">Emergency: {card.extra.guardianPhone}</p>
                 )}

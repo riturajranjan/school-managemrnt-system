@@ -34,13 +34,14 @@ import { useStudentHealthProfile } from "@/lib/hooks/api/use-health-api";
 import { createCounselingReferralRequest, useStudentCounselingProfile } from "@/lib/hooks/api/use-counseling-api";
 import { useStudentCafeteriaProfile } from "@/lib/hooks/api/use-cafeteria-api";
 import { useStudentActivityProfile } from "@/lib/hooks/api/use-activities-api";
+import { useStudentGeneratedDocuments } from "@/lib/hooks/api/use-document-studio-api";
 import { RestrictedHealth } from "@/components/campus/privacy";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health", "counseling", "cafeteria", "activities"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health", "counseling", "cafeteria", "activities", "generated-documents"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can, hasServerPermission } = usePermissions();
@@ -84,6 +85,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="counseling">Counselling</TabsTrigger>
           <TabsTrigger value="cafeteria">Cafeteria</TabsTrigger>
           <TabsTrigger value="activities">Activities</TabsTrigger>
+          <TabsTrigger value="generated-documents">Certificates</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -128,6 +130,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="activities" className="mt-md">
           <ActivitiesSection studentId={student.id} />
+        </TabsContent>
+        <TabsContent value="generated-documents" className="mt-md">
+          <GeneratedDocumentsSection studentId={student.id} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -818,6 +823,31 @@ function ActivitiesSection({ studentId }: { studentId: string }) {
           {data.pastMemberships.length === 0 && <p className="text-sm text-muted-foreground">No past memberships.</p>}
         </ul>
       </div>
+    </div>
+  );
+}
+
+// A DIFFERENT concept from the "Documents" tab above (uploaded admission
+// documents) — these are real, officially issued Document Studio snapshots
+// (certificates/ID cards), never re-rendered from current live data.
+function GeneratedDocumentsSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentGeneratedDocuments(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading certificates…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+
+  return (
+    <div className="rounded-lg border border-border p-sm">
+      <h2 className="mb-sm text-sm font-semibold text-foreground">Certificates & ID cards</h2>
+      <ul className="flex flex-col gap-sm">
+        {data.map((d) => (
+          <li key={d.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+            <p className="truncate text-foreground">{d.docType} <span className="text-xs text-muted-foreground">· {d.documentNumber} · {new Date(d.generatedAt).toLocaleDateString("en-IN")}</span></p>
+            <Badge tone={d.status === "generated" ? "success" : "error"}>{d.status}</Badge>
+          </li>
+        ))}
+        {data.length === 0 && <p className="text-sm text-muted-foreground">No certificates or ID cards issued yet.</p>}
+      </ul>
     </div>
   );
 }

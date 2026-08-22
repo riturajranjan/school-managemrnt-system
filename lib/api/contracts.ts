@@ -3591,3 +3591,158 @@ export type StudentActivityProfileDto = {
   recentParticipation: ActivityEventParticipantDto[];
   achievements: StudentAchievementDto[];
 };
+
+// ── Document Studio (Phase 9V) ───────────────────────────────────────────
+// A subject is always a real Student.id or Staff.id — never a parallel
+// identity. GeneratedDocument.rendered is an immutable historical snapshot:
+// later edits to the Student/Staff/School/template never change it. Merge
+// fields are server-allowlisted (see lib/server/document-studio/merge-fields
+// .ts) — there is no arbitrary property-path lookup. Scope is deliberately
+// narrow: only document types with genuine real-data backing.
+
+export type DocumentKindDto = "id-card" | "student-certificate" | "staff-certificate";
+export type DocTypeDto = "student-id" | "staff-id" | "bonafide-certificate" | "study-certificate" | "achievement-certificate" | "employment-certificate";
+export type DocSubjectTypeDto = "student" | "staff";
+export type DocTemplateStatusDto = "draft" | "active" | "archived";
+export type DocPaperSizeDto = "cr80" | "a4" | "a5" | "letter" | "legal" | "cert-portrait" | "cert-landscape" | "thermal" | "custom-card";
+export type DocOrientationDto = "portrait" | "landscape";
+export type DocIdCardStyleDto = "campus-modern" | "classic-school" | "minimal-institutional" | "premium-teal" | "junior-friendly";
+
+export type DocTemplateSectionDto = {
+  id: string;
+  type: string;
+  label: string;
+  show: boolean;
+  align: "left" | "center" | "right";
+  fontSize: "xs" | "sm" | "base" | "lg" | "xl";
+  fontWeight: "normal" | "medium" | "semibold" | "bold";
+  color?: string;
+  order: number;
+  customText?: string;
+};
+
+export type DocumentTemplateDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  kind: DocumentKindDto;
+  docType: DocTypeDto;
+  subjectType: DocSubjectTypeDto;
+  status: DocTemplateStatusDto;
+  version: number;
+  paperSize: DocPaperSizeDto;
+  orientation: DocOrientationDto;
+  accent: string;
+  style?: DocIdCardStyleDto;
+  sections: DocTemplateSectionDto[];
+  variables: string[];
+  signatoryName?: string;
+  usageCount: number;
+  isDefault: false;
+  thumbnailTone: "info";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateDocumentTemplateRequest = {
+  code: string;
+  name: string;
+  description?: string;
+  docType: DocTypeDto;
+  paperSize: DocPaperSizeDto;
+  orientation: DocOrientationDto;
+  accent: string;
+  style?: DocIdCardStyleDto;
+  sections: DocTemplateSectionDto[];
+  variables: string[];
+  signatoryName?: string;
+};
+
+export type UpdateDocumentTemplateRequest = {
+  name?: string;
+  description?: string | null;
+  paperSize?: DocPaperSizeDto;
+  orientation?: DocOrientationDto;
+  accent?: string;
+  style?: DocIdCardStyleDto;
+  sections?: DocTemplateSectionDto[];
+  variables?: string[];
+  signatoryName?: string;
+};
+
+export type MergeFieldDto = { key: string; label: string };
+
+export type DocumentSheetDataDto = {
+  type: DocTypeDto;
+  kind: DocumentKindDto;
+  paperSize: DocPaperSizeDto;
+  number?: string;
+  accent: string;
+  recipientName: string;
+  recipientSubtitle?: string;
+  fields: Record<string, string>;
+  signatoryName?: string;
+  issuedDate?: string;
+  token?: string;
+  showSeal?: boolean;
+  schoolName?: string;
+  schoolAddress?: string;
+  schoolContact?: string;
+};
+
+export type IdCardRecordDto = {
+  id: string;
+  cardNumber: string;
+  kind: "student" | "staff";
+  holderName: string;
+  subtitle: string;
+  photoColor: string;
+  style: DocIdCardStyleDto;
+  issueDate?: string;
+  expiryDate: string;
+  status: "issued" | "cancelled";
+  verificationToken: string;
+  extra: Record<string, string>;
+  schoolName?: string;
+  schoolAddress?: string;
+  schoolContact?: string;
+  schoolWebsite?: string;
+};
+
+export type GeneratedDocumentStatusDto = "generated" | "void";
+
+export type GeneratedDocumentDto = {
+  id: string;
+  documentNumber: string;
+  docType: DocTypeDto;
+  kind: DocumentKindDto;
+  subjectType: DocSubjectTypeDto;
+  templateId: string;
+  templateName: string;
+  templateVersion: number;
+  studentId: string | null;
+  staffId: string | null;
+  recipientName: string;
+  recipientSubtitle: string | null;
+  status: GeneratedDocumentStatusDto;
+  generatedByName: string;
+  generatedAt: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  rendered: DocumentSheetDataDto | IdCardRecordDto;
+};
+
+export type GenerateDocumentRequest = { templateId: string; studentId?: string; staffId?: string; achievementId?: string; purpose?: string };
+export type PreviewDocumentRequest = GenerateDocumentRequest;
+export type PreviewDocumentResponse = { rendered: DocumentSheetDataDto | IdCardRecordDto; unresolved: string[] };
+export type VoidDocumentRequest = { reason: string };
+
+export type DocumentStudioDashboardDto = {
+  activeTemplates: number;
+  generatedToday: number;
+  generatedThisMonth: number;
+  voidedCount: number;
+  studentDocuments: number;
+  staffDocuments: number;
+};

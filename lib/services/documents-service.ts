@@ -1,7 +1,6 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type {
   DocumentRecipient,
-  DocumentStatus,
   DocumentTemplate,
   DocumentType,
   GeneratedDocument,
@@ -116,42 +115,6 @@ export function generateDocument(input: { type: DocumentType; template: Document
     printQueue: input.addToQueue ? [{ id: generateId("pq"), documentNumber: doc.number, documentType: doc.type, owner: doc.recipient.name, pages: doc.paperSize === "cr80" ? 1 : 1, copies: 1, paperSize: doc.paperSize, printer: "Default", layout: (doc.paperSize === "cr80" ? "id-sheet" : doc.kind === "receipt" ? "thermal" : "one-per-page") as PrintLayout, addedBy: input.generatedBy, addedAt: now, status: "queued" as PrintStatus }, ...db.printQueue] : db.printQueue,
   }));
   return { ok: true, documentId: doc.id };
-}
-
-export function setDocumentStatus(documentId: string, status: DocumentStatus): Result {
-  setState((db) => ({ ...db, generatedDocuments: db.generatedDocuments.map((d) => (d.id === documentId ? { ...d, status } : d)) }));
-  return { ok: true };
-}
-
-/** Revokes a document — keeps it (append-only), never deletes. */
-export function revokeDocument(documentId: string, by: string): Result {
-  const db = getSnapshot();
-  const doc = db.generatedDocuments.find((d) => d.id === documentId);
-  if (!doc) return { ok: false, error: "Document not found." };
-  if (doc.status === "revoked") return { ok: false, error: "Document is already revoked." };
-  const now = new Date().toISOString();
-  setState((current) => ({
-    ...current,
-    generatedDocuments: current.generatedDocuments.map((d) => (d.id === documentId ? { ...d, status: "revoked" } : d)),
-    documentVersions: [{ id: generateId("ver"), documentId, version: doc.version, label: "Revoked", at: now, by }, ...current.documentVersions],
-    verificationRecords: current.verificationRecords.map((v) => (v.token === doc.verificationToken ? { ...v, state: "revoked" } : v)),
-  }));
-  return { ok: true };
-}
-
-/** Reissues a document as a new version — preserves prior versions. */
-export function reissueDocument(documentId: string, by: string, note?: string): Result {
-  const db = getSnapshot();
-  const doc = db.generatedDocuments.find((d) => d.id === documentId);
-  if (!doc) return { ok: false, error: "Document not found." };
-  const now = new Date().toISOString();
-  const nextVersion = doc.version + 1;
-  setState((current) => ({
-    ...current,
-    generatedDocuments: current.generatedDocuments.map((d) => (d.id === documentId ? { ...d, version: nextVersion, status: "generated", verificationToken: makeToken() } : d)),
-    documentVersions: [{ id: generateId("ver"), documentId, version: nextVersion, label: "Reissued", at: now, by, note }, ...current.documentVersions],
-  }));
-  return { ok: true };
 }
 
 export function reprintDocument(documentId: string, by: string): Result {

@@ -205,6 +205,11 @@ export const PERMISSIONS: PermissionDef[] = [
 
   { key: "documents.view", module: "documents", action: "view", description: "View documents" },
   { key: "documents.manage", module: "documents", action: "manage", description: "Manage documents" },
+  // Phase 9V — Document Studio: finer-grained than the pre-existing view/manage
+  // pair above (which predate the real implementation and stay unused by it).
+  { key: "documents.generate", module: "documents", action: "generate", description: "Generate certificates, letters, and ID cards" },
+  { key: "documents.manageTemplates", module: "documents", action: "manageTemplates", description: "Create and edit document templates" },
+  { key: "documents.void", module: "documents", action: "void", description: "Void a generated document" },
 
   { key: "settings.view", module: "settings", action: "view", description: "View settings" },
   { key: "settings.manage", module: "settings", action: "manage", description: "Manage settings" },
@@ -326,7 +331,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "activities.view",
     "hr.view",
     "communication.view", "communication.send",
-    "documents.view", "documents.manage",
+    "documents.view", "documents.manage", "documents.generate", "documents.manageTemplates", "documents.void",
     "settings.view", "settings.manage",
   ],
   PRINCIPAL: [
@@ -359,7 +364,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "cafeteria.view",
     "activities.view",
     "communication.view", "communication.send",
-    "documents.view",
+    "documents.view", "documents.generate",
     "settings.view",
   ],
   TEACHER: [
@@ -384,7 +389,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage"],
   TRANSPORT_MANAGER: ["dashboard.view", "transport.view", "transport.manage"],
-  HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage", "staffAttendance.view", "staffAttendance.manage", "leave.submit", "leave.approve"],
+  HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage", "staffAttendance.view", "staffAttendance.manage", "leave.submit", "leave.approve", "documents.view", "documents.generate"],
   // Phase 9S — the only role holding counseling.viewConfidential. No senior/
   // junior tier exists, so ownership (assignedCounselorStaffId == own Staff.id)
   // is enforced uniformly at the service layer for every COUNSELOR, never
