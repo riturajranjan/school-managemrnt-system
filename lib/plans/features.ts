@@ -15,6 +15,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   assets: "Assets",
   hostel: "Hostel",
   health: "Health / Infirmary",
+  counseling: "Counseling / Wellbeing",
 };
 
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS);

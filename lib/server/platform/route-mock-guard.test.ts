@@ -464,6 +464,25 @@ const MIGRATED_FILES = [
   // components/students/profile/student-profile.tsx is already guarded above
   // (line ~193, added in an earlier phase) — its new Health tab is covered
   // by that existing entry.
+  // Phase 9S — Counseling / Student Wellbeing. A SEPARATE confidential
+  // domain from Health. Real CounselingCase/CounselingSession/
+  // CounselingSessionNote via /api/counseling/* (PostgreSQL). A student is
+  // always a real Student.id; a counselor is always a real, active Staff.id
+  // — never a parallel identity. The old mock's flat "appointment" concept
+  // is replaced by a real Case (enduring unit) -> Session (activity) ->
+  // confidential Note structure — CASE METADATA (who/status/counselor/
+  // follow-up) is deliberately non-confidential and visible to any
+  // counseling.view holder; only session NOTE bodies require
+  // counseling.viewConfidential AND counselor ownership. students.view/
+  // health.view/hr.view never imply counseling access. Resources
+  // (app/counselling/resources/page.tsx) stays fully mock — a static
+  // content library, not a case record, out of scope for this phase.
+  "app/counselling/page.tsx",
+  "app/counselling/dashboard/page.tsx",
+  "app/counselling/appointments/page.tsx",
+  // components/students/profile/student-profile.tsx is already guarded above
+  // (line ~193, added in an earlier phase) — its new Counselling tab is
+  // covered by that existing entry.
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -633,7 +652,8 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "allocateBed", why: "mock bed-allocation mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-hostel-api's assignHostelStudentRequest)" },
   { marker: "endAllocation", why: "mock allocation-end mutation (deleted — zero remaining consumers, dead import; real surfaces use vacateHostelAssignmentRequest/transferHostelAssignmentRequest)" },
   { marker: "markHostelAttendance", why: "mock hostel-attendance mutation (deleted — zero remaining consumers, dead import; real surfaces use markHostelRollCallRequest)" },
-  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Health/Cafeteria mutation service — the hostel-allocation and health-visit/medication functions were deleted (both real now, Phase 9Q/9R), Leave/Complaints/Maintenance/Counselling/Cafeteria stay mock (deferred) — real Hostel surfaces must use hooks/api/use-hostel-api, real Health surfaces must use hooks/api/use-health-api" },
+  { marker: "setCounsellingStatus", why: "mock counselling-appointment-status mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-counseling-api)" },
+  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Health/Counselling/Cafeteria mutation service — the hostel-allocation, health-visit/medication, and setCounsellingStatus functions were all deleted (real now, Phase 9Q/9R/9S), Leave/Complaints/Maintenance/Cafeteria stay mock (deferred) — real Hostel surfaces must use hooks/api/use-hostel-api, real Health surfaces must use hooks/api/use-health-api, real Counseling surfaces must use hooks/api/use-counseling-api" },
   { marker: "selectors/campus-brief", why: "mock cross-domain (Hostel/Health/Cafeteria) summary selector, including healthSummary() — still consumed by the deferred Reports page and the campus-life hub, but real Hostel/Health surfaces must use hooks/api/use-hostel-api / hooks/api/use-health-api" },
 ];
 

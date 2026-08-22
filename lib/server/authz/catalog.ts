@@ -169,6 +169,19 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "health.viewSensitive", module: "health", action: "viewSensitive", description: "View sensitive health details: reason, notes, vitals, treatment, medication, allergies/conditions" },
   { key: "health.manage", module: "health", action: "manage", description: "Record infirmary visits, vitals, treatment, medication; manage health profiles" },
 
+  // Phase 9S — Counseling is a SEPARATE confidential domain from Health.
+  // counseling.view only ever exposes case METADATA (status, assigned
+  // counselor, follow-up date) — never confidential session notes.
+  // counseling.viewConfidential is the only key that unlocks note bodies, and
+  // is further restricted to the assigned counselor's own cases at the
+  // service layer (ownership), not just held-the-permission. counseling.refer
+  // is deliberately narrower than .manage — it lets a Teacher open a new case
+  // via referral without granting them any read access to case history.
+  { key: "counseling.view", module: "counseling", action: "view", description: "View that a counseling case exists (status, assigned counselor, follow-up date — non-confidential metadata only)" },
+  { key: "counseling.manage", module: "counseling", action: "manage", description: "Create/assign/close counseling cases and sessions" },
+  { key: "counseling.viewConfidential", module: "counseling", action: "viewConfidential", description: "View confidential counseling session notes for the counselor's own assigned cases" },
+  { key: "counseling.refer", module: "counseling", action: "refer", description: "Refer a real student to counseling (opens a new case; grants no read access)" },
+
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
 
@@ -293,6 +306,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "assets.view", "assets.manage",
     "hostel.view", "hostel.manage",
     "health.view", "health.viewSensitive", "health.manage",
+    "counseling.view",
     "hr.view",
     "communication.view", "communication.send",
     "documents.view", "documents.manage",
@@ -324,6 +338,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "assets.view",
     "hostel.view",
     "health.view",
+    "counseling.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",
@@ -346,10 +361,16 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "leave.submit",
     "communication.send",
     "documents.view",
+    "counseling.refer",
   ],
   LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage"],
   TRANSPORT_MANAGER: ["dashboard.view", "transport.view", "transport.manage"],
   HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage", "staffAttendance.view", "staffAttendance.manage", "leave.submit", "leave.approve"],
+  // Phase 9S — the only role holding counseling.viewConfidential. No senior/
+  // junior tier exists, so ownership (assignedCounselorStaffId == own Staff.id)
+  // is enforced uniformly at the service layer for every COUNSELOR, never
+  // bypassed by holding this role — see lib/server/counseling/access.ts.
+  COUNSELOR: ["dashboard.view", "students.view", "counseling.view", "counseling.manage", "counseling.viewConfidential", "counseling.refer"],
 };
 
 // ---------------------------------------------------------------------------
@@ -457,6 +478,7 @@ export const DB_ROLE_TO_UI: Record<string, string> = {
   LIBRARIAN: "librarian",
   TRANSPORT_MANAGER: "transport-manager",
   HR_ADMIN: "hr-manager",
+  COUNSELOR: "counsellor",
 };
 export const PLATFORM_UI_ROLE = "super-admin";
 

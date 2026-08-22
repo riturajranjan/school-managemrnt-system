@@ -702,6 +702,7 @@ model Student {
   hostelRollCallRecords HostelRollCallRecord[] // Phase 9Q — nightly hostel roll call
   healthProfile         HealthProfile? // Phase 9R — factual health profile
   healthVisits          HealthVisit[] // Phase 9R — infirmary visit history
+  counselingCases       CounselingCase[] // Phase 9S — counseling case history (confidential domain)
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2097,6 +2098,8 @@ model Staff {
   healthVisitsAttended               HealthVisit[]                    @relation("HealthVisitAttendant") // Phase 9R — infirmary staff who attended
   healthTreatmentsGiven              HealthTreatmentRecord[]          @relation("HealthTreatmentStaff") // Phase 9R
   healthMedicationsGiven             HealthMedicationAdministration[] @relation("HealthMedicationStaff") // Phase 9R
+  counselingCasesAssigned            CounselingCase[]                 @relation("CounselingCaseCounselor") // Phase 9S — cases where this Staff member is the assigned counselor
+  counselingSessionsConducted        CounselingSession[]              @relation("CounselingSessionCounselor") // Phase 9S
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3195,6 +3198,7 @@ enum NotificationType {
   LIBRARY_BOOK_RETURNED
   ASSET_ASSIGNED
   ASSET_RETURNED
+  COUNSELING_CASE_ASSIGNED
 }
 
 model Notification {
@@ -5878,4 +5882,153 @@ model HealthMedicationAdministration {
 
   @@index([visitId])
   @@map("health_medication_administrations")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9S: Counseling / Student Wellbeing. A SEPARATE confidential domain
+// from Health (Phase 9R) — administrative record-keeping only, never a
+// diagnosis/risk-scoring/crisis-prediction engine. A student is always a
+// real Student.id; a counselor is always a real, active Staff.id — never a
+// parallel identity. Case METADATA access (counseling.view) is deliberately
+// separate from CONFIDENTIAL session-note access (counseling.viewConfidential,
+// further restricted to the assigned counselor's own cases at the service
+// layer — see lib/server/counseling/access.ts). No consent/safeguarding/
+// vaccination-style workflow is modeled here — none exists in the product
+// today, so it stays honestly deferred.
+// ---------------------------------------------------------------------------
+
+enum CounselingCaseStatus {
+  OPEN
+  ACTIVE
+  CLOSED
+}
+
+enum CounselingReferralSource {
+  SELF
+  TEACHER
+  PARENT_GUARDIAN
+  STAFF
+  ADMIN
+  OTHER
+}
+
+enum CounselingConcernCategory {
+  ACADEMIC
+  PEER_RELATIONSHIPS
+  BEHAVIORAL
+  FAMILY
+  EMOTIONAL_WELLBEING
+  OTHER
+}
+
+/**
+ * A counseling case for one real Student. referralReason/summary are
+ * factual, non-confidential text (case metadata, visible to counseling.view)
+ * — never a diagnosis. referralSource records who manually reported the
+ * concern; it is never claimed to be a digitally-submitted parent/guardian
+ * consent or referral (Guardian has no login identity in this system).
+ * Lifecycle is deliberately minimal (OPEN -> ACTIVE -> CLOSED) and never
+ * reopened once closed. A student may have more than one case at a time —
+ * no artificial single-open-case constraint is invented, since real
+ * concerns can be genuinely concurrent and unrelated.
+ */
+model CounselingCase {
+  id                String  @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String?
+
+  studentId                String
+  assignedCounselorStaffId String?
+
+  referralSource   CounselingReferralSource?
+  referralReason   String?
+  referredByUserId String?
+  referredAt       DateTime?                 @db.Timestamptz(6)
+
+  concernCategory CounselingConcernCategory?
+  summary         String?
+  status          CounselingCaseStatus       @default(OPEN)
+  followUpDate    DateTime?                  @db.Date
+
+  openedAt DateTime  @default(now()) @db.Timestamptz(6)
+  closedAt DateTime?
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student           Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  assignedCounselor Staff?  @relation("CounselingCaseCounselor", fields: [assignedCounselorStaffId], references: [id], onDelete: Restrict)
+
+  sessions CounselingSession[]
+
+  @@index([schoolId, branchId, status])
+  @@index([studentId])
+  @@index([assignedCounselorStaffId])
+  @@map("counseling_cases")
+}
+
+/**
+ * A single counseling session under a case. summary is factual and
+ * non-confidential (case metadata) — detailed confidential content belongs
+ * only in CounselingSessionNote, never here.
+ */
+model CounselingSession {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  caseId   String
+
+  counselorStaffId String
+  sessionDate      DateTime  @default(now()) @db.Timestamptz(6)
+  endedAt          DateTime?
+  sessionType      String?
+  summary          String?
+  followUpDate     DateTime? @db.Date
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  case      CounselingCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  counselor Staff          @relation("CounselingSessionCounselor", fields: [counselorStaffId], references: [id], onDelete: Restrict)
+
+  notes CounselingSessionNote[]
+
+  @@index([schoolId, branchId])
+  @@index([caseId])
+  @@index([counselorStaffId])
+  @@map("counseling_sessions")
+}
+
+/**
+ * Confidential session content. NEVER included in list endpoints or the
+ * generic Case/Session DTO — only returned by a dedicated endpoint gated by
+ * counseling.viewConfidential AND counselor ownership (assignedCounselorStaffId
+ * on the parent case must equal the caller's own Staff.id). AuditEvent
+ * entries for note mutations record who/what/when only — never the body.
+ */
+model CounselingSessionNote {
+  id        String @id @default(cuid())
+  tenantId  String
+  schoolId  String
+  branchId  String
+  sessionId String
+
+  body String
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  session CounselingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("counseling_session_notes")
 }

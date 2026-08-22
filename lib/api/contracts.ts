@@ -1738,7 +1738,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned" | "counseling-case-assigned";
 
 export type NotificationDto = {
   id: string;
@@ -3257,4 +3257,113 @@ export type StudentHealthProfileDto = {
   recentVisits: HealthVisitDto[];
   medicationHistory: HealthMedicationAdministrationDto[];
   emergencyContacts: { name: string; phone: string | null; relation: string }[];
+};
+
+// ── Phase 9S: Counseling / Student Wellbeing. A SEPARATE confidential domain
+// from Health. A student is always a real Student.id; a counselor is always
+// a real, active Staff.id. Case METADATA (this DTO) is deliberately separate
+// from CONFIDENTIAL session notes (CounselingSessionNoteDto) — the latter is
+// never included here or in any list endpoint.
+
+export type CounselingCaseStatusDto = "open" | "active" | "closed";
+export type CounselingReferralSourceDto = "self" | "teacher" | "parent_guardian" | "staff" | "admin" | "other";
+export type CounselingConcernCategoryDto = "academic" | "peer_relationships" | "behavioral" | "family" | "emotional_wellbeing" | "other";
+
+export type CounselingCaseDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  assignedCounselorStaffId: string | null;
+  assignedCounselorName: string | null;
+  referralSource: CounselingReferralSourceDto | null;
+  referralReason: string | null; // factual, manually-recorded text — never a digitally-submitted consent/referral
+  referredByUserId: string | null;
+  referredAt: string | null;
+  concernCategory: CounselingConcernCategoryDto | null; // factual classification, never a diagnosis
+  summary: string | null; // non-confidential case-level summary
+  status: CounselingCaseStatusDto;
+  followUpDate: string | null;
+  sessionCount: number;
+  openedAt: string;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateCounselingReferralRequest = {
+  studentId: string;
+  referralSource?: CounselingReferralSourceDto;
+  referralReason?: string;
+  concernCategory?: CounselingConcernCategoryDto;
+  summary?: string;
+};
+
+export type UpdateCounselingCaseRequest = {
+  concernCategory?: CounselingConcernCategoryDto | null;
+  summary?: string | null;
+  followUpDate?: string | null;
+};
+
+export type AssignCounselingCaseRequest = { counselorStaffId: string };
+
+export type CounselingSessionDto = {
+  id: string;
+  caseId: string;
+  counselorStaffId: string;
+  counselorName: string;
+  sessionDate: string;
+  endedAt: string | null;
+  sessionType: string | null;
+  summary: string | null; // non-confidential factual summary — never the confidential note body
+  followUpDate: string | null;
+  noteCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateCounselingSessionRequest = {
+  sessionDate?: string;
+  endedAt?: string;
+  sessionType?: string;
+  summary?: string;
+  followUpDate?: string;
+};
+
+/** Confidential — only ever returned by a dedicated endpoint gated by
+ * counseling.viewConfidential AND counselor ownership. Never in a list DTO. */
+export type CounselingSessionNoteDto = {
+  id: string;
+  sessionId: string;
+  body: string;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateCounselingNoteRequest = { body: string };
+
+/** Counseling Dashboard — DB-derived only. No fabricated risk score/wellbeing
+ * score/success rate/severity distribution. "my*" fields are populated only
+ * when the caller resolves to a real, active counselor Staff record. */
+export type CounselingDashboardDto = {
+  totalOpenCases: number;
+  totalActiveCases: number;
+  unassignedCases: number;
+  sessionsToday: number;
+  followUpsDue: number;
+  myOpenCases: number;
+  myActiveCases: number;
+  myFollowUpsDue: number;
+};
+
+/** Student 360 Counseling tab — safe metadata ONLY (counseling.view). No
+ * confidential note content is ever included here. */
+export type StudentCounselingProfileDto = {
+  hasActiveSupport: boolean;
+  currentCase: {
+    id: string; status: CounselingCaseStatusDto; assignedCounselorName: string | null;
+    concernCategory: CounselingConcernCategoryDto | null; followUpDate: string | null;
+  } | null;
+  caseCount: number;
 };

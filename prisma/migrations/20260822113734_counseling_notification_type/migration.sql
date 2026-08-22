@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "NotificationType" ADD VALUE 'COUNSELING_CASE_ASSIGNED';

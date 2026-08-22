@@ -31,13 +31,14 @@ import { useStudentTransportProfile } from "@/lib/hooks/api/use-transport-api";
 import { useStudentLibraryProfile } from "@/lib/hooks/api/use-library-api";
 import { useStudentHostelProfile } from "@/lib/hooks/api/use-hostel-api";
 import { useStudentHealthProfile } from "@/lib/hooks/api/use-health-api";
+import { createCounselingReferralRequest, useStudentCounselingProfile } from "@/lib/hooks/api/use-counseling-api";
 import { RestrictedHealth } from "@/components/campus/privacy";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health", "counseling"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can, hasServerPermission } = usePermissions();
@@ -78,6 +79,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="library">Library</TabsTrigger>
           <TabsTrigger value="hostel">Hostel</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
+          <TabsTrigger value="counseling">Counselling</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -107,6 +109,15 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="health" className="mt-md">
           {hasServerPermission("health.view") ? <HealthSection studentId={student.id} /> : <RestrictedHealth label="health information" />}
+        </TabsContent>
+        <TabsContent value="counseling" className="mt-md">
+          {hasServerPermission("counseling.view") ? (
+            <CounselingSection studentId={student.id} />
+          ) : hasServerPermission("counseling.refer") ? (
+            <CounselingReferralPanel studentId={student.id} />
+          ) : (
+            <RestrictedHealth label="counselling information" />
+          )}
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -664,6 +675,55 @@ function HealthSection({ studentId }: { studentId: string }) {
           <p className="text-sm text-muted-foreground">Nothing on file.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function CounselingSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentCounselingProfile(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading counselling…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Counselling support</h2>
+        {!data.hasActiveSupport ? (
+          <p className="text-sm text-muted-foreground">No active counselling case.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-sm sm:grid-cols-3">
+            <Field label="Status" value={data.currentCase?.status} />
+            <Field label="Counselor" value={data.currentCase?.assignedCounselorName ?? undefined} />
+            <Field label="Concern category" value={data.currentCase?.concernCategory?.replace("_", " ")} />
+            <Field label="Follow-up" value={data.currentCase?.followUpDate ?? undefined} />
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{data.caseCount} case{data.caseCount === 1 ? "" : "s"} on record. Confidential session notes are visible only to the assigned counselor.</p>
+    </div>
+  );
+}
+
+function CounselingReferralPanel({ studentId }: { studentId: string }) {
+  const [reason, setReason] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  async function submit() {
+    const res = await createCounselingReferralRequest({ studentId, referralSource: "teacher", referralReason: reason || undefined });
+    if (res.success) setSubmitted(true);
+  }
+
+  if (submitted) return <p className="rounded-lg border border-success/30 bg-success/8 p-md text-sm text-success">Referral submitted. The counselling team will follow up.</p>;
+
+  return (
+    <div className="flex flex-col gap-sm rounded-lg border border-border p-md">
+      <h2 className="text-sm font-semibold text-foreground">Refer to counselling</h2>
+      <p className="text-xs text-muted-foreground">You can refer this student for counselling support. You will not see case history or notes.</p>
+      <Label htmlFor="counseling-reason">Reason (optional)</Label>
+      <Input id="counseling-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Factual, non-diagnostic description" />
+      <Button size="sm" className="w-fit" onClick={submit}>Submit referral</Button>
     </div>
   );
 }

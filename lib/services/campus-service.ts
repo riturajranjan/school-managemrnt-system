@@ -1,6 +1,6 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type { HostelLeaveStatus, ComplaintStatus, MaintenanceStatus, HostelVisitorStatus } from "@/lib/types/hostel";
-import type { IncidentStatus, MedicationStatus, CounsellingStatus } from "@/lib/types/health";
+import type { IncidentStatus, MedicationStatus } from "@/lib/types/health";
 import type { CafeteriaOrder, CafeteriaOrderItem, OrderStatus } from "@/lib/types/cafeteria";
 import { generateId } from "@/lib/utils";
 
@@ -60,14 +60,10 @@ export function setIncidentStatus(incidentId: string, status: IncidentStatus): R
   return { ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// Counselling
-// ---------------------------------------------------------------------------
-
-export function setCounsellingStatus(appointmentId: string, status: CounsellingStatus): Result {
-  setState((db) => ({ ...db, counsellingAppointments: db.counsellingAppointments.map((a) => (a.id === appointmentId ? { ...a, status } : a)) }));
-  return { ok: true };
-}
+// Counselling mutations (setCounsellingStatus) went real in Phase 9S
+// (lib/server/counseling/*) and were deleted here as dead mock authority —
+// real surfaces must use hooks/api/use-counseling-api. Resources stays mock
+// (deferred — a static content library, not a case record).
 
 // ---------------------------------------------------------------------------
 // Cafeteria
