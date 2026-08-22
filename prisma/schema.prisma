@@ -683,21 +683,23 @@ model Student {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  guardians            StudentGuardian[]
-  documents            StudentDocument[]
-  timeline             StudentTimelineEvent[]
-  enrollments          Enrollment[] // Phase 6-pre — real class/section enrollment
-  attendanceRecords    AttendanceRecord[] // Phase 5 — attendance
-  examMarks            ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
-  examResults          StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
-  promotions           StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
-  feeAssignments       StudentFeeAssignment[] // Phase 9F — fee billing
-  transportAssignments StudentTransportAssignment[] // Phase 9M — transport
-  transportTripRecords TransportTripStudent[] // Phase 9M — per-trip boarding/drop
-  feeCharges           FeeCharge[] // Phase 9F — billable fee items
-  libraryLoans         LibraryLoan[] // Phase 9N — library circulation
-  feePayments          FeePayment[] // Phase 9F — fee collections
-  inventoryIssues      InventoryIssue[] // Phase 9O — consumable issues to this student
+  guardians             StudentGuardian[]
+  documents             StudentDocument[]
+  timeline              StudentTimelineEvent[]
+  enrollments           Enrollment[] // Phase 6-pre — real class/section enrollment
+  attendanceRecords     AttendanceRecord[] // Phase 5 — attendance
+  examMarks             ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
+  examResults           StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
+  promotions            StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
+  feeAssignments        StudentFeeAssignment[] // Phase 9F — fee billing
+  transportAssignments  StudentTransportAssignment[] // Phase 9M — transport
+  transportTripRecords  TransportTripStudent[] // Phase 9M — per-trip boarding/drop
+  feeCharges            FeeCharge[] // Phase 9F — billable fee items
+  libraryLoans          LibraryLoan[] // Phase 9N — library circulation
+  feePayments           FeePayment[] // Phase 9F — fee collections
+  inventoryIssues       InventoryIssue[] // Phase 9O — consumable issues to this student
+  hostelAssignments     StudentHostelAssignment[] // Phase 9Q — hostel bed allocation history
+  hostelRollCallRecords HostelRollCallRecord[] // Phase 9Q — nightly hostel roll call
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2086,6 +2088,7 @@ model Staff {
   staffTransportAssignments          StaffTransportAssignment[] // Phase 9M
   libraryLoans                       LibraryLoan[] // Phase 9N — library circulation
   assetAssignments                   AssetAssignment[] // Phase 9O — durable asset custody
+  hostelStaffAssignments             HostelStaffAssignment[] // Phase 9Q — warden/assistant-warden assignment
   inventoryIssues                    InventoryIssue[] // Phase 9O — consumable issues to this staff member
 
   // One employee code per school.
@@ -5421,4 +5424,257 @@ model AssetMaintenanceRecord {
   @@index([schoolId, assetId])
   @@index([schoolId, status])
   @@map("asset_maintenance_records")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9Q — Hostel Management. Hostel student identity always resolves to
+// real Student.id; warden/hostel-staff identity always resolves to real
+// Staff.id — no parallel identity models. Building/Block/Floor: the
+// pre-migration mock UI only ever used "floor" as a display-grouping number
+// within one hostel's room list (no floor-level CRUD, status, or capacity
+// anywhere) — so it stays a plain `floorNumber` field on HostelRoom, not a
+// separate entity. Room capacity is NOT a stored field: it is always
+// `count(beds)` — creating a room provisions its beds in the same
+// transaction, so there is only one capacity truth. Occupancy/availability
+// are always derived from the active-assignment partial-unique-index
+// invariant below, never a persisted counter.
+// ---------------------------------------------------------------------------
+
+enum HostelGenderPolicy {
+  BOYS
+  GIRLS
+  MIXED
+}
+
+enum HostelStatus {
+  ACTIVE
+  MAINTENANCE
+  ARCHIVED
+}
+
+model Hostel {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code         String
+  name         String
+  description  String?
+  genderPolicy HostelGenderPolicy?
+
+  status HostelStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  rooms            HostelRoom[]
+  staffAssignments HostelStaffAssignment[]
+  assignments      StudentHostelAssignment[]
+  rollCallRecords  HostelRollCallRecord[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId, status])
+  @@map("hostels")
+}
+
+enum HostelRoomStatus {
+  ACTIVE
+  MAINTENANCE
+  ARCHIVED
+}
+
+/**
+ * Capacity is deliberately NOT a stored field — it is always
+ * `count(beds)`, provisioned atomically at room-creation time, so there is
+ * never a second, driftable capacity truth.
+ */
+model HostelRoom {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  hostelId String
+
+  roomNumber  String
+  floorNumber Int?
+  roomType    String?
+  facilities  String[]
+  notes       String?
+
+  status HostelRoomStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  hostel      Hostel                    @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  beds        HostelBed[]
+  assignments StudentHostelAssignment[]
+
+  @@unique([hostelId, roomNumber])
+  @@index([schoolId, status])
+  @@map("hostel_rooms")
+}
+
+enum HostelBedStatus {
+  ACTIVE
+  MAINTENANCE
+  ARCHIVED
+}
+
+/**
+ * OCCUPIED is never stored here — it is derived from whether an ACTIVE
+ * StudentHostelAssignment currently references this bed (enforced unique by
+ * the partial index on that model).
+ */
+model HostelBed {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  roomId   String
+
+  bedNumber String
+
+  status HostelBedStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  room        HostelRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  assignments StudentHostelAssignment[]
+
+  @@unique([roomId, bedNumber])
+  @@index([schoolId, status])
+  @@map("hostel_beds")
+}
+
+enum HostelAssignmentStatus {
+  ACTIVE
+  VACATED
+  TRANSFERRED
+}
+
+/**
+ * The real allocation record. A borrower is always a real Student.id.
+ * `roomId`/`hostelId` are live FKs (not snapshots) purely for query
+ * convenience — a bed never moves rooms, so they can never drift from the
+ * bed's own room/hostel. History is append-only: vacating/transferring never
+ * deletes or rewrites a row, it closes it (VACATED/TRANSFERRED) and — for a
+ * transfer — creates a new ACTIVE row. Exactly one ACTIVE row per bed and
+ * per (student, academicSession) is enforced by partial unique indexes (see
+ * the follow-up migration), mirroring Phase 9N/9O's dual-guard pattern.
+ */
+model StudentHostelAssignment {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  studentId String
+  hostelId  String
+  roomId    String
+  bedId     String
+
+  assignedAt DateTime  @default(now()) @db.Timestamptz(6)
+  vacatedAt  DateTime? @db.Timestamptz(6)
+
+  status HostelAssignmentStatus @default(ACTIVE)
+
+  assignedByUserId String
+  vacatedByUserId  String?
+  notes            String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student Student    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  hostel  Hostel     @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  room    HostelRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  bed     HostelBed  @relation(fields: [bedId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, studentId])
+  @@index([schoolId, status])
+  @@index([bedId])
+  @@index([academicSessionId])
+  @@map("student_hostel_assignments")
+}
+
+enum HostelStaffRole {
+  WARDEN
+  ASSISTANT_WARDEN
+}
+
+enum HostelStaffAssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
+/**
+ * Warden/assistant-warden identity is always a real Staff.id — never a
+ * parallel "Warden" identity or a free-text name.
+ */
+model HostelStaffAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+  hostelId String
+  staffId  String
+
+  role   HostelStaffRole             @default(WARDEN)
+  status HostelStaffAssignmentStatus @default(ACTIVE)
+
+  assignedAt DateTime  @default(now()) @db.Timestamptz(6)
+  endedAt    DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  hostel Hostel @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  staff  Staff  @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, hostelId])
+  @@index([staffId])
+  @@map("hostel_staff_assignments")
+}
+
+enum HostelRollCallStatus {
+  PRESENT
+  ABSENT
+  ON_LEAVE
+}
+
+/**
+ * Nightly hostel roll call — a SEPARATE domain from academic
+ * AttendanceSession/AttendanceRecord (different entity grain, different
+ * purpose). A resident with no record for a date is NOT_MARKED — never
+ * synthesized as ABSENT by a query, matching Phase 9E's Staff Attendance
+ * convention exactly. No biometric/access-control integration.
+ */
+model HostelRollCallRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  studentId String
+  hostelId  String
+  date      DateTime @db.Date
+
+  status HostelRollCallStatus
+
+  markedByUserId String
+  notes          String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  hostel  Hostel  @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, date])
+  @@index([schoolId, hostelId, date])
+  @@map("hostel_roll_call_records")
 }

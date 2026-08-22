@@ -13,6 +13,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   hr: "HR",
   inventory: "Inventory",
   assets: "Assets",
+  hostel: "Hostel",
 };
 
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS);

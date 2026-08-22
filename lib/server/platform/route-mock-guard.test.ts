@@ -402,6 +402,39 @@ const MIGRATED_FILES = [
   "app/hr/departments/page.tsx",
   "app/hr/designations/page.tsx",
   "app/hr/dashboard/page.tsx",
+  // Phase 9Q — Hostel Management. Real Hostel/HostelRoom/HostelBed/
+  // StudentHostelAssignment/HostelStaffAssignment/HostelRollCallRecord via
+  // /api/hostel/* (PostgreSQL). Mock "buildings" ARE the top-level Hostel
+  // entity — no separate Block/Floor model (floorNumber is a plain field on
+  // Room; "Floor" stays a client-side grouping step derived from real rooms,
+  // not a real entity). Room capacity is never a stored field — always
+  // `count(beds)`, provisioned atomically at room creation. A resident is
+  // always a real Student.id; a warden is always a real, active Staff.id —
+  // never a parallel identity. Hostel roll call (Attendance) is real and a
+  // SEPARATE domain from academic Attendance. Leave/Visitors/Complaints/
+  // Maintenance/Mess/Settings/Reports stay fully mock — no real parent-
+  // approval workflow, extended Visitor identity, shared ticketing
+  // infrastructure, or billing/mess-planning policy exists for any of them
+  // (mess is deliberately deferred to a future Cafeteria phase, never built
+  // here). app/student/hostel/page.tsx and app/parent/hostel/page.tsx also
+  // stay fully mock — no real Student->User or Guardian->User self-service
+  // identity foundation exists in this system yet, so a real "my hostel"
+  // view has no honest identity to resolve against. app/hostel/page.tsx
+  // (hub) is a hybrid — its headline stats are real but its quickLinks still
+  // legitimately point at those still-mock pages — so it is NOT guarded
+  // here, matching the Inventory/Assets/HR-Core hub precedent.
+  "app/hostel/buildings/page.tsx",
+  "app/hostel/rooms/page.tsx",
+  "app/hostel/rooms/[roomId]/page.tsx",
+  "app/hostel/beds/page.tsx",
+  "app/hostel/allocations/page.tsx",
+  "app/hostel/residents/page.tsx",
+  "app/hostel/residents/[studentId]/page.tsx",
+  "app/hostel/attendance/page.tsx",
+  "app/hostel/dashboard/page.tsx",
+  // components/students/profile/student-profile.tsx is already guarded above
+  // (line ~193, added in an earlier phase) — its new Hostel tab is covered
+  // by that existing entry.
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -567,6 +600,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/hr-brief", why: "mock HR summary/today-items selector (deleted — zero remaining consumers, dead import)" },
   { marker: "selectors/people-pulse", why: "mock People Pulse composite-score selector (deleted — zero remaining consumers, dead import; no real basis for a composite HR score exists)" },
   { marker: "services/hr-service", why: "mock Employee/Department/Designation/recruitment mutation service — still consumed by the deferred Recruitment/Onboarding/Offboarding/Appraisals/Goals/Letters pages, but real surfaces must use hooks/api/use-hr-api" },
+  // Phase 9Q — Hostel Management mock authority (real surfaces must use hooks/api/use-hostel-api).
+  { marker: "allocateBed", why: "mock bed-allocation mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-hostel-api's assignHostelStudentRequest)" },
+  { marker: "endAllocation", why: "mock allocation-end mutation (deleted — zero remaining consumers, dead import; real surfaces use vacateHostelAssignmentRequest/transferHostelAssignmentRequest)" },
+  { marker: "markHostelAttendance", why: "mock hostel-attendance mutation (deleted — zero remaining consumers, dead import; real surfaces use markHostelRollCallRequest)" },
+  { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Leave/Complaints/Maintenance + Health/Cafeteria mutation service — the hostel-allocation functions were deleted (real now), Leave/Complaints/Maintenance stay mock (deferred), Health/Cafeteria are a different domain entirely — real Hostel surfaces must use hooks/api/use-hostel-api" },
+  { marker: "selectors/campus-brief", why: "mock cross-domain (Hostel/Health/Cafeteria) summary selector — still consumed by the deferred Reports page and the campus-life hub, but real Hostel surfaces must use hooks/api/use-hostel-api" },
 ];
 
 function collectSources(dir: string): string[] {

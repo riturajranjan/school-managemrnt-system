@@ -1,5 +1,7 @@
 "use client";
 
+// Bed allocation wizard (Phase 9Q) — real PostgreSQL/API cutover. Floor stays
+// a client-side grouping step (no real Floor entity) over real rooms.
 import { useState } from "react";
 import { BedDouble, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -7,119 +9,68 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { allocateBed } from "@/lib/services/campus-service";
+import { useStudentList } from "@/lib/hooks/api/use-students";
+import { assignHostelStudentRequest, useHostelAssignments, useHostelBeds, useHostelRooms, useHostels } from "@/lib/hooks/api/use-hostel-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import {
-  roomStatusLabels,
-  roomStatusTone,
-  roomTypeLabels,
-} from "@/lib/types/hostel";
 
-const steps = [
-  "Student",
-  "Building",
-  "Floor",
-  "Room",
-  "Bed",
-  "Review",
-] as const;
+const steps = ["Student", "Hostel", "Floor", "Room", "Bed", "Review"] as const;
 
 export default function AllocationsPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [step, setStep] = useState(0);
   const [query, setQuery] = useState("");
   const [studentId, setStudentId] = useState<string | null>(null);
-  const [buildingId, setBuildingId] = useState<string | null>(null);
-  const [floorId, setFloorId] = useState<string | null>(null);
+  const [hostelId, setHostelId] = useState<string | null>(null);
+  const [floorNumber, setFloorNumber] = useState<number | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [bedId, setBedId] = useState<string | null>(null);
-  const [flash, setFlash] = useState<{
-    tone: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [flash, setFlash] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
-  if (!can("hostel.allocate"))
-    return (
-      <PermissionDenied
-        action="allocate hostel beds"
-        role={roleLabels[role]}
-        backHref="/hostel"
-      />
-    );
+  const { data: students } = useStudentList({ status: ["active"], pageSize: 200 });
+  const { data: activeAssignments, reload: reloadAssignments } = useHostelAssignments({ status: "active" });
+  const { data: hostels } = useHostels({ status: "active" });
+  const { data: rooms } = useHostelRooms({ hostelId: hostelId ?? undefined, status: "active" });
+  const { data: beds, reload: reloadBeds } = useHostelBeds({ roomId: roomId ?? undefined, status: "active" });
 
-  const allocatedIds = new Set(
-    db.hostelAllocations
-      .filter((a) => a.status === "active")
-      .map((a) => a.studentId),
-  );
-  const unallocated = db.students
+  if (!capabilitiesLoading && !hasServerPermission("hostel.manage")) return <PermissionDenied action="allocate hostel beds" role={roleLabels[role]} backHref="/hostel" />;
+
+  const allocatedIds = new Set(activeAssignments.map((a) => a.studentId));
+  const unallocated = students
     .filter((s) => !allocatedIds.has(s.id))
-    .filter((s) =>
-      query.trim()
-        ? `${s.profile.firstName} ${s.profile.lastName}`
-            .toLowerCase()
-            .includes(query.trim().toLowerCase())
-        : true,
-    )
+    .filter((s) => (query.trim() ? s.fullName.toLowerCase().includes(query.trim().toLowerCase()) : true))
     .slice(0, 8);
-  const floors = buildingId
-    ? db.hostelFloors
-        .filter((f) => f.buildingId === buildingId)
-        .sort((a, b) => a.number - b.number)
-    : [];
-  const rooms = floorId
-    ? db.hostelRooms.filter((r) => r.floorId === floorId)
-    : [];
-  const beds = roomId ? db.hostelBeds.filter((b) => b.roomId === roomId) : [];
-  const student = db.students.find((s) => s.id === studentId);
-  const room = db.hostelRooms.find((r) => r.id === roomId);
-  const bed = db.hostelBeds.find((b) => b.id === bedId);
-  const roommates = roomId
-    ? db.hostelBeds
-        .filter(
-          (b) => b.roomId === roomId && b.status === "occupied" && b.studentId,
-        )
-        .map((b) => db.students.find((s) => s.id === b.studentId))
-        .filter(Boolean)
-    : [];
 
-  function confirm() {
+  const floors = [...new Set(rooms.map((r) => r.floorNumber ?? 0))].sort((a, b) => a - b);
+  const roomsOnFloor = floorNumber !== null ? rooms.filter((r) => (r.floorNumber ?? 0) === floorNumber) : [];
+  const student = students.find((s) => s.id === studentId);
+  const hostel = hostels.find((h) => h.id === hostelId);
+  const room = rooms.find((r) => r.id === roomId);
+  const bed = beds.find((b) => b.id === bedId);
+  const availableBeds = beds.filter((b) => !b.occupied);
+  const roommates = roomId ? beds.filter((b) => b.occupied).map((b) => b.occupantName).filter(Boolean) : [];
+
+  async function confirm() {
     if (!studentId || !bedId) return;
-    const result = allocateBed({ studentId, bedId });
-    if (result.ok) {
-      setFlash({
-        tone: "success",
-        text: `${student?.profile.firstName} allocated to Room ${room?.roomNumber}, Bed ${bed?.position}.`,
-      });
-      setStep(0);
-      setStudentId(null);
-      setBuildingId(null);
-      setFloorId(null);
-      setRoomId(null);
-      setBedId(null);
-    } else setFlash({ tone: "error", text: result.error });
+    const result = await assignHostelStudentRequest({ studentId, bedId });
+    if (result.success) {
+      setFlash({ tone: "success", text: `${student?.fullName} allocated to Room ${room?.roomNumber}, Bed ${bed?.bedNumber}.` });
+      setStep(0); setStudentId(null); setHostelId(null); setFloorNumber(null); setRoomId(null); setBedId(null);
+      reloadAssignments(); reloadBeds();
+    } else setFlash({ tone: "error", text: result.error.message });
   }
 
-  const canNext =
-    [studentId, buildingId, floorId, roomId, bedId][step] != null || step === 5;
+  const stepValues = [studentId, hostelId, floorNumber, roomId, bedId];
+  const canNext = stepValues[step] != null || step === 5;
 
   return (
     <div className="mx-auto flex w-full  flex-col gap-md pb-20 sm:pb-0">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">
-          Bed allocation
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          Assign a student to an available bed
-        </p>
+        <h1 className="text-lg font-semibold text-foreground">Bed allocation</h1>
+        <p className="text-xs text-muted-foreground">Assign a student to an available bed</p>
       </div>
 
       {flash && (
-        <div
-          className={`rounded-md border p-sm text-sm ${flash.tone === "success" ? "border-success/30 bg-success/8 text-success" : "border-error/30 bg-error/8 text-error"}`}
-          role="status">
+        <div className={`rounded-md border p-sm text-sm ${flash.tone === "success" ? "border-success/30 bg-success/8 text-success" : "border-error/30 bg-error/8 text-error"}`} role="status">
           {flash.text}
         </div>
       )}
@@ -127,13 +78,10 @@ export default function AllocationsPage() {
       <ol className="flex flex-wrap items-center gap-1 text-xs">
         {steps.map((s, i) => (
           <li key={s} className="flex items-center gap-1">
-            <span
-              className={`flex items-center gap-1 rounded-pill px-2 py-1 font-medium ${i === step ? "bg-primary text-primary-foreground" : i < step ? "bg-primary/10 text-primary" : "bg-surface-secondary text-muted-foreground"}`}>
+            <span className={`flex items-center gap-1 rounded-pill px-2 py-1 font-medium ${i === step ? "bg-primary text-primary-foreground" : i < step ? "bg-primary/10 text-primary" : "bg-surface-secondary text-muted-foreground"}`}>
               {i < step ? <Check className="size-3" /> : i + 1} {s}
             </span>
-            {i < steps.length - 1 && (
-              <ChevronRight className="size-3 text-muted-foreground" />
-            )}
+            {i < steps.length - 1 && <ChevronRight className="size-3 text-muted-foreground" />}
           </li>
         ))}
       </ol>
@@ -141,55 +89,22 @@ export default function AllocationsPage() {
       <div className="rounded-lg border border-border bg-surface p-md">
         {step === 0 && (
           <div className="flex flex-col gap-sm">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search unallocated students…"
-              aria-label="Search students"
-            />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search unallocated students…" aria-label="Search students" />
             {unallocated.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setStudentId(s.id)}
-                className={`flex items-center justify-between rounded-md border p-sm text-left text-sm ${studentId === s.id ? "border-primary bg-primary/5" : "border-border"}`}>
-                <span>
-                  <span className="block font-medium text-foreground">
-                    {s.profile.firstName} {s.profile.lastName}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {s.admissionNumber} · {s.classId}
-                  </span>
-                </span>
-                {studentId === s.id && (
-                  <Check className="size-4 text-primary" />
-                )}
+              <button key={s.id} onClick={() => setStudentId(s.id)} className={`flex items-center justify-between rounded-md border p-sm text-left text-sm ${studentId === s.id ? "border-primary bg-primary/5" : "border-border"}`}>
+                <span><span className="block font-medium text-foreground">{s.fullName}</span><span className="block text-xs text-muted-foreground">{s.admissionNumber}</span></span>
+                {studentId === s.id && <Check className="size-4 text-primary" />}
               </button>
             ))}
-            {unallocated.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No unallocated students match.
-              </p>
-            )}
+            {unallocated.length === 0 && <p className="text-sm text-muted-foreground">No unallocated students match.</p>}
           </div>
         )}
         {step === 1 && (
           <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
-            {db.hostelBuildings.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => {
-                  setBuildingId(b.id);
-                  setFloorId(null);
-                  setRoomId(null);
-                  setBedId(null);
-                }}
-                className={`rounded-md border p-sm text-left text-sm ${buildingId === b.id ? "border-primary bg-primary/5" : "border-border"}`}>
-                <span className="block font-medium text-foreground">
-                  {b.name}
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  {b.code}
-                </span>
+            {hostels.map((h) => (
+              <button key={h.id} onClick={() => { setHostelId(h.id); setFloorNumber(null); setRoomId(null); setBedId(null); }} className={`rounded-md border p-sm text-left text-sm ${hostelId === h.id ? "border-primary bg-primary/5" : "border-border"}`}>
+                <span className="block font-medium text-foreground">{h.name}</span>
+                <span className="block text-xs text-muted-foreground">{h.code}</span>
               </button>
             ))}
           </div>
@@ -197,44 +112,20 @@ export default function AllocationsPage() {
         {step === 2 && (
           <div className="flex flex-wrap gap-sm">
             {floors.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => {
-                  setFloorId(f.id);
-                  setRoomId(null);
-                  setBedId(null);
-                }}
-                className={`rounded-md border px-4 py-2 text-sm ${floorId === f.id ? "border-primary bg-primary/5 text-primary" : "border-border text-foreground"}`}>
-                {f.name}
+              <button key={f} onClick={() => { setFloorNumber(f); setRoomId(null); setBedId(null); }} className={`rounded-md border px-4 py-2 text-sm ${floorNumber === f ? "border-primary bg-primary/5 text-primary" : "border-border text-foreground"}`}>
+                {f === 0 ? "Unassigned" : `Floor ${f}`}
               </button>
             ))}
           </div>
         )}
         {step === 3 && (
           <div className="flex flex-wrap gap-sm">
-            {rooms.map((r) => {
-              const occ = db.hostelBeds.filter(
-                (b) => b.roomId === r.id && b.status === "occupied",
-              ).length;
-              const full =
-                occ >= r.capacity ||
-                r.status === "maintenance" ||
-                r.status === "closed";
+            {roomsOnFloor.map((r) => {
+              const full = r.availableBeds <= 0;
               return (
-                <button
-                  key={r.id}
-                  disabled={full}
-                  onClick={() => {
-                    setRoomId(r.id);
-                    setBedId(null);
-                  }}
-                  className={`flex flex-col items-center rounded-md border px-3 py-2 text-sm disabled:opacity-40 ${roomId === r.id ? "border-primary bg-primary/5" : "border-border"}`}>
-                  <span className="font-semibold text-foreground">
-                    {r.roomNumber}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {occ}/{r.capacity}
-                  </span>
+                <button key={r.id} disabled={full} onClick={() => { setRoomId(r.id); setBedId(null); }} className={`flex flex-col items-center rounded-md border px-3 py-2 text-sm disabled:opacity-40 ${roomId === r.id ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <span className="font-semibold text-foreground">{r.roomNumber}</span>
+                  <span className="text-[10px] text-muted-foreground">{r.occupiedBeds}/{r.activeBeds}</span>
                 </button>
               );
             })}
@@ -244,81 +135,41 @@ export default function AllocationsPage() {
           <div className="flex flex-col gap-sm">
             {room && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-foreground">
-                  {roomTypeLabels[room.type]} · {room.facilities.join(", ")}
-                </span>
-                <Badge tone={roomStatusTone[room.status]}>
-                  {roomStatusLabels[room.status]}
-                </Badge>
+                <span className="text-foreground">{room.roomType ?? "Room"}{room.facilities.length ? ` · ${room.facilities.join(", ")}` : ""}</span>
+                <Badge tone={room.status === "active" ? "success" : "warning"}>{room.status}</Badge>
               </div>
             )}
-            {roommates.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Roommates:{" "}
-                {roommates.map((s) => s?.profile.firstName).join(", ")}
-              </p>
-            )}
+            {roommates.length > 0 && <p className="text-xs text-muted-foreground">Roommates: {roommates.join(", ")}</p>}
             <div className="flex flex-wrap gap-sm">
-              {beds.map((b) => (
-                <button
-                  key={b.id}
-                  disabled={b.status !== "available"}
-                  onClick={() => setBedId(b.id)}
-                  className={`flex flex-col items-center gap-1 rounded-md border px-4 py-2 text-sm disabled:opacity-40 ${bedId === b.id ? "border-primary bg-primary/5" : "border-border"}`}>
+              {availableBeds.map((b) => (
+                <button key={b.id} onClick={() => setBedId(b.id)} className={`flex flex-col items-center gap-1 rounded-md border px-4 py-2 text-sm ${bedId === b.id ? "border-primary bg-primary/5" : "border-border"}`}>
                   <BedDouble className="size-4 text-muted-foreground" />
-                  <span className="font-medium text-foreground">
-                    Bed {b.position}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {b.status}
-                  </span>
+                  <span className="font-medium text-foreground">Bed {b.bedNumber}</span>
                 </button>
               ))}
+              {availableBeds.length === 0 && <p className="text-sm text-muted-foreground">No available beds in this room.</p>}
             </div>
           </div>
         )}
         {step === 5 && (
           <div className="flex flex-col gap-sm text-sm">
-            <Row
-              label="Student"
-              value={
-                student
-                  ? `${student.profile.firstName} ${student.profile.lastName}`
-                  : "—"
-              }
-            />
-            <Row
-              label="Building"
-              value={
-                db.hostelBuildings.find((b) => b.id === buildingId)?.name ?? "—"
-              }
-            />
+            <Row label="Student" value={student?.fullName ?? "—"} />
+            <Row label="Hostel" value={hostel?.name ?? "—"} />
             <Row label="Room" value={room?.roomNumber ?? "—"} />
-            <Row label="Bed" value={bed?.position ?? "—"} />
+            <Row label="Bed" value={bed?.bedNumber ?? "—"} />
             <p className="rounded-md bg-surface-secondary/50 p-sm text-xs text-muted-foreground">
-              The system prevents double bed allocation, blocked/maintenance
-              beds and duplicate active allocations.
+              The system prevents double bed allocation and duplicate active allocations under real database constraints.
             </p>
           </div>
         )}
       </div>
 
       <div className="flex justify-between gap-sm">
-        {step > 0 ? (
-          <Button variant="outline" onClick={() => setStep((s) => s - 1)}>
-            <ChevronLeft className="size-4" /> Back
-          </Button>
-        ) : (
-          <span />
-        )}
+        {step > 0 ? <Button variant="outline" onClick={() => setStep((s) => s - 1)}><ChevronLeft className="size-4" /> Back</Button> : <span />}
         {step < steps.length - 1 ? (
-          <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
-            Next <ChevronRight className="size-4" />
-          </Button>
+          <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext}>Next <ChevronRight className="size-4" /></Button>
         ) : (
-          <Button onClick={confirm}>
-            <Check className="size-4" /> Confirm allocation
-          </Button>
+          <Button onClick={confirm}><Check className="size-4" /> Confirm allocation</Button>
         )}
       </div>
     </div>

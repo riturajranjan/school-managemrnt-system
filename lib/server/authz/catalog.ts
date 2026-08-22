@@ -149,6 +149,15 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "assets.view", module: "assets", action: "view", description: "View the asset register, assignments and maintenance" },
   { key: "assets.manage", module: "assets", action: "manage", description: "Manage assets, assignments, status and maintenance" },
 
+  // Phase 9Q — Hostel Management. No real "warden"/"hostel manager" DB role
+  // exists, so — matching the Inventory/Assets/Visitor precedent — these are
+  // granted to SCHOOL_ADMIN (full) / PRINCIPAL (view, oversight) rather than
+  // inventing a new role. Allocate/transfer/vacate/roll-call all fold into
+  // hostel.manage (same compose-from-fewer-keys philosophy as the rest of
+  // this catalog).
+  { key: "hostel.view", module: "hostel", action: "view", description: "View hostels, rooms, beds, residents and roll call" },
+  { key: "hostel.manage", module: "hostel", action: "manage", description: "Manage hostels/rooms/beds, allocate/transfer/vacate residents, assign wardens, mark roll call" },
+
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
 
@@ -271,6 +280,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "library.view",
     "inventory.view", "inventory.manage",
     "assets.view", "assets.manage",
+    "hostel.view", "hostel.manage",
     "hr.view",
     "communication.view", "communication.send",
     "documents.view", "documents.manage",
@@ -300,6 +310,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "visitors.view",
     "inventory.view",
     "assets.view",
+    "hostel.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",

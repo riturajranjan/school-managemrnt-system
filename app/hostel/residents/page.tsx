@@ -1,5 +1,7 @@
 "use client";
 
+// Residents (Phase 9Q) — real PostgreSQL/API cutover. "Tonight" status is the
+// real roll call (NOT academic Attendance) for today's date.
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Search, UsersRound } from "lucide-react";
@@ -10,39 +12,44 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { useHostelAssignments, useHostelRollCall, useHostels } from "@/lib/hooks/api/use-hostel-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { hostelAttendanceStatusLabels, hostelAttendanceStatusTone, type HostelAllocation } from "@/lib/types/hostel";
+import type { HostelAssignmentDto, HostelRollCallStatusDto } from "@/lib/api/contracts";
+
+const rollCallTone: Record<HostelRollCallStatusDto, "success" | "warning" | "error" | "info" | "neutral"> = {
+  present: "success", absent: "error", on_leave: "info", "not-marked": "neutral",
+};
+const rollCallLabel: Record<HostelRollCallStatusDto, string> = {
+  present: "Present", absent: "Absent", on_leave: "On leave", "not-marked": "Not checked in",
+};
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function ResidentsPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [query, setQuery] = useState("");
-  const [building, setBuilding] = useState("all");
-  const today = new Date().toISOString().slice(0, 10);
+  const [hostelId, setHostelId] = useState("all");
 
-  const active = db.hostelAllocations.filter((a) => a.status === "active");
-  const student = (id: string) => db.students.find((s) => s.id === id);
-  const roomOf = (id: string) => db.hostelRooms.find((r) => r.id === id);
-  const buildingOf = (id: string) => db.hostelBuildings.find((b) => b.id === id);
-  const attStatus = (sid: string) => db.hostelAttendance.find((a) => a.studentId === sid && a.date === today)?.status ?? "not-checked-in";
+  const { data: active } = useHostelAssignments({ status: "active", hostelId: hostelId === "all" ? undefined : hostelId });
+  const { data: hostels } = useHostels();
+  const { data: rollCall } = useHostelRollCall(today());
+  const rollCallByStudent = new Map(rollCall.map((r) => [r.studentId, r.status]));
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return active
-      .filter((a) => (building === "all" ? true : a.buildingId === building))
-      .filter((a) => { if (!q) return true; const s = student(a.studentId); return s ? `${s.profile.firstName} ${s.profile.lastName}`.toLowerCase().includes(q) || s.admissionNumber.toLowerCase().includes(q) : false; });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, query, building]);
+    return active.filter((a) => (q ? a.studentName.toLowerCase().includes(q) || a.admissionNumber.toLowerCase().includes(q) : true));
+  }, [active, query]);
 
-  if (!can("hostel.view")) return <PermissionDenied action="view residents" role={roleLabels[role]} backHref="/hostel" />;
+  if (!capabilitiesLoading && !hasServerPermission("hostel.view")) return <PermissionDenied action="view residents" role={roleLabels[role]} backHref="/hostel" />;
 
-  const columns: ColumnDef<HostelAllocation>[] = [
-    { id: "student", header: "Resident", alwaysVisible: true, cell: (a) => { const s = student(a.studentId); return (
-      <Link href={`/hostel/residents/${a.studentId}`} className="min-w-0"><p className="truncate text-sm font-medium text-foreground hover:underline">{s ? `${s.profile.firstName} ${s.profile.lastName}` : a.studentId}</p><p className="truncate text-xs text-muted-foreground">{s?.admissionNumber} · {s?.classId}</p></Link>
-    ); } },
-    { id: "room", header: "Room", cell: (a) => { const r = roomOf(a.roomId); return <span className="text-sm text-muted-foreground">{buildingOf(a.buildingId)?.code} · {r?.roomNumber} · Bed {db.hostelBeds.find((b) => b.id === a.bedId)?.position}</span>; } },
-    { id: "attendance", header: "Tonight", align: "right", cell: (a) => { const st = attStatus(a.studentId); return <Badge tone={hostelAttendanceStatusTone[st]}>{hostelAttendanceStatusLabels[st]}</Badge>; } },
+  const columns: ColumnDef<HostelAssignmentDto>[] = [
+    { id: "student", header: "Resident", alwaysVisible: true, cell: (a) => (
+      <Link href={`/hostel/residents/${a.studentId}`} className="min-w-0"><p className="truncate text-sm font-medium text-foreground hover:underline">{a.studentName}</p><p className="truncate text-xs text-muted-foreground">{a.admissionNumber}</p></Link>
+    ) },
+    { id: "room", header: "Room", cell: (a) => <span className="text-sm text-muted-foreground">{a.hostelName} · {a.roomNumber} · Bed {a.bedNumber}</span> },
+    { id: "tonight", header: "Tonight", align: "right", cell: (a) => { const st = rollCallByStudent.get(a.studentId) ?? "not-marked"; return <Badge tone={rollCallTone[st]}>{rollCallLabel[st]}</Badge>; } },
   ];
 
   return (
@@ -56,16 +63,16 @@ export default function ResidentsPage() {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name or admission no…" className="pl-8" aria-label="Search residents" />
         </div>
-        <Select value={building} onValueChange={setBuilding}>
-          <SelectTrigger className="w-44" aria-label="Building"><SelectValue placeholder="Building" /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All buildings</SelectItem>{db.hostelBuildings.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+        <Select value={hostelId} onValueChange={setHostelId}>
+          <SelectTrigger className="w-44" aria-label="Hostel"><SelectValue placeholder="Hostel" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All hostels</SelectItem>{hostels.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
         </Select>
       </div>
-      <DataTable columns={columns} rows={rows} getRowId={(a) => a.id} caption="Residents" isFiltered={query.trim() !== "" || building !== "all"} emptyIcon={UsersRound} emptyTitle="No residents found"
-        renderMobileCard={(a) => { const s = student(a.studentId); const r = roomOf(a.roomId); const st = attStatus(a.studentId); return (
+      <DataTable columns={columns} rows={rows} getRowId={(a) => a.id} caption="Residents" isFiltered={query.trim() !== "" || hostelId !== "all"} emptyIcon={UsersRound} emptyTitle="No residents found"
+        renderMobileCard={(a) => { const st = rollCallByStudent.get(a.studentId) ?? "not-marked"; return (
           <Link href={`/hostel/residents/${a.studentId}`} className="surface-3d flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm">
-            <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{s ? `${s.profile.firstName} ${s.profile.lastName}` : a.studentId}</p><p className="truncate text-xs text-muted-foreground">{buildingOf(a.buildingId)?.code} · {r?.roomNumber}</p></div>
-            <Badge tone={hostelAttendanceStatusTone[st]}>{hostelAttendanceStatusLabels[st]}</Badge>
+            <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{a.studentName}</p><p className="truncate text-xs text-muted-foreground">{a.hostelName} · {a.roomNumber}</p></div>
+            <Badge tone={rollCallTone[st]}>{rollCallLabel[st]}</Badge>
           </Link>
         ); }}
       />

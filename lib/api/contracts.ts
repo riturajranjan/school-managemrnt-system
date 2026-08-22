@@ -2958,3 +2958,147 @@ export type HrDashboardDto = {
   notMarkedToday: number;
   newHiresThisMonth: number; // real Staff.joiningDate within the current calendar month
 };
+
+// ── Phase 9Q: Hostel Management. Hostel student identity always resolves to
+// real Student.id; warden identity always resolves to real Staff.id. Room
+// capacity is never a stored field (always `count(beds)`); occupancy is
+// always derived from the active-assignment invariant, never a persisted
+// counter. No Block/Floor entity — `floorNumber` is a plain field on Room. ─
+
+export type HostelGenderPolicyDto = "boys" | "girls" | "mixed";
+export type HostelMasterStatusDto = "active" | "maintenance" | "archived";
+
+export type HostelDto = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  genderPolicy: HostelGenderPolicyDto | null;
+  status: HostelMasterStatusDto;
+  roomCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateHostelRequest = { code: string; name: string; description?: string; genderPolicy?: HostelGenderPolicyDto };
+export type UpdateHostelRequest = { name?: string; description?: string | null; genderPolicy?: HostelGenderPolicyDto | null; status?: HostelMasterStatusDto };
+
+export type HostelRoomDto = {
+  id: string;
+  hostelId: string;
+  hostelName: string;
+  roomNumber: string;
+  floorNumber: number | null;
+  roomType: string | null;
+  facilities: string[];
+  notes: string | null;
+  status: HostelMasterStatusDto;
+  totalBeds: number; // == capacity — always derived, never a stored field
+  activeBeds: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateHostelRoomRequest = { hostelId: string; roomNumber: string; floorNumber?: number; roomType?: string; facilities?: string[]; notes?: string; capacity: number };
+export type UpdateHostelRoomRequest = { floorNumber?: number | null; roomType?: string | null; facilities?: string[]; notes?: string | null; status?: HostelMasterStatusDto };
+
+export type HostelBedDto = {
+  id: string;
+  roomId: string;
+  roomNumber: string;
+  hostelId: string;
+  hostelName: string;
+  bedNumber: string;
+  status: HostelMasterStatusDto;
+  occupied: boolean; // always derived from an active StudentHostelAssignment
+  occupantStudentId: string | null;
+  occupantName: string | null; // resolved live from Student — never a stored snapshot
+  createdAt: string;
+  updatedAt: string;
+};
+export type SetHostelBedStatusRequest = { status: HostelMasterStatusDto };
+
+export type HostelAssignmentStatusDto = "active" | "vacated" | "transferred";
+
+export type HostelAssignmentDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  hostelId: string;
+  hostelName: string;
+  roomId: string;
+  roomNumber: string;
+  bedId: string;
+  bedNumber: string;
+  academicSessionId: string;
+  assignedAt: string;
+  vacatedAt: string | null;
+  status: HostelAssignmentStatusDto;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type AssignHostelStudentRequest = { studentId: string; bedId: string; notes?: string };
+export type TransferHostelAssignmentRequest = { toBedId: string; notes?: string };
+
+export type HostelStaffRoleDto = "warden" | "assistant_warden";
+export type HostelStaffAssignmentStatusDto = "active" | "ended";
+
+export type HostelStaffAssignmentDto = {
+  id: string;
+  hostelId: string;
+  hostelName: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  role: HostelStaffRoleDto;
+  status: HostelStaffAssignmentStatusDto;
+  assignedAt: string;
+  endedAt: string | null;
+  createdAt: string;
+};
+export type AssignHostelStaffRequest = { hostelId: string; staffId: string; role?: HostelStaffRoleDto };
+
+export type HostelRollCallStatusDto = "present" | "absent" | "on_leave" | "not-marked";
+
+export type HostelRollCallEntryDto = {
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  hostelId: string;
+  hostelName: string;
+  roomNumber: string;
+  bedNumber: string;
+  status: HostelRollCallStatusDto;
+  recordId: string | null;
+  notes: string | null;
+};
+export type MarkHostelRollCallRequest = { studentId: string; date: string; status: "present" | "absent" | "on_leave"; notes?: string };
+
+/** Hostel Dashboard — DB-derived only. No fabricated fee collection/meal
+ * satisfaction/parent approval/security score/complaint SLA. */
+export type HostelDashboardDto = {
+  totalHostels: number;
+  totalRooms: number;
+  roomsInMaintenance: number;
+  totalBeds: number;
+  activeBeds: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  occupancyPct: number;
+  activeResidents: number;
+  presentTonight: number;
+  onLeaveTonight: number;
+  notMarkedTonight: number;
+};
+
+/** Student 360 Hostel tab — real current assignment + history, never a fake
+ * fee balance. */
+export type StudentHostelProfileDto = {
+  current: {
+    id: string; hostelName: string; roomNumber: string; bedNumber: string;
+    assignedAt: string; vacatedAt: string | null; status: HostelAssignmentStatusDto; wardenName: string | null;
+  } | null;
+  history: { id: string; hostelName: string; roomNumber: string; bedNumber: string; assignedAt: string; vacatedAt: string | null; status: HostelAssignmentStatusDto }[];
+};

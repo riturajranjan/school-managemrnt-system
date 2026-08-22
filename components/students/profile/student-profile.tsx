@@ -29,12 +29,13 @@ import { useStudentAttendance } from "@/lib/hooks/api/use-attendance";
 import { useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
 import { useStudentTransportProfile } from "@/lib/hooks/api/use-transport-api";
 import { useStudentLibraryProfile } from "@/lib/hooks/api/use-library-api";
+import { useStudentHostelProfile } from "@/lib/hooks/api/use-hostel-api";
 import type { StudentDetailDto } from "@/lib/api/contracts";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
 import { attendanceStatusLabels, attendanceStatusTone, type AttendanceStatus } from "@/lib/types/attendance";
 import { formatCurrency, initialsOf } from "@/lib/utils";
 
-const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library"]);
+const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
   const { can } = usePermissions();
@@ -73,6 +74,7 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
           <TabsTrigger value="fees">Fees</TabsTrigger>
           <TabsTrigger value="transport">Transport</TabsTrigger>
           <TabsTrigger value="library">Library</TabsTrigger>
+          <TabsTrigger value="hostel">Hostel</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
 
@@ -96,6 +98,9 @@ export function StudentProfile({ studentId, initialTab = "overview" }: { student
         </TabsContent>
         <TabsContent value="library" className="mt-md">
           <LibrarySection studentId={student.id} />
+        </TabsContent>
+        <TabsContent value="hostel" className="mt-md">
+          <HostelSection studentId={student.id} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-md">
           <TimelineSection student={student} />
@@ -563,6 +568,46 @@ function LibrarySection({ studentId }: { studentId: string }) {
             </li>
           ))}
           {data.recentHistory.length === 0 && <p className="text-sm text-muted-foreground">No return history yet.</p>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// Real PostgreSQL/API cutover (Phase 9Q) — reads GET /api/students/[id]/hostel.
+function HostelSection({ studentId }: { studentId: string }) {
+  const { data, loading, error } = useStudentHostelProfile(studentId);
+
+  if (loading) return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Loading hostel…</p>;
+  if (error) return <p className="rounded-lg border border-error/30 bg-error/10 p-sm text-xs text-error">{error}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">Current allocation</h2>
+        {!data.current ? (
+          <p className="text-sm text-muted-foreground">Not currently allocated to a hostel.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-sm sm:grid-cols-3">
+            <Field label="Hostel" value={data.current.hostelName} />
+            <Field label="Room" value={data.current.roomNumber} />
+            <Field label="Bed" value={data.current.bedNumber} />
+            <Field label="Warden" value={data.current.wardenName ?? undefined} />
+            <Field label="Since" value={new Date(data.current.assignedAt).toLocaleDateString("en-IN")} />
+          </div>
+        )}
+      </div>
+      <div className="rounded-lg border border-border p-sm">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">History</h2>
+        <ul className="flex flex-col gap-sm">
+          {data.history.map((h) => (
+            <li key={h.id} className="flex items-center justify-between gap-sm border-b border-border pb-sm text-sm last:border-0 last:pb-0">
+              <p className="truncate text-foreground">{h.hostelName} · Room {h.roomNumber} · Bed {h.bedNumber}</p>
+              <Badge tone={h.status === "transferred" ? "info" : "neutral"}>{h.status}</Badge>
+            </li>
+          ))}
+          {data.history.length === 0 && <p className="text-sm text-muted-foreground">No past allocations.</p>}
         </ul>
       </div>
     </div>
