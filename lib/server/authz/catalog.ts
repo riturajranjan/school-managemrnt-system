@@ -191,6 +191,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "cafeteria.manage", module: "cafeteria", action: "manage", description: "Manage cafeteria locations, items, and menus" },
   { key: "cafeteria.serve", module: "cafeteria", action: "serve", description: "Record meal service to a real Student or Staff" },
 
+  // Phase 9U — Activities/Student Life (clubs, coordinators, memberships,
+  // events, participation). No confidentiality tier needed (unlike Health/
+  // Counseling) — activity membership/participation is not sensitive data.
+  { key: "activities.view", module: "activities", action: "view", description: "View activities, memberships, and events" },
+  { key: "activities.manage", module: "activities", action: "manage", description: "Manage activities, coordinators, memberships, and events" },
+
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
 
@@ -317,6 +323,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "health.view", "health.viewSensitive", "health.manage",
     "counseling.view",
     "cafeteria.view",
+    "activities.view",
     "hr.view",
     "communication.view", "communication.send",
     "documents.view", "documents.manage",
@@ -350,6 +357,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "health.view",
     "counseling.view",
     "cafeteria.view",
+    "activities.view",
     "communication.view", "communication.send",
     "documents.view",
     "settings.view",
@@ -385,6 +393,12 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   // Phase 9T — mirrors the LIBRARIAN/TRANSPORT_MANAGER/COUNSELOR precedent:
   // SCHOOL_ADMIN gets view only, the dedicated specialist role gets manage.
   CAFETERIA_MANAGER: ["dashboard.view", "students.view", "cafeteria.view", "cafeteria.manage", "cafeteria.serve"],
+  // Phase 9U — same precedent: SCHOOL_ADMIN/PRINCIPAL get view only, the
+  // dedicated specialist role gets manage. No ownership-restriction tier
+  // (unlike COUNSELOR) — activities data isn't confidential, so any
+  // activities.manage holder may manage any activity, matching the Hostel/
+  // Library/Cafeteria "broad specialist access" pattern.
+  ACTIVITY_COORDINATOR: ["dashboard.view", "students.view", "activities.view", "activities.manage"],
 };
 
 // ---------------------------------------------------------------------------
@@ -494,6 +508,7 @@ export const DB_ROLE_TO_UI: Record<string, string> = {
   HR_ADMIN: "hr-manager",
   COUNSELOR: "counsellor",
   CAFETERIA_MANAGER: "cafeteria-manager",
+  ACTIVITY_COORDINATOR: "activities-coordinator",
 };
 export const PLATFORM_UI_ROLE = "super-admin";
 

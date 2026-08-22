@@ -1,5 +1,7 @@
 "use client";
 
+// Event calendar (Phase 9U) — real ActivityEvent rows (the same source
+// derived live into the Phase 9D Calendar). No second mock event calendar.
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, List, Rows3 } from "lucide-react";
@@ -7,28 +9,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useSisStore } from "@/lib/hooks/use-store";
+import { useActivityEvents } from "@/lib/hooks/api/use-activities-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { eventCategoryLabels, eventStageLabels, eventStageTone } from "@/lib/types/activities";
 import { formatDate } from "@/lib/utils";
 
 type View = "month" | "agenda" | "timeline";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const statusTone = { draft: "neutral", published: "info", completed: "success", cancelled: "error" } as const;
 
 export default function EventCalendarPage() {
-  const db = useSisStore();
-  const { can, role } = usePermissions();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [view, setView] = useState<View>("month");
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
+  const { data: allEvents } = useActivityEvents({});
 
-  const events = useMemo(() => db.schoolEvents.filter((e) => e.stage !== "cancelled"), [db.schoolEvents]);
+  const events = useMemo(() => allEvents.filter((e) => e.status !== "cancelled"), [allEvents]);
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof events>();
-    for (const e of events) { const arr = map.get(e.startDate) ?? []; arr.push(e); map.set(e.startDate, arr); }
+    for (const e of events) { const key = e.startAt.slice(0, 10); const arr = map.get(key) ?? []; arr.push(e); map.set(key, arr); }
     return map;
   }, [events]);
 
-  if (!can("activities.view")) return <PermissionDenied action="view the event calendar" role={roleLabels[role]} backHref="/activities" />;
+  if (!capabilitiesLoading && !hasServerPermission("activities.view")) return <PermissionDenied action="view the event calendar" role={roleLabels[role]} backHref="/activities" />;
 
   const firstDay = new Date(cursor.year, cursor.month, 1);
   const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
@@ -40,7 +42,7 @@ export default function EventCalendarPage() {
   const dateStr = (day: number) => `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const shift = (delta: number) => setCursor((c) => { const m = c.month + delta; return { year: c.year + Math.floor(m / 12), month: ((m % 12) + 12) % 12 }; });
 
-  const upcoming = [...events].filter((e) => e.startDate >= todayStr).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const upcoming = [...events].filter((e) => e.startAt.slice(0, 10) >= todayStr).sort((a, b) => a.startAt.localeCompare(b.startAt));
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -84,8 +86,8 @@ export default function EventCalendarPage() {
         <div className="flex flex-col gap-sm">
           {upcoming.map((e) => (
             <Link key={e.id} href={`/activities/events/${e.id}`} className="flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm text-sm transition hover:border-primary/40">
-              <div className="flex items-center gap-sm"><div className="flex flex-col items-center rounded-md bg-surface-secondary px-2 py-1"><span className="text-xs font-bold text-foreground">{new Date(e.startDate).getDate()}</span><span className="text-[10px] uppercase text-muted-foreground">{new Date(e.startDate).toLocaleString("en-US", { month: "short" })}</span></div><div className="min-w-0"><p className="truncate font-medium text-foreground">{e.title}</p><p className="truncate text-xs text-muted-foreground">{eventCategoryLabels[e.category]} · {e.startTime} · {e.venue}</p></div></div>
-              <Badge tone={eventStageTone[e.stage]}>{eventStageLabels[e.stage]}</Badge>
+              <div className="flex items-center gap-sm"><div className="flex flex-col items-center rounded-md bg-surface-secondary px-2 py-1"><span className="text-xs font-bold text-foreground">{new Date(e.startAt).getDate()}</span><span className="text-[10px] uppercase text-muted-foreground">{new Date(e.startAt).toLocaleString("en-US", { month: "short" })}</span></div><div className="min-w-0"><p className="truncate font-medium text-foreground">{e.title}</p><p className="truncate text-xs text-muted-foreground">{e.activityName}{e.location ? ` · ${e.location}` : ""}</p></div></div>
+              <Badge tone={statusTone[e.status]}>{e.status}</Badge>
             </Link>
           ))}
           {upcoming.length === 0 && <div className="rounded-lg border border-dashed border-border p-2xl text-center text-sm text-muted-foreground">No upcoming events.</div>}
@@ -98,9 +100,9 @@ export default function EventCalendarPage() {
             {upcoming.map((e) => (
               <div key={e.id} className="relative pb-md">
                 <span className="absolute -left-[21px] top-1 size-3 rounded-full border-2 border-surface" style={{ backgroundColor: "var(--color-primary, #18b0c8)" }} />
-                <p className="text-xs font-medium text-muted-foreground">{formatDate(e.startDate)}</p>
+                <p className="text-xs font-medium text-muted-foreground">{formatDate(e.startAt)}</p>
                 <Link href={`/activities/events/${e.id}`} className="text-sm font-medium text-foreground hover:text-primary">{e.title}</Link>
-                <p className="text-xs text-muted-foreground">{eventCategoryLabels[e.category]} · {e.venue}</p>
+                <p className="text-xs text-muted-foreground">{e.activityName}{e.location ? ` · ${e.location}` : ""}</p>
               </div>
             ))}
             {upcoming.length === 0 && <p className="text-sm text-muted-foreground">No upcoming events.</p>}

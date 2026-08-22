@@ -73,7 +73,7 @@ export async function listCalendarEvents(scope: OrgScope, raw: unknown): Promise
   const end = startOfLocalDay(parseDate(input.to));
   if (start > end) throw new HttpError("VALIDATION_ERROR", "`from` must not be after `to`");
 
-  const [manual, examEntries, homeworkRows, lessonPlanRows] = await Promise.all([
+  const [manual, examEntries, homeworkRows, lessonPlanRows, activityEventRows] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: { schoolId: scope.schoolId, academicSessionId: sessionId, status: "ACTIVE", ...(scope.branchId ? { OR: [{ branchId: null }, { branchId: scope.branchId }] } : {}) },
       select: { id: true, title: true, description: true, eventType: true, audience: true, startDate: true, endDate: true, allDay: true, recurrence: true, recurrenceUntil: true, location: true, createdByName: true },
@@ -89,6 +89,14 @@ export async function listCalendarEvents(scope: OrgScope, raw: unknown): Promise
     prisma.lessonPlan.findMany({
       where: { schoolId: scope.schoolId, academicSessionId: sessionId, status: { in: ["APPROVED", "COMPLETED"] }, plannedDate: { gte: start, lte: end } },
       select: { id: true, title: true, plannedDate: true, subject: { select: { name: true } } },
+    }),
+    // Phase 9U — Activities. Only PUBLISHED events are derived into the
+    // calendar (DRAFT isn't public yet, COMPLETED/CANCELLED are past/moot).
+    // Never a duplicately-stored CalendarEvent — computed live, same as
+    // exam/homework/lesson-plan above.
+    prisma.activityEvent.findMany({
+      where: { schoolId: scope.schoolId, academicSessionId: sessionId, status: "PUBLISHED", startAt: { gte: start, lte: end } },
+      select: { id: true, title: true, startAt: true, location: true, activity: { select: { name: true } } },
     }),
   ]);
 
@@ -128,6 +136,13 @@ export async function listCalendarEvents(scope: OrgScope, raw: unknown): Promise
       id: `lesson-plan:${l.id}`, sourceType: "lesson-plan", sourceId: l.id,
       title: `${l.subject.name} — ${l.title}`, description: null, type: "activity", audience: "teachers",
       startDate: dateToUi(l.plannedDate), endDate: null, allDay: true, recurring: "none", location: null, createdBy: null, editable: false,
+    });
+  }
+  for (const a of activityEventRows) {
+    out.push({
+      id: `activity-event:${a.id}`, sourceType: "activity-event", sourceId: a.id,
+      title: `${a.activity.name} — ${a.title}`, description: null, type: "activity", audience: "all",
+      startDate: dateToUi(a.startAt), endDate: null, allDay: false, recurring: "none", location: a.location, createdBy: null, editable: false,
     });
   }
 

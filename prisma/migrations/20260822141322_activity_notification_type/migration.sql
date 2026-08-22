@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "NotificationType" ADD VALUE 'ACTIVITY_STAFF_ASSIGNED';

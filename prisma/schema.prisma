@@ -683,27 +683,30 @@ model Student {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
-  guardians             StudentGuardian[]
-  documents             StudentDocument[]
-  timeline              StudentTimelineEvent[]
-  enrollments           Enrollment[] // Phase 6-pre — real class/section enrollment
-  attendanceRecords     AttendanceRecord[] // Phase 5 — attendance
-  examMarks             ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
-  examResults           StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
-  promotions            StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
-  feeAssignments        StudentFeeAssignment[] // Phase 9F — fee billing
-  transportAssignments  StudentTransportAssignment[] // Phase 9M — transport
-  transportTripRecords  TransportTripStudent[] // Phase 9M — per-trip boarding/drop
-  feeCharges            FeeCharge[] // Phase 9F — billable fee items
-  libraryLoans          LibraryLoan[] // Phase 9N — library circulation
-  feePayments           FeePayment[] // Phase 9F — fee collections
-  inventoryIssues       InventoryIssue[] // Phase 9O — consumable issues to this student
-  hostelAssignments     StudentHostelAssignment[] // Phase 9Q — hostel bed allocation history
-  hostelRollCallRecords HostelRollCallRecord[] // Phase 9Q — nightly hostel roll call
-  healthProfile         HealthProfile? // Phase 9R — factual health profile
-  healthVisits          HealthVisit[] // Phase 9R — infirmary visit history
-  counselingCases       CounselingCase[] // Phase 9S — counseling case history (confidential domain)
-  cafeteriaMealRecords  CafeteriaMealRecord[] // Phase 9T — meal service history
+  guardians              StudentGuardian[]
+  documents              StudentDocument[]
+  timeline               StudentTimelineEvent[]
+  enrollments            Enrollment[] // Phase 6-pre — real class/section enrollment
+  attendanceRecords      AttendanceRecord[] // Phase 5 — attendance
+  examMarks              ExamMark[] // Phase 8B — marks entry (Restrict: a marked student can't be hard-deleted)
+  examResults            StudentExamResult[] // Phase 8C — published result snapshots (Restrict)
+  promotions             StudentPromotion[] // Phase 8E — promotion/retention decisions (Restrict)
+  feeAssignments         StudentFeeAssignment[] // Phase 9F — fee billing
+  transportAssignments   StudentTransportAssignment[] // Phase 9M — transport
+  transportTripRecords   TransportTripStudent[] // Phase 9M — per-trip boarding/drop
+  feeCharges             FeeCharge[] // Phase 9F — billable fee items
+  libraryLoans           LibraryLoan[] // Phase 9N — library circulation
+  feePayments            FeePayment[] // Phase 9F — fee collections
+  inventoryIssues        InventoryIssue[] // Phase 9O — consumable issues to this student
+  hostelAssignments      StudentHostelAssignment[] // Phase 9Q — hostel bed allocation history
+  hostelRollCallRecords  HostelRollCallRecord[] // Phase 9Q — nightly hostel roll call
+  healthProfile          HealthProfile? // Phase 9R — factual health profile
+  healthVisits           HealthVisit[] // Phase 9R — infirmary visit history
+  counselingCases        CounselingCase[] // Phase 9S — counseling case history (confidential domain)
+  cafeteriaMealRecords   CafeteriaMealRecord[] // Phase 9T — meal service history
+  activityMemberships    ActivityStudentMembership[] // Phase 9U — club/activity membership history
+  activityParticipations ActivityEventParticipant[] // Phase 9U — event registration/attendance
+  achievements           StudentAchievement[] // Phase 9U — factual achievement records
 
   // Admission number is unique within a school.
   @@unique([schoolId, admissionNumber])
@@ -2102,6 +2105,7 @@ model Staff {
   counselingCasesAssigned            CounselingCase[]                 @relation("CounselingCaseCounselor") // Phase 9S — cases where this Staff member is the assigned counselor
   counselingSessionsConducted        CounselingSession[]              @relation("CounselingSessionCounselor") // Phase 9S
   cafeteriaMealRecordsAsConsumer     CafeteriaMealRecord[]            @relation("CafeteriaMealStaffConsumer") // Phase 9T
+  activityStaffAssignments           ActivityStaffAssignment[] // Phase 9U — coordinator/coach/mentor assignments
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3201,6 +3205,7 @@ enum NotificationType {
   ASSET_ASSIGNED
   ASSET_RETURNED
   COUNSELING_CASE_ASSIGNED
+  ACTIVITY_STAFF_ASSIGNED
 }
 
 model Notification {
@@ -6204,4 +6209,248 @@ model CafeteriaMealRecord {
   @@unique([menuId, staffId])
   @@index([schoolId, branchId, servedAt])
   @@map("cafeteria_meal_records")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9U: Activities / Student Life. A member is always a real, active
+// Student.id; a coordinator/coach/mentor is always a real, active Staff.id —
+// never a parallel identity. Event participation is deliberately NOT
+// academic Attendance — a fully separate operational fact via
+// ActivityEventParticipant. No scoring/ranking/certificates/house-points
+// engine is modeled here — Houses, Sports fixtures/tournaments,
+// Competitions, Achiev ­ements-scoring, Awards, and Certificates all stay
+// honestly deferred (no real policy/infrastructure exists for any of them
+// yet); StudentAchievement below is the one small, explicitly-permitted
+// extension — a purely factual record, never a score or rank.
+// ---------------------------------------------------------------------------
+
+enum ActivityType {
+  CLUB
+  SPORT
+  CULTURAL
+  ACADEMIC
+  SERVICE
+  OTHER
+}
+
+enum ActivityStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model Activity {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code        String
+  name        String
+  type        ActivityType
+  description String?
+  status      ActivityStatus @default(ACTIVE)
+  capacity    Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staffAssignments ActivityStaffAssignment[]
+  memberships      ActivityStudentMembership[]
+  events           ActivityEvent[]
+  achievements     StudentAchievement[]
+
+  @@unique([schoolId, code])
+  @@map("activities")
+}
+
+enum ActivityStaffRole {
+  COORDINATOR
+  COACH
+  MENTOR
+}
+
+enum ActivityStaffAssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
+/**
+ * Coordinator/coach/mentor for an Activity — always a real, active Staff.id.
+ * assign() is an upsert keyed on (activityId, staffId, role): reactivating a
+ * previously-ended assignment reuses the same row rather than requiring a
+ * partial-unique-index dance — no duplicate-assignment concurrency test is
+ * required by this phase (only Membership below has that requirement).
+ */
+model ActivityStaffAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  activityId String
+  staffId    String
+  role       ActivityStaffRole             @default(COORDINATOR)
+  status     ActivityStaffAssignmentStatus @default(ACTIVE)
+
+  assignedAt DateTime  @default(now()) @db.Timestamptz(6)
+  endedAt    DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  staff    Staff    @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@unique([activityId, staffId, role])
+  @@index([schoolId, activityId])
+  @@map("activity_staff_assignments")
+}
+
+enum ActivityMembershipStatus {
+  ACTIVE
+  ENDED
+}
+
+/**
+ * Real, session-scoped Student membership in an Activity. Append-only
+ * history — leaving an activity closes the row (status=ENDED, leftAt set),
+ * never deleted or rewritten. Concurrency-safe "one active membership per
+ * student per activity per session" via a partial unique index (Prisma
+ * cannot express `@@unique WHERE`, so this is a hand-written migration —
+ * see the sibling migration.sql), mirroring the Hostel/Health dual-guard
+ * pattern: a pre-check for a friendly error, backed by the real DB
+ * constraint for true concurrency safety.
+ */
+model ActivityStudentMembership {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  activityId String
+  studentId  String
+  status     ActivityMembershipStatus @default(ACTIVE)
+
+  joinedAt DateTime  @default(now()) @db.Timestamptz(6)
+  leftAt   DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, activityId])
+  @@index([studentId])
+  @@map("activity_student_memberships")
+}
+
+enum ActivityEventStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * A real Activity event. Lifecycle is deliberately minimal — DRAFT ->
+ * PUBLISHED -> COMPLETED, or PUBLISHED -> CANCELLED — replacing the old
+ * mock's invented 8-stage "journey" with tasks/budget, which this phase does
+ * not build (no real task-tracking/budget infrastructure was requested).
+ * PUBLISHED events are derived live into the real Calendar
+ * (lib/server/calendar/service.ts) — never a duplicately-stored CalendarEvent.
+ */
+model ActivityEvent {
+  id                String @id @default(cuid())
+  tenantId          String
+  schoolId          String
+  branchId          String
+  academicSessionId String
+
+  activityId  String
+  title       String
+  description String?
+  startAt     DateTime            @db.Timestamptz(6)
+  endAt       DateTime?
+  location    String?
+  status      ActivityEventStatus @default(DRAFT)
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  activity     Activity                   @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  participants ActivityEventParticipant[]
+
+  @@index([schoolId, branchId, startAt])
+  @@index([activityId])
+  @@map("activity_events")
+}
+
+enum ActivityParticipantStatus {
+  REGISTERED
+  ATTENDED
+  ABSENT
+  CANCELLED
+}
+
+/**
+ * A real Student's registration/attendance for one Activity event —
+ * deliberately NOT academic Attendance, a fully separate operational fact.
+ * Registration is open to any real, active Student in the school (no
+ * membership-only restriction is imposed — no real product policy defines
+ * one). One registration per student per event.
+ */
+model ActivityEventParticipant {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  eventId   String
+  studentId String
+  status    ActivityParticipantStatus @default(REGISTERED)
+
+  registeredAt DateTime  @default(now()) @db.Timestamptz(6)
+  attendedAt   DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  event   ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  student Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, studentId])
+  @@map("activity_event_participants")
+}
+
+/**
+ * A factual, manually-entered achievement record — never a score, rank, or
+ * auto-generated award. Optionally linked to the Activity it relates to.
+ */
+model StudentAchievement {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+
+  studentId  String
+  activityId String?
+
+  title       String
+  description String?
+  awardedAt   DateTime @db.Date
+
+  createdByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student  Student   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  activity Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, studentId])
+  @@map("student_achievements")
 }

@@ -513,6 +513,36 @@ const MIGRATED_FILES = [
   // components/students/profile/student-profile.tsx is already guarded above
   // (line ~193, added in an earlier phase) — its new Cafeteria tab is
   // covered by that existing entry.
+  // Phase 9U — Activities / Student Life. Real Activity/ActivityStaffAssignment/
+  // ActivityStudentMembership/ActivityEvent/ActivityEventParticipant/
+  // StudentAchievement via /api/activities/* (PostgreSQL). A member is always
+  // a real Student.id; a coordinator/coach/mentor is always a real, active
+  // Staff.id — never a parallel identity. Event participation
+  // (ActivityEventParticipant) is deliberately NOT academic Attendance. The
+  // mock's Club.facultyAdvisor/meetingSchedule/foundedYear/venue and
+  // Achievement.level/position/category/points had no real backing and were
+  // dropped, not fabricated — facultyAdvisor is replaced by coordinatorNames
+  // derived from real ActivityStaffAssignment -> Staff. The Activities hub's
+  // old "Campus Activity Pulse" gauge and "House standings" section are
+  // removed entirely (a fabricated composite engagement score and a
+  // still-mock House system respectively) — no schema field was added merely
+  // to preserve either. Houses, Sports teams/fixtures/tournaments,
+  // Competitions/scoring, Certificates, Consent, and Analytics stay fully
+  // mock — out of scope for this phase, no fabricated schema was added for
+  // any of them.
+  "app/activities/page.tsx",
+  "app/activities/clubs/page.tsx",
+  "app/activities/clubs/[id]/page.tsx",
+  "app/activities/events/page.tsx",
+  "app/activities/events/new/page.tsx",
+  "app/activities/events/[id]/page.tsx",
+  "app/activities/events/[id]/registrations/page.tsx",
+  "app/activities/events/[id]/attendance/page.tsx",
+  "app/activities/events/calendar/page.tsx",
+  "app/activities/achievements/page.tsx",
+  // components/students/profile/student-profile.tsx is already guarded above
+  // (line ~193, added in an earlier phase) — its new Activities tab is
+  // covered by that existing entry.
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -686,6 +716,17 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "toggleMenuAvailability", why: "mock menu-item-availability mutation (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-cafeteria-api's updateCafeteriaItemRequest)" },
   { marker: "services/campus-service", why: "mock Hostel-bed-allocation/Health/Counselling/Cafeteria mutation service — the hostel-allocation, health-visit/medication, setCounsellingStatus, and toggleMenuAvailability functions were all deleted (real now, Phase 9Q/9R/9S/9T); Leave/Complaints/Maintenance stay mock (deferred), placeOrder/setOrderStatus stay mock (deferred — no real ordering/payment identity exists) — real Hostel surfaces must use hooks/api/use-hostel-api, real Health surfaces must use hooks/api/use-health-api, real Counseling surfaces must use hooks/api/use-counseling-api, real Cafeteria surfaces must use hooks/api/use-cafeteria-api" },
   { marker: "selectors/campus-brief", why: "mock cross-domain (Hostel/Health/Cafeteria) summary selector, including healthSummary() — still consumed by the deferred Reports page and the campus-life hub, but real Hostel/Health surfaces must use hooks/api/use-hostel-api / hooks/api/use-health-api" },
+  // Phase 9U — Activities / Student Life mock authority (real surfaces must use hooks/api/use-activities-api).
+  { marker: "advanceEventStage", why: "mock event-journey-advance mutation (deleted — zero remaining consumers, dead import; real surfaces use publishActivityEventRequest/completeActivityEventRequest)" },
+  { marker: "setEventTaskStatus", why: "mock event-task mutation (deleted — zero remaining consumers, dead import; no EventTask model exists in the real domain)" },
+  { marker: "setRegistrationStatus", why: "mock event-registration-status mutation (deleted — zero remaining consumers, dead import; real surfaces use updateActivityParticipantRequest)" },
+  { marker: "markEventAttendance", why: "mock event-attendance mutation (deleted — zero remaining consumers, dead import; real surfaces use updateActivityParticipantRequest, deliberately NOT academic Attendance)" },
+  { marker: "joinClub", why: "mock club-membership-join mutation (deleted — zero remaining consumers, dead import; real surfaces use joinActivityRequest)" },
+  { marker: "setMembershipStatus", why: "mock club-membership-status mutation (deleted — zero remaining consumers, dead import; real surfaces use leaveActivityRequest)" },
+  { marker: "selectors/activity-pulse", why: "mock Campus Activity Pulse composite-score selector (deleted — zero remaining consumers, dead import; dropped from the hub per this phase's explicit ban on fabricated engagement scores)" },
+  { marker: 'hooks/use-activities"', why: "mock per-entity Activities hooks (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-activities-api)" },
+  { marker: "selectors/activities-brief", why: "mock activitiesSummary/houseStandings/studentParticipation selector — still consumed by the deferred Analytics/Houses/student-and-parent-activities pages, but real surfaces must use hooks/api/use-activities-api" },
+  { marker: "services/activities-service", why: "mock Event-Journey/Club/Sports/Competition/House-points/Certificate mutation service — setEventStage/registerForEvent still back the deferred Journey and student/parent self-service pages, but real surfaces must use hooks/api/use-activities-api" },
 ];
 
 function collectSources(dir: string): string[] {

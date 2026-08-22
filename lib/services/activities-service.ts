@@ -1,25 +1,27 @@
 import { getSnapshot, setState } from "@/lib/data/store";
 import type {
   Certificate,
-  ClubMembership,
   Competition,
   CompetitionParticipant,
   EventRegistration,
   EventStage,
-  EventTask,
   FixtureStatus,
   HousePointEntry,
   HousePointReason,
   RegistrationStatus,
-  SchoolEvent,
 } from "@/lib/types/activities";
-import { eventJourneyOrder } from "@/lib/types/activities";
 import { generateId } from "@/lib/utils";
 
 type Result = { ok: true } | { ok: false; error: string };
 
 // ---------------------------------------------------------------------------
 // Events & the Event Journey lifecycle
+//
+// The real Phase 9U ActivityEvent domain (lib/server/activities/events.ts)
+// replaced advanceEventStage/cancelEvent/createEvent/setEventTaskStatus —
+// their only production consumer (the old Event 360 page) was migrated onto
+// the real DRAFT/PUBLISHED/COMPLETED/CANCELLED lifecycle. setEventStage
+// stays: the deferred mock "Event Journey" sub-page still drives it.
 // ---------------------------------------------------------------------------
 
 export function setEventStage(eventId: string, stage: EventStage): Result {
@@ -28,67 +30,13 @@ export function setEventStage(eventId: string, stage: EventStage): Result {
   return { ok: true };
 }
 
-/** Advances an event to the next stage in the journey pipeline. Terminal
- * (archived) and cancelled events can't advance. */
-export function advanceEventStage(eventId: string): Result {
-  const db = getSnapshot();
-  const event = db.schoolEvents.find((e) => e.id === eventId);
-  if (!event) return { ok: false, error: "Event not found." };
-  if (event.stage === "cancelled") return { ok: false, error: "A cancelled event cannot be advanced." };
-  const idx = eventJourneyOrder.indexOf(event.stage);
-  if (idx < 0 || idx >= eventJourneyOrder.length - 1) return { ok: false, error: "Event is already at the final stage." };
-  return setEventStage(eventId, eventJourneyOrder[idx + 1]);
-}
-
-export function cancelEvent(eventId: string): Result {
-  return setEventStage(eventId, "cancelled");
-}
-
-export type EventDraft = { title: string; category: SchoolEvent["category"]; startDate: string; venue: string; description?: string };
-
-export function createEvent(draft: EventDraft): Result & { eventId?: string } {
-  if (!draft.title.trim()) return { ok: false, error: "Event title is required." };
-  if (!draft.startDate) return { ok: false, error: "A start date is required." };
-  const db = getSnapshot();
-  const now = new Date().toISOString();
-  const event: SchoolEvent = {
-    id: generateId("evt"),
-    title: draft.title.trim(),
-    code: `EVT-${String(db.schoolEvents.length + 1).padStart(3, "0")}`,
-    category: draft.category,
-    stage: "idea",
-    description: draft.description?.trim() || `${draft.title.trim()} — draft event.`,
-    startDate: draft.startDate,
-    endDate: draft.startDate,
-    startTime: "09:00",
-    endTime: "13:00",
-    allDay: false,
-    venue: draft.venue.trim() || "To be decided",
-    audience: ["all-school"],
-    organiserName: "Activities Office",
-    organiserRole: "Activities Coordinator",
-    coordinatorIds: [],
-    registrationMode: "none",
-    capacity: undefined,
-    registeredCount: 0,
-    attendedCount: 0,
-    houseLinked: false,
-    featured: false,
-    bannerTone: "info",
-    createdAt: now,
-    updatedAt: now,
-  };
-  setState((current) => ({ ...current, schoolEvents: [event, ...current.schoolEvents] }));
-  return { ok: true, eventId: event.id };
-}
-
-export function setEventTaskStatus(taskId: string, status: EventTask["status"]): Result {
-  setState((db) => ({ ...db, eventTasks: db.eventTasks.map((t) => (t.id === taskId ? { ...t, status } : t)) }));
-  return { ok: true };
-}
-
 // ---------------------------------------------------------------------------
 // Registration & attendance
+//
+// registerForEvent stays: the deferred mock student/parent self-service page
+// still drives it. setRegistrationStatus/markEventAttendance were only
+// consumed by the old mock registrations/attendance pages, now migrated onto
+// the real ActivityEventParticipant domain.
 // ---------------------------------------------------------------------------
 
 /** Registers a student for an event. Guards (in frontend state) against
@@ -111,50 +59,6 @@ export function registerForEvent(eventId: string, studentId: string, role: Event
     schoolEvents: current.schoolEvents.map((e) => (e.id === eventId && status !== "waitlisted" ? { ...e, registeredCount: e.registeredCount + 1 } : e)),
   }));
   return { ok: true, status };
-}
-
-export function setRegistrationStatus(registrationId: string, status: RegistrationStatus): Result {
-  setState((db) => ({ ...db, eventRegistrations: db.eventRegistrations.map((r) => (r.id === registrationId ? { ...r, status } : r)) }));
-  return { ok: true };
-}
-
-export function markEventAttendance(eventId: string, studentId: string, present: boolean): Result {
-  const db = getSnapshot();
-  const existing = db.eventAttendance.find((a) => a.eventId === eventId && a.studentId === studentId);
-  const now = new Date();
-  setState((current) => {
-    const next = existing
-      ? current.eventAttendance.map((a) => (a.id === existing.id ? { ...a, present, checkInTime: present ? now.toTimeString().slice(0, 5) : undefined } : a))
-      : [{ id: generateId("eatt"), eventId, studentId, present, checkInTime: present ? now.toTimeString().slice(0, 5) : undefined, method: "manual" as const }, ...current.eventAttendance];
-    return { ...current, eventAttendance: next };
-  });
-  return { ok: true };
-}
-
-// ---------------------------------------------------------------------------
-// Clubs
-// ---------------------------------------------------------------------------
-
-export function joinClub(clubId: string, studentId: string): Result {
-  const db = getSnapshot();
-  const club = db.clubs.find((c) => c.id === clubId);
-  if (!club) return { ok: false, error: "Club not found." };
-  if (db.clubMemberships.some((m) => m.clubId === clubId && m.studentId === studentId && m.status !== "alumni")) {
-    return { ok: false, error: "This student is already a member." };
-  }
-  if (club.memberCount >= club.capacity) return { ok: false, error: "This club is at full capacity." };
-  const membership: ClubMembership = { id: generateId("cm"), clubId, studentId, role: "member", joinedAt: new Date().toISOString().slice(0, 10), status: club.status === "recruiting" ? "active" : "pending" };
-  setState((current) => ({
-    ...current,
-    clubMemberships: [membership, ...current.clubMemberships],
-    clubs: current.clubs.map((c) => (c.id === clubId ? { ...c, memberCount: c.memberCount + 1 } : c)),
-  }));
-  return { ok: true };
-}
-
-export function setMembershipStatus(membershipId: string, status: ClubMembership["status"]): Result {
-  setState((db) => ({ ...db, clubMemberships: db.clubMemberships.map((m) => (m.id === membershipId ? { ...m, status } : m)) }));
-  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

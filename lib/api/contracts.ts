@@ -1701,7 +1701,7 @@ export type UpdateLessonPlanRequest = {
 export type CalendarEventTypeDto = "holiday" | "meeting" | "ptm" | "celebration" | "activity" | "deadline" | "other";
 export type CalendarAudienceDto = "all" | "teachers";
 export type CalendarRecurrenceDto = "none" | "weekly" | "yearly";
-export type CalendarSourceTypeDto = "manual" | "exam" | "homework" | "lesson-plan";
+export type CalendarSourceTypeDto = "manual" | "exam" | "homework" | "lesson-plan" | "activity-event";
 
 export type CalendarEventDto = {
   id: string;
@@ -1738,7 +1738,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned" | "counseling-case-assigned";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned" | "counseling-case-assigned" | "activity-staff-assigned";
 
 export type NotificationDto = {
   id: string;
@@ -3474,4 +3474,120 @@ export type CafeteriaDashboardDto = {
 /** Student 360 Cafeteria tab — recent real meal history only. */
 export type StudentCafeteriaProfileDto = {
   recentMeals: CafeteriaMealRecordDto[];
+};
+
+// ── Phase 9U: Activities / Student Life. A member is always a real Student.id;
+// a coordinator/coach/mentor is always a real Staff.id. Event participation is
+// deliberately NOT academic Attendance. No score/rank/certificate authority.
+
+export type ActivityTypeDto = "club" | "sport" | "cultural" | "academic" | "service" | "other";
+export type ActivityStatusDto = "active" | "inactive" | "archived";
+
+export type ActivityDto = {
+  id: string;
+  code: string;
+  name: string;
+  type: ActivityTypeDto;
+  description: string | null;
+  status: ActivityStatusDto;
+  capacity: number | null;
+  memberCount: number;
+  coordinatorNames: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateActivityRequest = { code: string; name: string; type: ActivityTypeDto; description?: string; capacity?: number };
+export type UpdateActivityRequest = { name?: string; description?: string | null; capacity?: number | null; status?: ActivityStatusDto };
+
+export type ActivityStaffRoleDto = "coordinator" | "coach" | "mentor";
+export type ActivityStaffAssignmentDto = {
+  id: string;
+  activityId: string;
+  staffId: string;
+  staffName: string;
+  role: ActivityStaffRoleDto;
+  status: "active" | "ended";
+  assignedAt: string;
+  endedAt: string | null;
+};
+export type AssignActivityStaffRequest = { staffId: string; role?: ActivityStaffRoleDto };
+
+export type ActivityMembershipStatusDto = "active" | "ended";
+export type ActivityMembershipDto = {
+  id: string;
+  activityId: string;
+  activityName: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  status: ActivityMembershipStatusDto;
+  joinedAt: string;
+  leftAt: string | null;
+};
+export type JoinActivityRequest = { studentId: string };
+
+export type ActivityEventStatusDto = "draft" | "published" | "completed" | "cancelled";
+export type ActivityEventDto = {
+  id: string;
+  activityId: string;
+  activityName: string;
+  title: string;
+  description: string | null;
+  startAt: string;
+  endAt: string | null;
+  location: string | null;
+  status: ActivityEventStatusDto;
+  participantCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateActivityEventRequest = { activityId: string; title: string; description?: string; startAt: string; endAt?: string; location?: string };
+export type UpdateActivityEventRequest = { title?: string; description?: string | null; startAt?: string; endAt?: string | null; location?: string | null };
+
+export type ActivityParticipantStatusDto = "registered" | "attended" | "absent" | "cancelled";
+export type ActivityEventParticipantDto = {
+  id: string;
+  eventId: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  status: ActivityParticipantStatusDto;
+  registeredAt: string;
+  attendedAt: string | null;
+};
+export type RegisterActivityParticipantRequest = { studentId: string };
+export type UpdateActivityParticipantRequest = { status: ActivityParticipantStatusDto };
+
+/** Factual, manually-entered record — never a score, rank, or auto-generated award. */
+export type StudentAchievementDto = {
+  id: string;
+  studentId: string;
+  activityId: string | null;
+  activityName: string | null;
+  title: string;
+  description: string | null;
+  awardedAt: string;
+  createdAt: string;
+};
+export type CreateStudentAchievementRequest = { studentId: string; activityId?: string; title: string; description?: string; awardedAt: string };
+
+/** Activities Dashboard — DB-derived only. No fabricated engagement score,
+ * participation quality, performance, or attendance percentage. */
+export type ActivityDashboardDto = {
+  activeActivities: number;
+  activeMemberships: number;
+  upcomingEvents: number;
+  eventsThisMonth: number;
+  coordinatorCount: number;
+  participationCount: number;
+};
+
+/** Student 360 Activities tab — real memberships/events/participation only. */
+export type StudentActivityProfileDto = {
+  activeMemberships: ActivityMembershipDto[];
+  pastMemberships: ActivityMembershipDto[];
+  upcomingEvents: ActivityEventDto[];
+  recentParticipation: ActivityEventParticipantDto[];
+  achievements: StudentAchievementDto[];
 };

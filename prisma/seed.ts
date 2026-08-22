@@ -59,6 +59,7 @@ const SYSTEM_ROLES: { key: string; name: string }[] = [
   { key: "HR_ADMIN", name: "HR Admin" },
   { key: "COUNSELOR", name: "Counselor" },
   { key: "CAFETERIA_MANAGER", name: "Cafeteria Manager" },
+  { key: "ACTIVITY_COORDINATOR", name: "Activity Coordinator" },
 ];
 
 /** Get-or-create a system role (null tenantId → not covered by a DB unique). */
@@ -241,6 +242,7 @@ async function main() {
   await upsertTenantUser("hr@novyra-demo.example", "Hema HR", "HR_ADMIN");
   await upsertTenantUser("counselor@novyra-demo.example", "Chitra Counselor", "COUNSELOR");
   await upsertTenantUser("cafeteria@novyra-demo.example", "Chef Cafeteria", "CAFETERIA_MANAGER");
+  await upsertTenantUser("activities@novyra-demo.example", "Aditi Activities", "ACTIVITY_COORDINATOR");
 
   // Platform admin — explicit platform access, NO tenant membership.
   const platformUser = await upsertUser("platform.admin@novyra.example", "Nova Platform");

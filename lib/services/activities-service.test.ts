@@ -1,32 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSnapshot, resetDemoData } from "@/lib/data/store";
 import {
-  advanceEventStage,
   awardHousePoints,
-  cancelEvent,
-  joinClub,
   recordCompetitionScore,
   registerForEvent,
   setBracketResult,
   setFixtureResult,
 } from "./activities-service";
-
-describe("event journey lifecycle", () => {
-  beforeEach(() => resetDemoData());
-
-  it("advances an event to the next pipeline stage", () => {
-    const event = getSnapshot().schoolEvents.find((e) => e.stage === "planning")!;
-    const result = advanceEventStage(event.id);
-    expect(result.ok).toBe(true);
-    expect(getSnapshot().schoolEvents.find((e) => e.id === event.id)?.stage).toBe("approved");
-  });
-
-  it("refuses to advance a cancelled event", () => {
-    const event = getSnapshot().schoolEvents.find((e) => e.stage === "planning")!;
-    cancelEvent(event.id);
-    expect(advanceEventStage(event.id).ok).toBe(false);
-  });
-});
 
 describe("event registration integrity", () => {
   beforeEach(() => resetDemoData());
@@ -51,16 +31,6 @@ describe("event registration integrity", () => {
     const student = getSnapshot().students[0];
     registerForEvent(event.id, student.id);
     expect(registerForEvent(event.id, student.id).ok).toBe(false);
-  });
-});
-
-describe("club membership", () => {
-  beforeEach(() => resetDemoData());
-
-  it("prevents a duplicate club membership", () => {
-    const club = getSnapshot().clubs[0];
-    const member = getSnapshot().clubMemberships.find((m) => m.clubId === club.id)!;
-    expect(joinClub(club.id, member.studentId).ok).toBe(false);
   });
 });
 
