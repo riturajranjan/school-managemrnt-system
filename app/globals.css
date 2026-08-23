@@ -42,14 +42,16 @@
   --info: #2f7dd1;
   --info-foreground: #ffffff;
 
-  /* Sidebar keeps the brand gradient in both themes for a consistent, always-on-brand nav rail. */
-  --sidebar: #022c43;
+  /* Sidebar keeps the brand gradient in both themes for a consistent, always-on-brand nav rail.
+     Deep navy -> dark teal, same family as --background/--surface — cyan is reserved for the
+     accent layer (active rail, badges, icons), never the sidebar surface itself. */
+  --sidebar: #082733;
   --sidebar-foreground: #f3fbfd;
   --sidebar-active: rgba(255, 255, 255, 0.16);
   --sidebar-active-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.14);
-  --sidebar-gradient-from: #022c43;
-  --sidebar-gradient-to: #18b0c8;
+  --sidebar-gradient-from: #082733;
+  --sidebar-gradient-to: #06313d;
 
   --glass-background: rgba(255, 255, 255, 0.6);
   --glass-border: rgba(2, 44, 67, 0.1);
@@ -112,13 +114,13 @@
   --info: #5ea2e8;
   --info-foreground: #05121f;
 
-  --sidebar: #022c43;
+  --sidebar: #082733;
   --sidebar-foreground: #f3fbfd;
   --sidebar-active: rgba(255, 255, 255, 0.14);
   --sidebar-active-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.12);
-  --sidebar-gradient-from: #022c43;
-  --sidebar-gradient-to: #18b0c8;
+  --sidebar-gradient-from: #082733;
+  --sidebar-gradient-to: #06313d;
 
   --glass-background: rgba(11, 37, 49, 0.55);
   --glass-border: rgba(112, 215, 230, 0.18);
@@ -310,15 +312,13 @@
 
   /* Slow-drifting soft radial mesh for the sidebar — a premium ambient
      texture over the brand gradient, not a pattern anyone should consciously
-     notice. Frozen by the global prefers-reduced-motion rule below. */
+     notice. The cyan glow uses the same hue as --accent (dark theme), kept
+     faint so it reads as a highlight, not a second background layer.
+     Frozen by the global prefers-reduced-motion rule below. */
   .sidebar-mesh {
     background-image:
-      radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.3) 0%, transparent 45%),
-      radial-gradient(circle at 85% 5%, rgba(127, 227, 240, 0.35) 0%, transparent 40%),
-      /* Slightly stronger than before — the base gradient itself (preserved exactly) is
-         brightest at the very bottom, and this dark overlay is the only lever available
-         to soften that without touching --sidebar-gradient-to. */
-      radial-gradient(circle at 55% 100%, rgba(2, 20, 32, 0.52) 0%, transparent 58%);
+      radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.14) 0%, transparent 45%),
+      radial-gradient(circle at 85% 5%, rgba(79, 209, 225, 0.16) 0%, transparent 42%);
     background-size: 180% 180%;
     mix-blend-mode: overlay;
     animation: sidebar-mesh-drift 26s ease-in-out infinite;
@@ -403,14 +403,12 @@
   100% {
     background-position:
       0% 0%,
-      100% 0%,
-      50% 100%;
+      100% 0%;
   }
   50% {
     background-position:
       12% 18%,
-      82% 12%,
-      58% 82%;
+      82% 12%;
   }
 }
 
