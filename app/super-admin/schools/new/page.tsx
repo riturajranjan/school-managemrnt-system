@@ -42,7 +42,10 @@ export default function NewSchoolPage() {
   // Phase 9W.2 — the setup link is single-use and returned exactly once here;
   // there is nowhere else to retrieve it later, so it must be shown before
   // navigating away.
-  const [setupLink, setSetupLink] = useState<{ schoolId: string; url: string | null } | null>(null);
+  const [setupLink, setSetupLink] = useState<{
+    schoolId: string;
+    url: string | null;
+  } | null>(null);
   const { register, handleSubmit, formState } = useForm<Values>({
     resolver: zodResolver(schema),
   });
@@ -79,22 +82,41 @@ export default function NewSchoolPage() {
       setSubmitError(res.error.message);
       return;
     }
-    setSetupLink({ schoolId: res.data.schoolId, url: res.data.adminPasswordSetupUrl });
+    setSetupLink({
+      schoolId: res.data.schoolId,
+      url: res.data.adminPasswordSetupUrl,
+    });
   }
 
   if (setupLink) {
     return (
-      <div className="mx-auto flex max-w-lg flex-col gap-md pb-20 sm:pb-0">
-        <h1 className="text-lg font-semibold text-foreground">School created</h1>
+      <div className="mx-auto flex  flex-col gap-md pb-20 sm:pb-0">
+        <h1 className="text-lg font-semibold text-foreground">
+          School created
+        </h1>
         {setupLink.url ? (
           <div className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-md text-sm">
-            <p className="text-muted-foreground">No email was sent — password setup is pending. Share this link securely with the School Administrator:</p>
-            <code className="break-all rounded bg-muted px-2 py-1 text-xs">{setupLink.url}</code>
+            <p className="text-muted-foreground">
+              No email was sent — password setup is pending. Share this link
+              securely with the School Administrator:
+            </p>
+            <code className="break-all rounded bg-muted px-2 py-1 text-xs">
+              {setupLink.url}
+            </code>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">This admin email already had an active account — no new setup is needed.</p>
+          <p className="text-sm text-muted-foreground">
+            This admin email already had an active account — no new setup is
+            needed.
+          </p>
         )}
-        <Button size="md" onClick={() => router.push(`/super-admin/schools/${setupLink.schoolId}`)}>Continue to school</Button>
+        <Button
+          size="md"
+          onClick={() =>
+            router.push(`/super-admin/schools/${setupLink.schoolId}`)
+          }>
+          Continue to school
+        </Button>
       </div>
     );
   }
