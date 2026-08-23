@@ -52,7 +52,7 @@ export default function HrDashboardPage() {
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/hr/leave">
+            <Link href="/attendance/leave">
               <CalendarDays className="size-3.5" /> Leave
             </Link>
           </Button>

@@ -231,14 +231,16 @@ const MIGRATED_FILES = [
   // model (Phase 6A) — never mock db.employees/hostName strings. Must never
   // reintroduce db.visitors/visitorAppointments, Math.random() badge codes,
   // or the deleted mock checkInVisitor/setVisitorStatus. app/front-desk/
-  // page.tsx (hub) is a hybrid — its visitor tiles are real but it still
-  // legitimately reads db.gatePasses/deliveries/receptionCalls/
-  // frontDeskIncidents for unmigrated Front Desk sub-domains, so it is NOT
-  // guarded here. gate-passes/calls/deliveries/incidents pages stay fully
-  // mock — separate domains, out of Phase 9I scope.
+  // page.tsx (hub) is now guarded too (Phase 9W fix) — it no longer reads
+  // db.gatePasses/deliveries/receptionCalls/frontDeskIncidents; the mock-
+  // derived stat tiles and incident banner were removed since this hub's
+  // numbers must only ever reflect real data. gate-passes/calls/deliveries/
+  // incidents pages stay fully mock — separate domains, out of Phase 9I
+  // scope, and remain unguarded/unlinked from any real number.
   "app/front-desk/visitors/page.tsx",
   "app/front-desk/visitors/new/page.tsx",
   "app/front-desk/appointments/page.tsx",
+  "app/front-desk/page.tsx",
   // Phase 9J — Teachers + Staff UI cutover. Staff remains the ONLY employee/
   // teacher identity (Phase 6A) — Teachers is a real VIEW over
   // Staff.isTeaching, not a second model. Real TeachingAssignment/Timetable/
@@ -319,11 +321,13 @@ const MIGRATED_FILES = [
   // No GPS/live-tracking/fuel/maintenance/incidents/documents/fees/
   // notifications — those stay fully mock (app/transport/live,
   // attendance, incidents, maintenance, fuel, documents, fees,
-  // notifications, reports, settings), and app/transport/page.tsx (hub) is
-  // a hybrid — its headline stats are real but it still legitimately reads
-  // db.vehicleDocuments/driverDocuments for the still-mock document-expiry
-  // banner — so it is NOT guarded here, matching the front-desk hub
-  // precedent (Phase 9I).
+  // notifications, reports, settings). app/transport/page.tsx (hub) is now
+  // guarded too (Phase 9W fix) — the mock-derived document-expiry banner
+  // (db.vehicleDocuments/driverDocuments) was removed since a real hub must
+  // never surface a fake actionable number; its quickLinks still legitimately
+  // point at the still-mock sub-pages listed above, which is fine (navigation
+  // only, no fabricated data claim).
+  "app/transport/page.tsx",
   "app/transport/vehicles/page.tsx",
   "app/transport/vehicles/new/page.tsx",
   "app/transport/vehicles/[vehicleId]/page.tsx",

@@ -1,4 +1,13 @@
-# Mock Debt Inventory — Super Admin (Platform) modules
+# Mock Debt Inventory — System-Wide (Phase 9W)
+
+This document was originally Super-Admin-only (SA-4N). Phase 9W expands it to
+cover every domain in the app, per the system-wide production-readiness audit.
+The Super Admin section below is unchanged from SA-4N and remains accurate.
+Everything under "System-wide mock debt (Phase 9W)" is new.
+
+---
+
+# Super Admin (Platform) modules
 
 ## ✅ SUPER ADMIN MOCK DEBT: NONE
 
@@ -112,3 +121,123 @@ permissions` is a static read-only reference matrix — no data layer.)
 `lib/server/platform/impersonation-mock-guard.test.ts` additionally fails if any
 impersonation source file imports a mock authority or reads localStorage/
 sessionStorage.
+
+---
+
+# System-wide mock debt (Phase 9W)
+
+See `docs/backend/production-readiness.md` for the full domain-by-domain route
+matrix, financial/concurrency/privacy verification, and fix log. This section is
+the flat mock-debt inventory required by Phase 9W section 37: every remaining mock
+surface, grouped by disposition, with its reason and recommended future phase.
+
+## INTENTIONALLY DEFERRED (documented in code/route-mock-guard, no real backing exists)
+
+These render a fully realistic UI with no visible end-user "not real" signal (see
+the labeling-honesty note in `production-readiness.md`) but ARE accurately
+documented in source comments and `route-mock-guard.test.ts`, and their absence is
+a deliberate, previously-stated scope boundary (no invented policy/workflow).
+
+| Surface | Mock source | Missing prerequisite | Future phase |
+|---|---|---|---|
+| `app/academics/classes/[classId]/page.tsx` (class detail) | `useSisStore` | none — small, could be migrated | Academics follow-up |
+| `app/teacher/evaluations/page.tsx` | `useSisStore` + `CURRENT_TEACHER_ID` | real homework-grading/evaluation model | Academics follow-up |
+| `app/hr/{recruitment,candidates,jobs,interviews,onboarding,offboarding,performance,appraisals,goals,training,courses,analytics,announcements,contracts,documents,feedback,letters,org-chart,policies,shifts}` (HR non-core) | `useSisStore` + `lib/services/hr-service.ts` | recruitment/performance/contract/training policy models | HR follow-up phase |
+| `app/hr/attendance/page.tsx`, `app/hr/leave/page.tsx`, `app/hr/leave/calendar/page.tsx` | `useSisStore` + `hr-service` | none — these are exact duplicates of the already-real `/attendance/staff` and `/attendance/leave` (Phase 9E); recommend deleting these pages and redirecting, not migrating a second implementation | HR follow-up (small — redirect, not rebuild) |
+| `app/exams/[examId]/students/page.tsx` | `lib/services/exam-service.ts` | none, small — could be migrated | Exams follow-up |
+| `app/exams/[examId]/publish/page.tsx` | `lib/services/publication-service.ts` → `result-processing-service.ts` | duplicates real publish flow elsewhere in 8C — small, could be migrated | Exams follow-up |
+| `app/exams/[examId]/attendance/page.tsx` | mock (per Phase 8A guard note) | real Attendance exists; this is a duplicate surface | Exams follow-up |
+| `app/marks/import/page.tsx` | mock CSV importer | real Marks entry exists; import path never linked | Exams follow-up |
+| `app/grading/rules/page.tsx` | `lib/hooks/use-exams.ts` (mock) + `lib/services/grading-service.ts` | duplicates real `/grading/schemes` (Phase 8C) | Exams follow-up |
+| `app/health/{incidents,appointments,reports}` | `campus-service` / `useSisStore` | Incident/Appointment-scheduling/Vaccination models | Health follow-up |
+| `app/health/medications/page.tsx` | `campus-service.recordMedication/setMedicationStatus` | real prescription/dosage-schedule authority (medication *administration* is already real, per-visit; this page is a schedule/status workflow with no real backing) | Health follow-up |
+| `app/counselling/resources/page.tsx` | `useSisStore` | resource-library model | Counseling follow-up |
+| `app/cafeteria/{orders,meal-plans,inventory,feedback}` | `useSisStore` | real ordering/payment identity, stock-or-money engine | Cafeteria follow-up |
+| `app/activities/{houses,sports,competitions,certificates,awards,analytics}` | `useSisStore` | house/sports/competition models | Activities follow-up |
+| `app/activities/events/[id]/{journey,results}` | `db.schoolEvents` (old pre-9U mock) | unreachable from real event detail; hygiene-only gap in guard docs, not a live defect | Activities follow-up (low priority) |
+| `app/hostel/{mess,visitors,complaints,maintenance,leave,settings,reports}` | `useSisStore` | mess/complaint/maintenance policy models | Hostel follow-up |
+| `app/library/{authors,barcode,categories,digital,publishers,qr,reports,reservations,shelves,stocktake}` | `useSisStore` | reservation queueing, barcode/QR infra, digital-lending rights | Library follow-up |
+| `app/transport/{live,attendance,incidents,maintenance,fuel,documents,fees,notifications,reports,settings}` | `useSisStore`/`use-transport` (legacy) | GPS/telemetry, fuel/maintenance logs, transport-fee engine | Transport follow-up |
+| `app/inventory/{vendors,purchases}` | `useSisStore` | vendor/PO model | Inventory follow-up |
+| `app/assets/{depreciation,disposal}` | `useSisStore` | depreciation schedule/disposal workflow | Assets follow-up |
+| `app/accounting/{vendors,purchase-orders,budgets}` | `useSisStore` | no backing API/model exists at all | Accounting follow-up |
+| `app/payroll/{loans,tax,advances}` | honest static stub | no lending/statutory-tax/advance policy exists | Payroll follow-up |
+| `app/fees/payment-links`, `app/pay/[linkId]` | honest static stub | no payment-gateway integration | Fees follow-up |
+| `app/documents/{settings,verification,batch,print-queue}`, `app/id-cards/*` (legacy), `app/letters/*`, `app/admit-cards/*` | `services/documents-service` (mock numbering/generation) | batch/print-queue/verification/QR infra; admit-cards/letters have no template registry | Document Studio follow-up |
+| Front Desk sub-pages: `app/front-desk/{gate-passes,calls,deliveries,incidents}` | `useSisStore` | gate-pass/delivery/call-log models | Front Desk follow-up |
+| `app/communication/*` (hub, inbox, announcements, broadcasts, notices, groups, templates, parents, calendar, analytics, settings) | `useSisStore` | this was the OLD mock parent-messaging surface; real staff-to-staff messaging already exists at `app/teacher/messages` and was NOT built by migrating this hub (deliberate, see Phase 9K memory) | Would need parent/guardian account foundation first — explicitly out of scope until that exists |
+
+## PARTIALLY REAL / HYBRID
+
+| Surface | Real part | Mock part | Notes |
+|---|---|---|---|
+| `app/health/page.tsx` (hub) | stat tiles (`useHealthDashboard`) | quicklink descriptions for Medications/Incidents/Appointments/Reports read identically to real links, no visual distinction | Labeling-honesty gap, not a fake-number defect — left as-is this phase |
+| `app/library/page.tsx` (hub) | headline stats | quicklinks point at mock sub-pages | Same labeling-honesty gap; navigation only, no fabricated number |
+| Main Dashboard | 6 real widgets (Action Inbox, Attendance, Fee Collection, Staff Availability, Timetable, Upcoming Events) | 3 widgets honestly render `<DeferredWidget>` (AI Morning Brief, Campus Overview 3D, Exception Feed, School Pulse) | This is the ONE place `<DeferredWidget>` is actually used — correctly honest |
+| `app/notifications/preferences/page.tsx` | permission/channel display | toggle state persisted to `useSisStore`, not DB — "saved" copy is misleading | See fix-candidate #3 in production-readiness.md |
+
+## STILL MOCK — NEEDS MIGRATION (fake data presented as truth with no distinguishing signal at all, beyond a dev comment)
+
+Everything in the INTENTIONALLY DEFERRED table above technically belongs here too
+under a strict reading of "MOCK = fake data presented as product truth" (see the
+labeling-honesty note in production-readiness.md) — none of it is visibly marked
+to an end user. It is listed separately above because it is at least *honestly
+tracked in source* and matches previously stated, reviewed scope boundaries. There
+is no additional "silent, undocumented" mock surface beyond what both tables above
+already list — the repo-wide grep sweep (Phase 9W) found no production file
+importing mock authority outside what `route-mock-guard.test.ts` already accounts
+for.
+
+**One surface is worse than the rest and called out specifically:** `app/results/*`
+(the cross-exam Results hub — `page.tsx`, `class`, `student`, `analytics`,
+`publication`) is fully mock (`useSisStore`), presents a fabricated exam
+publish/schedule/revoke pipeline, and — unlike most other mock pages in this
+codebase — carries **no disclaiming comment pattern visible even to a developer
+skimming the file**, and sits one nav-level away from the genuinely real
+`/exams/[examId]/results` page, making the fake/real boundary unusually easy to
+miss. Recommended: fold this into whatever future phase does the system-wide
+UI-labeling pass, treating it as the top-priority page for that pass.
+
+## TEST-ONLY MOCK
+
+- `lib/data/seed/**` — seed-only, used by `prisma db seed` and `.db.test.ts` fixtures. Not reachable from any production route.
+- `*.db.test.ts` / `*.test.ts` mock doubles and in-memory fixtures — test-only, never imported by `app/**` or `lib/server/**` production code.
+
+## DEAD MOCK TO DELETE
+
+**None found.** Every mock service/hook/store-slice/type still has at least one
+live consumer among the intentionally-deferred pages listed above. The shared mock
+store (`lib/hooks/use-store.ts` / `lib/data/store.ts`) has 150+ consumer files
+across the app — deleting it is not possible without migrating (not just auditing)
+every surface in the two tables above.
+
+## Fixed in Phase 9W (moved from MOCK-leak to REAL)
+
+- `app/transport/page.tsx` — removed fake "documents need attention" banner (was reading mock `vehicleDocuments`/`driverDocuments`), now fully real.
+- `app/front-desk/page.tsx` — removed 3 mock-derived stat tiles + mock incident banner from the real visitor hub, now fully real.
+- `app/hr/dashboard/page.tsx` — the "Leave" quicklink pointed at the stale mock `/hr/leave` page instead of the real `/attendance/leave` (Phase 9E); repointed.
+
+## Known gap, not fixed this phase
+
+- Visitors and Transport (36 API routes combined) have zero `requireFeature`
+  enforcement — no `visitor`/`transport` feature keys exist at all. This predates
+  the feature-gating convention introduced around Library (9N). Adding entitlement
+  gating to two whole domains has product/pricing implications outside a "small
+  fix" — documented for a future phase, not changed here.
+- Test-DB tenant-delete orphans (16,453 orphaned student rows, proportionate
+  class/section/enrollment orphans) — quantified, not remediated. See
+  `production-readiness.md` Database Hygiene section. No production risk (OrgScope
+  filters by real tenantId); pure test-cleanup debris. A future phase could add a
+  scoped, reviewed one-off cleanup script (delete rows where `tenantId` matches no
+  live tenant) run manually against dev only — not something to run unattended.
+- `useGradingSchemes` is exported by both `lib/hooks/use-exams.ts` (mock) and
+  `lib/hooks/api/use-results-api.ts` (real). Each current consumer imports the
+  correct one for its own reality (`app/grading/rules/page.tsx` → mock,
+  `app/grading/schemes/page.tsx` → real), so there is no live bug, but the name
+  collision is a footgun for a future edit. Not renamed this phase (touches a
+  widely-imported hook, larger than a "small fix").
+- HR non-core Attendance/Leave/Leave-calendar (`app/hr/attendance`,
+  `app/hr/leave`, `app/hr/leave/calendar`) are exact duplicate mock surfaces of
+  the already-real `/attendance/staff` and `/attendance/leave` (Phase 9E) — not
+  a case of missing infrastructure, just an un-retired old page. Cheapest future
+  fix is likely deleting/redirecting these three pages rather than migrating them.

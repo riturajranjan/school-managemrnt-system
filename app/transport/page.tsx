@@ -20,9 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
-import { useSisStore } from "@/lib/hooks/use-store";
 import { useTransportDashboard } from "@/lib/hooks/api/use-transport-api";
-import { transportDocumentStatusLabels } from "@/lib/types/transport";
 
 const quickLinks = [
   { href: "/transport/routes", label: "Routes", description: "Stops, crew and vehicle assignment", icon: Route },
@@ -44,10 +42,7 @@ const quickLinks = [
 ];
 
 export default function TransportHubPage() {
-  const db = useSisStore();
   const { data: dashboard } = useTransportDashboard();
-
-  const expiringDocs = [...db.vehicleDocuments.filter((d) => d.status !== "valid"), ...db.driverDocuments.filter((d) => d.status !== "valid")].length;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -70,17 +65,6 @@ export default function TransportHubPage() {
         <StatTile label="Students on transport" value={String(dashboard?.studentsAssigned ?? 0)} icon={UsersRound} tone="neutral" />
         <StatTile label="Trips today" value={String(dashboard?.tripsToday ?? 0)} icon={ClipboardList} tone="neutral" />
       </div>
-
-      {expiringDocs > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-warning/30 bg-warning/8 p-sm text-sm text-warning">
-          <span>
-            {expiringDocs} document{expiringDocs === 1 ? "" : "s"} need attention ({transportDocumentStatusLabels["expiring-soon"]}/{transportDocumentStatusLabels.expired})
-          </span>
-          <Link href="/transport/documents" className="underline underline-offset-2">
-            Review
-          </Link>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">
         {quickLinks.map(({ href, label, description, icon: Icon }) => (
