@@ -53,6 +53,7 @@ const prisma = new PrismaClient({ adapter });
 const SYSTEM_ROLES: { key: string; name: string }[] = [
   { key: "SCHOOL_ADMIN", name: "School Admin" },
   { key: "PRINCIPAL", name: "Principal" },
+  { key: "VICE_PRINCIPAL", name: "Vice Principal" },
   { key: "TEACHER", name: "Teacher" },
   { key: "LIBRARIAN", name: "Librarian" },
   { key: "TRANSPORT_MANAGER", name: "Transport Manager" },
@@ -60,6 +61,9 @@ const SYSTEM_ROLES: { key: string; name: string }[] = [
   { key: "COUNSELOR", name: "Counselor" },
   { key: "CAFETERIA_MANAGER", name: "Cafeteria Manager" },
   { key: "ACTIVITY_COORDINATOR", name: "Activity Coordinator" },
+  { key: "STAFF", name: "Staff" },
+  { key: "STUDENT", name: "Student" },
+  { key: "GUARDIAN", name: "Guardian" },
 ];
 
 /** Get-or-create a system role (null tenantId → not covered by a DB unique). */

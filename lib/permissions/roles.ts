@@ -40,7 +40,14 @@ export type UserRole =
   // Phase 11 — activities
   | "activities-coordinator"
   | "sports-coordinator"
-  | "house-master";
+  | "house-master"
+  // Phase 9W.2 — hierarchical account provisioning: two DB-backed system
+  // roles this legacy UI-rendering matrix didn't have keys for yet
+  // ("principal" existed but a distinct Vice Principal did not; no generic
+  // non-teaching Staff key existed either). "parent"/"student" above already
+  // covered Guardian/Student. See lib/server/authz/catalog.ts DB_ROLE_TO_UI.
+  | "vice-principal"
+  | "staff";
 
 export const roleLabels: Record<UserRole, string> = {
   "super-admin": "Super Admin",
@@ -80,6 +87,8 @@ export const roleLabels: Record<UserRole, string> = {
   "activities-coordinator": "Activities Coordinator",
   "sports-coordinator": "Sports Coordinator",
   "house-master": "House Master",
+  "vice-principal": "Vice Principal",
+  staff: "Staff",
 };
 
 export type Permission =
@@ -351,6 +360,9 @@ export type Permission =
   | "documents.manageSettings"
   | "documents.viewAnalytics"
   | "documents.viewOwn"
+  // Phase 9W.2 — hierarchical account provisioning. DB-managed (see server
+  // authz catalog); `can()` treats it as authoritative via managedPermissionKeys.
+  | "users.manage"
   // Platform (Super Admin) — these are DB-managed keys (see server authz catalog);
   // the client `can()` treats them as authoritative via managedPermissionKeys.
   | "platform.schools.view"
@@ -705,6 +717,32 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "documents.manageCertificates",
     "documents.print",
   ],
+  // Phase 9W.2 — narrower than principal (no admissions.approve/assignStaff,
+  // no finance/promotion-approval tier); matches the real VICE_PRINCIPAL
+  // catalog entry's operational-but-not-senior-admin scope.
+  "vice-principal": [
+    "students.view",
+    "communication.send",
+    "academics.view",
+    "homework.view",
+    "homework.manage",
+    "curriculum.view",
+    "curriculum.manage",
+    "lessonPlans.view",
+    "lessonPlans.manage",
+    "attendance.viewAny",
+    "leave.approve",
+    "staffAttendance.view",
+    "timetable.view",
+    "calendar.view",
+    "calendar.manage",
+    "exams.view",
+    "results.view",
+    "promotion.view",
+  ],
+  // Phase 9W.2 — generic non-teaching Staff self-service; matches the real
+  // STAFF catalog entry's deliberately minimal scope (own profile + leave).
+  staff: ["staffAttendance.view"],
   "examination-controller": [
     "students.view",
     "academics.view",
@@ -1081,4 +1119,6 @@ export const allRoles: UserRole[] = [
   "activities-coordinator",
   "sports-coordinator",
   "house-master",
+  "vice-principal",
+  "staff",
 ];

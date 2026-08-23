@@ -199,6 +199,18 @@ export const PERMISSIONS: PermissionDef[] = [
 
   { key: "hr.view", module: "hr", action: "view", description: "View HR" },
   { key: "hr.manage", module: "hr", action: "manage", description: "Manage HR" },
+  // Phase 9W.2 — self-service: any Staff-linked account can see their own
+  // employee profile without holding hr.view (which exposes the whole
+  // directory). Identity-scoped (Staff.userId === caller), not a broad grant.
+  { key: "hr.viewOwn", module: "hr", action: "viewOwn", description: "View own employee profile (self-service)" },
+
+  // Phase 9W.2 — hierarchical account provisioning. Gates the whole
+  // provisioning surface (who is even allowed to try); the separate
+  // ROLE_CREATION_POLICY (lib/server/authz/role-creation-policy.ts) then
+  // decides WHICH specific roles a holder may grant. Deliberately not named
+  // "*.manage" like a domain module — this is cross-cutting identity
+  // administration, not a business domain.
+  { key: "users.manage", module: "users", action: "manage", description: "Provision, view, and manage user accounts within your authorized scope" },
 
   { key: "communication.view", module: "communication", action: "view", description: "View communication" },
   { key: "communication.send", module: "communication", action: "send", description: "Send communication" },
@@ -333,6 +345,10 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "communication.view", "communication.send",
     "documents.view", "documents.manage", "documents.generate", "documents.manageTemplates", "documents.void",
     "settings.view", "settings.manage",
+    // Phase 9W.2 — top of the school hierarchy: may provision Principal/
+    // HR/Transport/Librarian management accounts plus Student/Guardian
+    // login foundations directly (see ROLE_CREATION_POLICY).
+    "users.manage",
   ],
   PRINCIPAL: [
     "dashboard.view",
@@ -366,6 +382,38 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "communication.view", "communication.send",
     "documents.view", "documents.generate",
     "settings.view",
+    // Phase 9W.2 — may provision Vice Principal/Teacher accounts and
+    // Student/Guardian login foundations within their own school.
+    "users.manage",
+  ],
+  // Phase 9W.2 — Vice Principal. Added to the real role architecture (was
+  // missing) with an intentionally narrower, operationally-focused
+  // permission set than PRINCIPAL: no accounting/payroll/settings/visitors/
+  // inventory/assets/hostel/health/counseling/cafeteria/activities view,
+  // no admissions.approve — those stay a PRINCIPAL/SCHOOL_ADMIN-tier
+  // decision. Academic/operational day-to-day management only.
+  VICE_PRINCIPAL: [
+    "dashboard.view",
+    "students.view",
+    "guardians.view",
+    "academics.view", "academics.manage",
+    "attendance.view",
+    "timetable.view", "timetable.manage",
+    "exams.view", "exams.manage",
+    "marks.verify",
+    "results.view",
+    "promotion.view",
+    "homework.view", "homework.manage",
+    "curriculum.view", "curriculum.manage",
+    "lessonPlans.view", "lessonPlans.manage",
+    "calendar.view", "calendar.manage",
+    "staffAttendance.view", "staffAttendance.manage",
+    "leave.submit", "leave.approve",
+    "communication.view", "communication.send",
+    "documents.view",
+    // Phase 9W.2 — may provision Teacher accounts and Student login
+    // foundations (narrower than PRINCIPAL: no Guardian provisioning).
+    "users.manage",
   ],
   TEACHER: [
     "dashboard.view",
@@ -388,8 +436,34 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "counseling.refer",
   ],
   LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage"],
-  TRANSPORT_MANAGER: ["dashboard.view", "transport.view", "transport.manage"],
-  HR_ADMIN: ["dashboard.view", "hr.view", "hr.manage", "staffAttendance.view", "staffAttendance.manage", "leave.submit", "leave.approve", "documents.view", "documents.generate"],
+  TRANSPORT_MANAGER: [
+    "dashboard.view", "transport.view", "transport.manage",
+    // Phase 9W.2 — may provision a bare operational login for real Staff in
+    // transport scope (drivers/attendants); see ROLE_CREATION_POLICY.
+    "users.manage",
+  ],
+  HR_ADMIN: [
+    "dashboard.view", "hr.view", "hr.manage", "staffAttendance.view", "staffAttendance.manage",
+    "leave.submit", "leave.approve", "documents.view", "documents.generate",
+    // Phase 9W.2 — may provision a bare operational Staff login for any real,
+    // unlinked Staff record HR policy permits; see ROLE_CREATION_POLICY.
+    "users.manage",
+  ],
+  // Phase 9W.2 — generic minimal self-service identity for a Staff member who
+  // needs to log in but holds no administrative role (provisioned by
+  // HR_ADMIN or TRANSPORT_MANAGER — one shared role, not a parallel
+  // "TRANSPORT_STAFF" vocabulary with identical permissions). Deliberately
+  // narrow: own profile + leave self-service only, nothing else.
+  STAFF: ["dashboard.view", "hr.viewOwn", "leave.submit"],
+  // Phase 9W.2 — account foundation only (no student portal built yet).
+  // Deliberately empty permission set: this role exists so login/context
+  // resolution and capability reporting work correctly and honestly; the
+  // landing page identifies the student via the real Student.userId link,
+  // not via a permission grant.
+  STUDENT: [],
+  // Phase 9W.2 — account foundation only (no parent portal built yet). Same
+  // reasoning as STUDENT: identity via Guardian.userId, not permissions.
+  GUARDIAN: [],
   // Phase 9S — the only role holding counseling.viewConfidential. No senior/
   // junior tier exists, so ownership (assignedCounselorStaffId == own Staff.id)
   // is enforced uniformly at the service layer for every COUNSELOR, never
@@ -507,6 +581,7 @@ export function buildPlatformPermissionMatrix(): PlatformMatrix {
 export const DB_ROLE_TO_UI: Record<string, string> = {
   SCHOOL_ADMIN: "administrator",
   PRINCIPAL: "principal",
+  VICE_PRINCIPAL: "vice-principal",
   TEACHER: "teacher",
   LIBRARIAN: "librarian",
   TRANSPORT_MANAGER: "transport-manager",
@@ -514,6 +589,9 @@ export const DB_ROLE_TO_UI: Record<string, string> = {
   COUNSELOR: "counsellor",
   CAFETERIA_MANAGER: "cafeteria-manager",
   ACTIVITY_COORDINATOR: "activities-coordinator",
+  STAFF: "staff",
+  STUDENT: "student",
+  GUARDIAN: "parent",
 };
 export const PLATFORM_UI_ROLE = "super-admin";
 

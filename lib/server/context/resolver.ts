@@ -19,6 +19,7 @@ export function landingForRoleKey(key: string | undefined): string {
   switch (key) {
     case "SCHOOL_ADMIN":
     case "PRINCIPAL":
+    case "VICE_PRINCIPAL":
       return "/";
     case "TEACHER":
       return "/teacher/my-day";
@@ -28,6 +29,17 @@ export function landingForRoleKey(key: string | undefined): string {
       return "/transport";
     case "HR_ADMIN":
       return "/hr";
+    // Phase 9W.2 — generic Staff self-service account: lands on the one real
+    // page it can use (dashboard.view + hr.viewOwn only).
+    case "STAFF":
+      return "/hr/employee-self-service";
+    // Phase 9W.2 — account-foundation-only roles: no real portal exists yet,
+    // so they land on an honest minimal identity page, never the staff-
+    // oriented main dashboard (which assumes a Staff profile).
+    case "STUDENT":
+      return "/student";
+    case "GUARDIAN":
+      return "/parent";
     default:
       return "/";
   }

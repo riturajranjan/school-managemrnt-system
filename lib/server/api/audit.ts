@@ -285,7 +285,14 @@ export type AuditAction =
   | "DOCUMENT_TEMPLATE_ACTIVATED"
   | "DOCUMENT_TEMPLATE_ARCHIVED"
   | "DOCUMENT_GENERATED"
-  | "DOCUMENT_VOIDED";
+  | "DOCUMENT_VOIDED"
+  // Phase 9W.2 — hierarchical account provisioning. Metadata carries only ids/
+  // role keys/booleans — never a password, raw setup token, or session token.
+  | "USER_ACCOUNT_PROVISIONED"
+  | "USER_ROLE_ASSIGNED"
+  | "USER_ACCOUNT_LINKED"
+  | "USER_ACCOUNT_ACTIVATED"
+  | "USER_ACCOUNT_SUSPENDED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

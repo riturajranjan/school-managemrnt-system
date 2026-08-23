@@ -270,6 +270,7 @@ export type PlatformProvisionResultDto = {
   tenantId: string;
   adminUserId: string;
   adminInvitePending: boolean;
+  adminPasswordSetupUrl: string | null;
 };
 
 // --- Platform (Super Admin) onboarding (SA-3) --------------------------------

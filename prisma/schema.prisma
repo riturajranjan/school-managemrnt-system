@@ -271,6 +271,9 @@ model User {
   platformAdmin              PlatformAdmin?
   activeContext              UserActiveContext?
   staffProfile               Staff? // Phase 6A — optional link to a school Staff/employee record
+  studentProfile             Student? // Phase 9W.2 — optional link to a real Student login identity
+  guardianProfile            Guardian? // Phase 9W.2 — optional link to a real Guardian (parent) login identity
+  passwordSetupTokens        PasswordSetupToken[] // Phase 9W.2 — one-time password setup/reset tokens
   notificationRecipients     NotificationRecipient[] // Phase 9D.2 — in-app notifications
   conversationParticipations ConversationParticipant[] // Phase 9K — communication/messaging
   sentMessages               Message[] // Phase 9K — communication/messaging
@@ -464,6 +467,32 @@ model Session {
 }
 
 // ---------------------------------------------------------------------------
+// PasswordSetupToken — Phase 9W.2: real one-time token backing the first-login
+// password-setup flow (an INVITED account provisioned by an authorized actor
+// has no password until this completes). Same hash-only-storage pattern as
+// Session (tokenHash, never the raw token) — this is NOT a second
+// authentication system, it only ever leads into the existing Login API via
+// a normal password set on the same User row. `consumedAt` makes the token
+// single-use; expiry + consumed are both checked at verification time.
+// ---------------------------------------------------------------------------
+
+model PasswordSetupToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(6)
+  consumedAt DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_setup_tokens")
+}
+
+// ---------------------------------------------------------------------------
 // PlatformImpersonation — server-authoritative "view a school as platform admin"
 // context (Super Admin Phase SA-4K). SECURITY MODEL:
 //   • Bound to ONE auth Session (sessionId @unique → at most one active per
@@ -612,11 +641,15 @@ model Guardian {
   postalCode   String?
   photoUrl     String?
   // Optional linkage to a login identity (parent portal). Never required.
-  userId       String?
+  // Phase 9W.2: promoted to a real 1:1 FK (was a bare unconstrained String) —
+  // provisioning links an existing real Guardian to a real User; a Guardian
+  // can never be linked to more than one User and vice versa.
+  userId       String? @unique
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
+  user     User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
   students StudentGuardian[]
 
   // At most one guardian per (tenant, email). Postgres treats NULLs as distinct,
@@ -679,10 +712,16 @@ model Student {
   // circular relation — validated in the service).
   sourceApplicationId String? @unique
 
+  // Phase 9W.2 — optional linkage to a real login identity (student portal
+  // foundation only; no portal is built in this phase). A Student can never
+  // be linked to more than one User and vice versa.
+  userId String? @unique
+
   createdAt  DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
   archivedAt DateTime? @db.Timestamptz(6)
 
+  user                   User?                        @relation(fields: [userId], references: [id], onDelete: SetNull)
   guardians              StudentGuardian[]
   documents              StudentDocument[]
   timeline               StudentTimelineEvent[]

@@ -15,6 +15,7 @@ import type { ListMeta } from "@/lib/server/api/response";
 import { schoolStatusFromUi, schoolStatusToUi } from "@/lib/server/api/enums";
 import { REQUIRED_STEP_KEYS } from "@/lib/api/onboarding-steps";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { createPasswordSetupToken } from "@/lib/server/auth/password-setup";
 
 export type PlatformActor = { id: string; name: string | null };
 
@@ -231,6 +232,10 @@ export type ProvisionResult = {
   tenantId: string;
   adminUserId: string;
   adminInvitePending: boolean;
+  // Phase 9W.2 — real one-time setup link (null when reusing an existing
+  // ACTIVE user, which already has a password). No email is sent; the
+  // platform admin shares this manually.
+  adminPasswordSetupUrl: string | null;
 };
 
 export async function provisionSchool(actor: PlatformActor, raw: unknown): Promise<ProvisionResult> {
@@ -356,7 +361,11 @@ export async function provisionSchool(actor: PlatformActor, raw: unknown): Promi
       adminCreated: !existingUser,
     });
 
-    return { schoolId: school.id, tenantId: tenant.id, adminUserId, adminInvitePending };
+    // Phase 9W.2 — only issue a setup link for an invite-pending account (a
+    // reused, already-ACTIVE admin already has a password).
+    const adminPasswordSetupUrl = adminInvitePending ? `/setup-password?token=${(await createPasswordSetupToken(tx, adminUserId)).token}` : null;
+
+    return { schoolId: school.id, tenantId: tenant.id, adminUserId, adminInvitePending, adminPasswordSetupUrl };
   });
 }
 

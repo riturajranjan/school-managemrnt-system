@@ -592,6 +592,22 @@ const MIGRATED_FILES = [
   // covered by that existing entry. app/hr/staff/[staffId]/page.tsx is
   // already guarded (Phase 9J/9P, line ~262) — its real Documents tab is
   // covered by that existing entry.
+  // Phase 9W.2 — Hierarchical Account Provisioning. Real User/TenantMembership/
+  // RoleAssignment/Staff.userId/Student.userId/Guardian.userId via
+  // /api/users/*, /api/auth/setup-password, /api/me/*. ROLE_CREATION_POLICY
+  // (lib/server/authz/role-creation-policy.ts) is the sole authority on which
+  // roles an actor may grant — never a client-supplied target role, never a
+  // hardcoded role list in the UI. app/settings/users/page.tsx was previously
+  // fully mock ("no real authentication in this UI phase" — useSystemUsers/
+  // admin-service/legacy UserRole) and is now real. app/(auth)/setup-password
+  // was previously a UI-only mock (setDone(true), no server call) and now
+  // calls the real one-time-token API. app/student + app/parent are new
+  // account-foundation-only pages (no portal) — identity-scoped via
+  // Student.userId/Guardian.userId, not permission-scoped.
+  "app/settings/users/page.tsx",
+  "app/(auth)/setup-password/page.tsx",
+  "app/student/page.tsx",
+  "app/parent/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
