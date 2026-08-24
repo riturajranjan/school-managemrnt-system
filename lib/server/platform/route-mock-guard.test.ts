@@ -85,10 +85,10 @@ const MIGRATED_FILES = [
   "app/marks/verification/page.tsx",
   // Phase 8C — real Results & Grading (GradingScheme/GradingBand + derived
   // result computation + publication), backed by /api/results/* and
-  // /api/exams/*/results*. No mock grading/result-engine authority. The
-  // cross-exam /results/* hub (pipeline stages, report-card counts) and
+  // /api/exams/*/results*. No mock grading/result-engine authority.
   // /grading/rules (grace marks / attendance-eligibility policy — no real
-  // backing) stay mock, unlinked from the real per-exam page.
+  // backing) stays mock, unlinked from the real per-exam page. The cross-exam
+  // /results/* HUB is migrated separately below (dedup/mock-elimination pass).
   "app/grading/schemes/page.tsx",
   "app/exams/[examId]/results/page.tsx",
   // Phase 8D — real Report Cards: a presentation of the Phase 8C published
@@ -154,8 +154,7 @@ const MIGRATED_FILES = [
   // Phase 9D.1 — Academic Calendar. Real CalendarEvent rows merged at query
   // time with events derived live from Exam schedule/Homework/Lesson Plan
   // tables. No mock academic-events selector, no client-side recurrence
-  // authority. (app/academics/page.tsx hub is NOT migrated — still fully
-  // mock — so only the calendar page itself is guarded.)
+  // authority. (app/academics/page.tsx hub is migrated separately below.)
   "app/academics/calendar/page.tsx",
   // Phase 9D.2 — In-app Notifications. Real Notification/NotificationRecipient
   // rows via /api/notifications/*. No mock commNotifications/notification-data
@@ -608,6 +607,33 @@ const MIGRATED_FILES = [
   "app/(auth)/setup-password/page.tsx",
   "app/student/page.tsx",
   "app/parent/page.tsx",
+  // Dedup/mock-elimination pass — the Academics and Results HUB pages. Both
+  // were 100% mock (useSisStore + mock selectors) even though every domain
+  // they summarize was already real. Now backed by one aggregation endpoint
+  // each (GET /api/academics/dashboard, GET /api/results/dashboard) that
+  // composes the real Phase 5/6/6A/7/8A-8D/9C/9D services — no recomputed
+  // formulas, no new calculation engine. The "Timetable conflicts" and
+  // "Substitute requirement" mock metrics were dropped outright (real
+  // timetable conflicts are DB-prevented — always structurally zero — and no
+  // Substitute domain exists anywhere in the schema); "blocking issue"/
+  // "inconsistency" free-text and the mock's richer publication states
+  // (scheduled/revoked) were also dropped — the real domain only has
+  // published/not-published. lib/selectors/results-pipeline.ts,
+  // lib/selectors/exam-insights.ts, lib/selectors/attendance-insights.ts (the
+  // mock variant) and lib/hooks/use-timetable.ts are now fully deleted (zero
+  // remaining consumers); components/results/pipeline-stages.tsx was
+  // repointed at the real ResultsPipelineStageDto type instead.
+  // lib/selectors/academics-insights.ts is RETAINED — its
+  // curriculumCompletionPercent is still used by lib/selectors/class-insights.ts,
+  // which backs the deliberately-unmigrated class-detail page. /results/class,
+  // /results/student, /results/analytics, /results/publication,
+  // /grading/rules, /marks/import and the exam CSV/attendance sub-pages are
+  // NOT migrated — they still depend on the mock hooks/use-exams.ts and
+  // hooks/use-academics.ts (useManagedClasses), which must stay for those
+  // consumers.
+  "app/academics/page.tsx",
+  "app/results/page.tsx",
+  "components/results/pipeline-stages.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -655,7 +681,7 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/result-engine", why: "mock result-calculation engine" },
   { marker: "services/result-processing-service", why: "mock result-processing service" },
   { marker: "selectors/grading-validation", why: "mock grading validation selector (deleted — dead import)" },
-  { marker: "selectors/results-pipeline", why: "mock results pipeline selector" },
+  { marker: "selectors/results-pipeline", why: "mock results pipeline selector (deleted — dead import)" },
   // Phase 8D — report-card mock authority (real surfaces must use hooks/api/use-report-cards-api).
   { marker: "services/report-card-service", why: "mock report-card template/generation-job service (deleted — dead import)" },
   { marker: "selectors/report-card-readiness", why: "mock report-card readiness selector (deleted — dead import)" },
@@ -802,6 +828,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/documents-brief", why: "mock Document Studio hub summary/flow-stage selector (deleted — zero remaining consumers, dead import)" },
   { marker: 'hooks/use-documents"', why: "mock per-entity Documents hooks (deleted — zero remaining consumers, dead import; real surfaces use hooks/api/use-document-studio-api)" },
   { marker: "services/documents-service", why: "mock numbering/template-validation/generation/ID-card/batch/print-queue/verification service — generateDocument/checkRecipient/validateTemplate/previewNumber/formatNumber/reprintDocument/setIdCardStatus/reissueIdCard/batch+print-queue+verifyToken still back the deferred admit-cards/letters/id-cards-library-transport-hostel/batch/print-queue/verification mock pages, but real surfaces must use hooks/api/use-document-studio-api" },
+  // Dedup/mock-elimination pass — Academics/Results hub mock authority (real
+  // surfaces must use hooks/api/use-academics-dashboard, hooks/api/use-results-dashboard).
+  { marker: "selectors/academics-insights", why: "mock Academic Pulse factor selectors (curriculum/lesson-plan/homework %) — still consumed by lib/selectors/class-insights.ts, which backs the deferred class-detail page (app/academics/classes/[classId]), but the hub itself must use the real /api/academics/dashboard aggregation" },
+  { marker: "selectors/exam-insights", why: "mock exam-readiness (marksEntryPercent/verificationPercent/resultsCalculated) selector — deleted, zero remaining consumers, dead import" },
 ];
 
 function collectSources(dir: string): string[] {

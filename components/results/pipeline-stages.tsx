@@ -1,12 +1,13 @@
 import { CheckCircle2 } from "lucide-react";
-import type { PipelineStage } from "@/lib/selectors/results-pipeline";
+import type { ResultsPipelineStageDto } from "@/lib/api/contracts";
 import { cn } from "@/lib/utils";
+
+type PipelineStage = ResultsPipelineStageDto;
 
 const dotTone: Record<PipelineStage["status"], string> = {
   complete: "bg-success",
   "in-progress": "bg-warning",
   "not-started": "bg-border",
-  blocked: "bg-error",
 };
 
 /** Compact segmented strip used inside a row/card — a scannable "how far along" read

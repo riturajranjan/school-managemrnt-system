@@ -20,7 +20,25 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   }
 }
 
-export const apiGet = <T>(url: string) => request<T>("GET", url);
+// GET is idempotent, so concurrent callers asking for the exact same URL
+// share one in-flight request instead of each firing their own. This is what
+// actually collapses duplicate requests regardless of *why* a caller re-runs
+// (React Strict Mode's synthetic remount, an animated-transition remount, or
+// several components legitimately wanting the same resource at once) — fixing
+// the trigger site-by-site doesn't help if the fetch primitive itself always
+// dials out. Scoped to GET only; mutations must never be deduped this way.
+const inFlightGets = new Map<string, Promise<ApiResult<unknown>>>();
+
+export function apiGet<T>(url: string): Promise<ApiResult<T>> {
+  const existing = inFlightGets.get(url);
+  if (existing) return existing as Promise<ApiResult<T>>;
+  const promise = request<T>("GET", url).finally(() => {
+    inFlightGets.delete(url);
+  });
+  inFlightGets.set(url, promise as Promise<ApiResult<unknown>>);
+  return promise;
+}
+
 export const apiPost = <T>(url: string, body?: unknown) => request<T>("POST", url, body);
 export const apiPatch = <T>(url: string, body?: unknown) => request<T>("PATCH", url, body);
 export const apiPut = <T>(url: string, body?: unknown) => request<T>("PUT", url, body);

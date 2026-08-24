@@ -3747,3 +3747,55 @@ export type DocumentStudioDashboardDto = {
   studentDocuments: number;
   staffDocuments: number;
 };
+
+// --- Academics hub aggregation — composes existing canonical domain services
+// (Classes, Staff, Attendance, Curriculum, Homework, Lesson Plans, Calendar).
+// No new calculations: every figure here is either a real count or a DTO
+// reused verbatim from its owning service. There is no "timetable conflicts"
+// or "substitute requirement" metric — real timetable conflicts are prevented
+// at the database level (structurally always zero) and no Substitute domain
+// exists, so both were dropped rather than fabricated. ---
+
+export type AcademicsDashboardDto = {
+  activeClasses: number;
+  teachingStaffCount: number;
+  teachingStaffOnLeaveToday: number;
+  attendance: AttendanceDashboardDto;
+  curriculum: CurriculumInsightsDto;
+  homework: { draftCount: number; publishedCount: number; overdueOpenCount: number };
+  lessonPlans: { draftCount: number; pendingApprovalCount: number; approvedCount: number };
+  upcomingEvents: CalendarEventDto[];
+};
+
+// --- Results hub aggregation — one row per exam that has reached the results
+// stage (status scheduled/completed/archived; a "draft" exam with no schedule
+// has nothing to show here), composing the real Phase 8B/8C/8D services.
+// marksPercent/verificationPercent are aggregated from the real per-paper
+// marks summary; "report cards" are not a separate generation step (Phase 8D
+// has no ReportCard model) — reportCardCount is just studentCount once
+// published. No "inconsistency"/"blocking issue" text is fabricated. ---
+
+export type ResultsPipelineStageKey = "marks" | "verification" | "results" | "publication";
+export type ResultsPipelineStageStatus = "complete" | "in-progress" | "not-started";
+export type ResultsPipelineStageDto = { key: ResultsPipelineStageKey; label: string; status: ResultsPipelineStageStatus };
+
+export type ResultsPipelineRowDto = {
+  examId: string;
+  examName: string;
+  examCode: string;
+  examStatus: ExamStatus;
+  startsOn: string;
+  endsOn: string;
+  className: string; // derived from the real schedule entries' sections
+  marksPercent: number;
+  verificationPercent: number;
+  studentCount: number;
+  incompleteCount: number;
+  reportCardCount: number;
+  published: boolean;
+  publishedAt: string | null;
+  stages: ResultsPipelineStageDto[];
+  primaryAction: { label: string; href: string };
+};
+
+export type ResultsDashboardDto = { rows: ResultsPipelineRowDto[] };
