@@ -40,7 +40,7 @@ export function MobileMoreSheet() {
                 <div className="flex items-center justify-between px-md py-sm">
                   <Dialog.Title className="text-sm font-semibold">Menu</Dialog.Title>
                   <Dialog.Close
-                    className="flex size-9 items-center justify-center rounded-pill text-sidebar-foreground/70 transition-colors hover:bg-white/8 hover:text-sidebar-foreground"
+                    className="flex size-9 items-center justify-center rounded-pill text-sidebar-text-faint transition-colors hover:bg-sidebar-hover-bg hover:text-sidebar-text"
                     aria-label="Close"
                   >
                     <X className="size-[18px]" aria-hidden="true" />
@@ -49,7 +49,7 @@ export function MobileMoreSheet() {
                 <div className="flex flex-col gap-xs overflow-y-auto px-sm pb-sm">
                   {navGroups.map((group, index) => (
                     <div key={group.key}>
-                      {index > 0 && <div className="mx-sm mb-xs h-px bg-sidebar-border/30" />}
+                      {index > 0 && <div className="mx-sm mb-xs h-px bg-sidebar-border-muted" />}
                       <NavGroup
                         group={group}
                         variant="full"
@@ -59,8 +59,8 @@ export function MobileMoreSheet() {
                       />
                     </div>
                   ))}
-                  <div className="mx-sm mb-xs h-px bg-sidebar-border/30" />
-                  <div className="flex min-h-11 items-center justify-between gap-sm rounded-lg px-md text-sm font-medium">
+                  <div className="mx-sm mb-xs h-px bg-sidebar-border-muted" />
+                  <div className="flex min-h-11 items-center justify-between gap-sm rounded-lg border border-sidebar-border-muted bg-sidebar-surface px-md text-sm font-medium text-sidebar-text">
                     <span>Appearance</span>
                     <ThemeToggle />
                   </div>

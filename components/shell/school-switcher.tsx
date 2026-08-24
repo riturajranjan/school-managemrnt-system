@@ -19,17 +19,17 @@ export function SchoolSwitcher({ variant = "header" }: { variant?: "header" | "s
       <DropdownMenuTrigger
         className={
           variant === "sidebar"
-            ? "flex min-h-9 w-full items-center gap-sm rounded-lg border border-white/10 bg-white/8 px-sm py-xs text-sm font-medium text-sidebar-foreground outline-none transition-colors hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-sidebar-foreground/60"
+            ? "flex min-h-7 w-full items-center gap-xs rounded-md px-1 text-sm font-medium text-sidebar-text outline-none transition-colors duration-150 hover:bg-sidebar-hover-bg focus-visible:ring-2 focus-visible:ring-sidebar-accent/70"
             : "flex min-h-9 max-w-24 items-center gap-sm rounded-md border border-border bg-surface px-sm py-xs text-sm font-medium outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring xl:max-w-40"
         }
       >
         <School
-          className={`size-4 shrink-0 ${variant === "sidebar" ? "text-sidebar-foreground/60" : "text-muted-foreground"}`}
+          className={`size-4 shrink-0 ${variant === "sidebar" ? "text-sidebar-accent" : "text-muted-foreground"}`}
           aria-hidden="true"
         />
         <span className="truncate">{activeSchool.name}</span>
         <ChevronsUpDown
-          className={`size-3.5 shrink-0 ${variant === "sidebar" ? "text-sidebar-foreground/60 ml-auto" : "text-muted-foreground"}`}
+          className={`size-3.5 shrink-0 ${variant === "sidebar" ? "text-sidebar-text-faint ml-auto" : "text-muted-foreground"}`}
           aria-hidden="true"
         />
       </DropdownMenuTrigger>

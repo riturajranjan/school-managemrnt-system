@@ -38,7 +38,7 @@ export function TabletDrawer() {
                 <div className="flex h-(--topbar-height) shrink-0 items-center justify-between border-b border-sidebar-border px-md">
                   <Dialog.Title className="text-sm font-semibold">Novyra Campus OS</Dialog.Title>
                   <Dialog.Close
-                    className="flex size-9 items-center justify-center rounded-md text-sidebar-foreground/75 transition-colors hover:bg-white/5 hover:text-sidebar-foreground"
+                    className="flex size-9 items-center justify-center rounded-md text-sidebar-text-faint transition-colors hover:bg-sidebar-hover-bg hover:text-sidebar-text"
                     aria-label="Close menu"
                   >
                     <X className="size-[18px]" aria-hidden="true" />
@@ -47,7 +47,7 @@ export function TabletDrawer() {
                 <nav className="flex flex-1 flex-col gap-xs overflow-y-auto px-sm py-sm" aria-label="Sections">
                   {navGroups.map((group, index) => (
                     <div key={group.key}>
-                      {index > 0 && <div className="mx-sm mb-xs h-px bg-sidebar-border/30" />}
+                      {index > 0 && <div className="mx-sm mb-xs h-px bg-sidebar-border-muted" />}
                       <NavGroup
                         group={group}
                         variant="full"

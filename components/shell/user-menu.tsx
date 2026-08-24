@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LogOut, Settings, ShieldUser, User } from "lucide-react";
+import { Check, LogOut, MoreVertical, Settings, ShieldUser, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,15 +63,20 @@ export function UserMenu({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger
-          className={`flex min-h-11 w-11 items-center justify-center gap-sm rounded-lg outline-none transition-colors hover:bg-white/8 focus-visible:ring-2 focus-visible:ring-sidebar-foreground/60 ${
-            collapsed ? "" : "lg:w-full lg:justify-start lg:px-sm"
+          className={`flex min-h-11 w-11 items-center justify-center gap-sm rounded-lg outline-none transition-colors duration-150 hover:bg-sidebar-hover-bg focus-visible:ring-2 focus-visible:ring-sidebar-accent/70 ${
+            collapsed ? "" : "lg:w-full lg:justify-start lg:px-xs lg:py-1"
           }`}
           aria-label="Account menu"
         >
-          {avatar}
-          <span className={`min-w-0 flex-1 text-left ${collapsed ? "hidden" : "hidden lg:block"}`}>
-            <span className="block truncate text-sm font-medium text-sidebar-foreground">{CURRENT_USER.name}</span>
-            <span className="block truncate text-xs text-sidebar-foreground/60">{roleLabels[role]}</span>
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sidebar-surface-elevated text-sm font-semibold text-sidebar-text ring-1 ring-sidebar-active-border shadow-[0_0_10px_-4px_var(--sidebar-active-glow)]">
+            {CURRENT_USER.initials}
+          </span>
+          <span className={`flex min-w-0 flex-1 items-center gap-xs text-left ${collapsed ? "hidden" : "hidden lg:flex"}`}>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-sidebar-text">{CURRENT_USER.name}</span>
+              <span className="block truncate text-xs text-sidebar-text-muted">{roleLabels[role]}</span>
+            </span>
+            <MoreVertical className="size-4 shrink-0 text-sidebar-text-faint" aria-hidden="true" />
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top">

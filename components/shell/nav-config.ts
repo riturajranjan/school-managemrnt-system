@@ -62,7 +62,9 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Illustrative unread/pending count. Omitted unless there's something to surface. */
+  /** Static pending-count badge, for a future item with no live data source yet.
+   * The "notifications" item is special-cased in NavLink to show the real
+   * unread count instead — this field is never used for it. */
   badge?: number;
 };
 
@@ -82,7 +84,7 @@ export const navGroups: NavGroup[] = [
       { key: "my-day", label: "My Day", href: "/teacher/my-day", icon: CalendarCheck },
       { key: "action-inbox", label: "Action Inbox", href: "/action-inbox", icon: Inbox },
       { key: "calendar", label: "Calendar", href: "/academics/calendar", icon: Calendar },
-      { key: "notifications", label: "Notifications", href: "/notifications", icon: Bell, badge: 3 },
+      { key: "notifications", label: "Notifications", href: "/notifications", icon: Bell },
     ],
   },
   {

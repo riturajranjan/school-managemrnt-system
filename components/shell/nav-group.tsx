@@ -38,13 +38,19 @@ export function NavGroup({
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={effectiveOpen}
-        className={`${
+        className={`group ${
           full ? "flex" : collapsed ? "hidden" : "hidden lg:flex"
-        } min-h-8 items-center justify-between rounded-md px-md text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50 outline-none transition-colors hover:text-sidebar-foreground/80 focus-visible:ring-2 focus-visible:ring-sidebar-foreground/60`}
+        } min-h-8 items-center gap-xs rounded-md px-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-accent/70`}
       >
-        <span>{group.label}</span>
+        <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-sidebar-accent/75 transition-colors group-hover:text-sidebar-accent">
+          {group.label}
+        </span>
+        <span aria-hidden className="h-px flex-1 bg-sidebar-border-muted" />
+        <span aria-hidden className="size-1 shrink-0 rounded-full bg-sidebar-accent/45" />
         <ChevronDown
-          className={`size-3.5 transition-transform duration-150 motion-reduce:transition-none ${open ? "" : "-rotate-90"}`}
+          className={`size-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${
+            open ? "text-sidebar-text-muted" : "text-sidebar-text-faint"
+          } ${open ? "" : "-rotate-90"}`}
           aria-hidden="true"
         />
       </button>

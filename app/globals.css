@@ -42,16 +42,36 @@
   --info: #2f7dd1;
   --info-foreground: #ffffff;
 
-  /* Sidebar keeps the brand gradient in both themes for a consistent, always-on-brand nav rail.
-     Deep navy -> dark teal, same family as --background/--surface — cyan is reserved for the
-     accent layer (active rail, badges, icons), never the sidebar surface itself. */
-  --sidebar: #082733;
-  --sidebar-foreground: #f3fbfd;
-  --sidebar-active: rgba(255, 255, 255, 0.16);
-  --sidebar-active-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.14);
-  --sidebar-gradient-from: #082733;
-  --sidebar-gradient-to: #06313d;
+  /* ---- Sidebar ("command rail") ----
+     A dedicated semantic layer, not a copy of the app surface scale, so the
+     rail reads as one deliberate object in both themes. Dark theme: deep
+     navy/teal with cyan accents. Light theme: soft cool-white/blue-gray with
+     dark navy text — NOT a simple inversion, same hierarchy either way.
+     --sidebar-foreground / --sidebar-gradient-from / --sidebar-gradient-to
+     are kept as aliases so the mobile header's brand badge (which shares
+     this palette but is out of this redesign's scope) keeps resolving
+     correctly with zero edits there. */
+  --sidebar-bg: #eef4f8;
+  --sidebar-surface: #ffffff;
+  --sidebar-surface-elevated: #ffffff;
+  --sidebar-text: #0b2432;
+  --sidebar-text-muted: #4c6472;
+  --sidebar-text-faint: #7d95a2;
+  --sidebar-accent: var(--accent);
+  --sidebar-success: var(--success);
+  --sidebar-hover-bg: rgba(24, 176, 200, 0.08);
+  --sidebar-active-bg: rgba(24, 176, 200, 0.12);
+  --sidebar-active-border: rgba(24, 176, 200, 0.35);
+  --sidebar-active-text: #072a36;
+  --sidebar-active-glow: rgba(24, 176, 200, 0.4);
+  --sidebar-border: rgba(8, 145, 178, 0.14);
+  --sidebar-border-muted: rgba(16, 37, 50, 0.07);
+  --sidebar-scrollbar-thumb: rgba(8, 145, 178, 0.2);
+  --sidebar-scrollbar-thumb-hover: rgba(24, 176, 200, 0.36);
+
+  --sidebar-foreground: var(--sidebar-text);
+  --sidebar-gradient-from: var(--sidebar-bg);
+  --sidebar-gradient-to: var(--sidebar-bg);
 
   --glass-background: rgba(255, 255, 255, 0.6);
   --glass-border: rgba(2, 44, 67, 0.1);
@@ -114,13 +134,27 @@
   --info: #5ea2e8;
   --info-foreground: #05121f;
 
-  --sidebar: #082733;
-  --sidebar-foreground: #f3fbfd;
-  --sidebar-active: rgba(255, 255, 255, 0.14);
-  --sidebar-active-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.12);
-  --sidebar-gradient-from: #082733;
-  --sidebar-gradient-to: #06313d;
+  --sidebar-bg: #061521;
+  --sidebar-surface: #081d2a;
+  --sidebar-surface-elevated: #0b2432;
+  --sidebar-text: #f3f8fc;
+  --sidebar-text-muted: #a9bbc8;
+  --sidebar-text-faint: #6f8a99;
+  --sidebar-accent: var(--accent);
+  --sidebar-success: var(--success);
+  --sidebar-hover-bg: rgba(79, 209, 225, 0.06);
+  --sidebar-active-bg: rgba(79, 209, 225, 0.1);
+  --sidebar-active-border: rgba(79, 209, 225, 0.32);
+  --sidebar-active-text: #f3f8fc;
+  --sidebar-active-glow: rgba(79, 209, 225, 0.5);
+  --sidebar-border: rgba(125, 211, 252, 0.1);
+  --sidebar-border-muted: rgba(255, 255, 255, 0.06);
+  --sidebar-scrollbar-thumb: rgba(125, 211, 252, 0.18);
+  --sidebar-scrollbar-thumb-hover: rgba(79, 209, 225, 0.34);
+
+  --sidebar-foreground: var(--sidebar-text);
+  --sidebar-gradient-from: var(--sidebar-bg);
+  --sidebar-gradient-to: var(--sidebar-bg);
 
   --glass-background: rgba(11, 37, 49, 0.55);
   --glass-border: rgba(112, 215, 230, 0.18);
@@ -180,11 +214,21 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
 
-  --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-active: var(--sidebar-active);
-  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
   --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-border-muted: var(--sidebar-border-muted);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-surface: var(--sidebar-surface);
+  --color-sidebar-surface-elevated: var(--sidebar-surface-elevated);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-text-muted: var(--sidebar-text-muted);
+  --color-sidebar-text-faint: var(--sidebar-text-faint);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-success: var(--sidebar-success);
+  --color-sidebar-hover-bg: var(--sidebar-hover-bg);
+  --color-sidebar-active-bg: var(--sidebar-active-bg);
+  --color-sidebar-active-border: var(--sidebar-active-border);
+  --color-sidebar-active-text: var(--sidebar-active-text);
 
   --color-glass: var(--glass-background);
   --color-glass-border: var(--glass-border);
@@ -297,7 +341,9 @@
 }
 
 @layer utilities {
-  /* Sidebar brand gradient — the one fixed visual constant across themes. */
+  /* Legacy name, kept only so the mobile header's brand badge (out of the
+     sidebar redesign's scope) keeps resolving unchanged. --sidebar-gradient-*
+     are now both --sidebar-bg — a flat command-rail tone, no linear gradient. */
   .bg-sidebar-gradient {
     background-image: linear-gradient(180deg, var(--sidebar-gradient-from) 0%, var(--sidebar-gradient-to) 100%);
   }
@@ -310,36 +356,37 @@
     -webkit-backdrop-filter: blur(16px) saturate(160%);
   }
 
-  /* Slow-drifting soft radial mesh for the sidebar — a premium ambient
-     texture over the brand gradient, not a pattern anyone should consciously
-     notice. The cyan glow uses the same hue as --accent (dark theme), kept
-     faint so it reads as a highlight, not a second background layer.
-     Frozen by the global prefers-reduced-motion rule below. */
+  /* Slow-drifting, extremely faint radial glow for the sidebar — "extremely
+     subtle cyan illumination", not a visible pattern. Anchored high (behind
+     brand/school-switcher) and low (behind the profile footer), the two
+     places item 3 calls out for ambient light. Frozen by the global
+     prefers-reduced-motion rule below. */
   .sidebar-mesh {
     background-image:
-      radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.14) 0%, transparent 45%),
-      radial-gradient(circle at 85% 5%, rgba(79, 209, 225, 0.16) 0%, transparent 42%);
-    background-size: 180% 180%;
-    mix-blend-mode: overlay;
+      radial-gradient(circle at 50% 0%, var(--sidebar-active-glow) 0%, transparent 38%),
+      radial-gradient(circle at 50% 100%, var(--sidebar-active-glow) 0%, transparent 34%);
+    background-size: 160% 160%;
+    opacity: 0.12;
     animation: sidebar-mesh-drift 26s ease-in-out infinite;
   }
 
-  /* The global ::-webkit-scrollbar thumb color is tuned for light surfaces and reads as
-     too prominent against the sidebar's dark gradient — this scopes a quieter, low-contrast
-     thumb to the sidebar's own nav scroll area only. */
+  /* The global ::-webkit-scrollbar thumb color is tuned for the main app surfaces and
+     reads wrong against the sidebar's own tone in either theme — this scopes a quieter,
+     muted-teal thumb to the sidebar's own nav scroll area only. */
   .sidebar-nav-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    scrollbar-color: var(--sidebar-scrollbar-thumb) transparent;
   }
   .sidebar-nav-scrollbar::-webkit-scrollbar {
-    width: 3px;
+    width: 4px;
   }
   .sidebar-nav-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.16);
+    background-color: var(--sidebar-scrollbar-thumb);
+    border-radius: var(--radius-pill);
     border: none;
   }
   .sidebar-nav-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.26);
+    background-color: var(--sidebar-scrollbar-thumb-hover);
   }
 
   /* Theme-aware pseudo-3D surface: an inset highlight plus an outer shadow.
