@@ -18,7 +18,9 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { createTermRequest, useExamTerms, useExams } from "@/lib/hooks/api/use-exams-api";
 import type { ExamListItemDto, ExamStatus } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
@@ -216,8 +218,14 @@ function TermsDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
 }
 
 export default function ExamsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission, capabilitiesLoading } = usePermissions();
   const { data: exams, loading, error } = useExams();
+  // Student/Guardian self-view is identity-based (Student.userId / Guardian.userId),
+  // not permission-based — STUDENT/GUARDIAN hold no exams.* permissions at all, so
+  // the view gate below applies only to the staff (ExaminationList) branch.
   if (role === "student" || role === "parent") return <StudentParentExamsView exams={exams} />;
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view exams" role={roleLabels[role]} backHref="/" />;
+  }
   return <ExaminationList exams={exams} loading={loading} error={error} />;
 }

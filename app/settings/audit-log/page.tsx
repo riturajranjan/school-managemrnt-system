@@ -13,7 +13,7 @@ import { formatDateTime } from "@/lib/utils";
 const statusTone = { success: "success", denied: "error", warning: "warning" } as const;
 
 export default function AuditLogPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const log = useAuditLog();
   const [query, setQuery] = useState("");
   const [module, setModule] = useState("all");
@@ -26,7 +26,7 @@ export default function AuditLogPage() {
   }, [log, query, module]);
   const entry = rows.find((e) => e.id === openId) ?? null;
 
-  const canView = role === "super-admin" || role === "administrator" || role === "auditor" || role === "principal";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view the audit log" role={roleLabels[role]} backHref="/settings" />;
 
   return (

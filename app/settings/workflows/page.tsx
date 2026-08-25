@@ -12,12 +12,12 @@ import { addWorkflowStep, moveWorkflowStep, removeWorkflowStep, updateWorkflowSt
 import { allRoles, roleLabels, type UserRole } from "@/lib/permissions/roles";
 
 export default function WorkflowsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const workflows = useWorkflows();
   const [, force] = useState(0);
   const [openId, setOpenId] = useState<string | null>(workflows[0]?.id ?? null);
 
-  const canManage = role === "super-admin" || role === "administrator" || role === "principal";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage workflows" role={roleLabels[role]} backHref="/settings" />;
   const wf = workflows.find((w) => w.id === openId);
   const bump = () => force((n) => n + 1);

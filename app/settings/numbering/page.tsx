@@ -22,12 +22,12 @@ function preview(r: NumberingRule): string {
 }
 
 export default function NumberingPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const rules = useNumberingRules();
   const [, force] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage numbering rules" role={roleLabels[role]} backHref="/settings" />;
   const bump = () => force((n) => n + 1);
 

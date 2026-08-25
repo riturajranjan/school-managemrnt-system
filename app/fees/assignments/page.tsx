@@ -10,16 +10,18 @@ import { AlertTriangle, CheckCircle2, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useClasses, useSections } from "@/lib/hooks/api/use-academics-foundation";
 import { assignFeeStructureRequest, useFeeStructures } from "@/lib/hooks/api/use-fees-api";
 import type { AssignFeeStructureResultDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 
 function AssignmentsContent() {
   const searchParams = useSearchParams();
   const { data: structures } = useFeeStructures("active");
   const { data: classes } = useClasses();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
 
   const [structureId, setStructureId] = useState(searchParams.get("structureId") ?? "");
@@ -30,6 +32,8 @@ function AssignmentsContent() {
   const [result, setResult] = useState<AssignFeeStructureResultDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   if (!canManage) {
     return (

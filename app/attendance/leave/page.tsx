@@ -17,7 +17,9 @@ import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { approveLeaveRequest, cancelLeaveRequest, rejectLeaveRequest, submitLeaveRequest, useLeaveRequests, useLeaveTypes } from "@/lib/hooks/api/use-leave-api";
 import { leaveFormSchema, type LeaveFormValues } from "@/lib/schemas/academics-form";
 import type { LeaveRequestDto, LeaveRequestStatusDto } from "@/lib/api/contracts";
@@ -30,7 +32,7 @@ const leaveStatusTone: Record<LeaveRequestStatusDto, "success" | "warning" | "er
 export default function LeavePage() {
   const { data: requests, loading, error, reload } = useLeaveRequests();
   const { data: leaveTypes } = useLeaveTypes();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [createOpen, setCreateOpen] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<LeaveRequestDto | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -61,6 +63,10 @@ export default function LeavePage() {
     { id: "reason", header: "Reason", cell: (r) => <span className="line-clamp-1 text-xs text-muted-foreground">{r.reason}</span>, defaultVisible: false },
     { id: "status", header: "Status", align: "right", cell: (r) => <Badge tone={leaveStatusTone[r.status]}>{r.status}</Badge> },
   ];
+
+  if (!capabilitiesLoading && !hasServerPermission("leave.submit")) {
+    return <PermissionDenied action="view leave management" role={roleLabels[role]} backHref="/attendance" />;
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

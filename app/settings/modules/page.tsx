@@ -13,12 +13,12 @@ import { roleLabels } from "@/lib/permissions/roles";
 import type { ModuleSetting } from "@/lib/types/admin";
 
 export default function ModulesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const modules = useModules();
   const [, force] = useState(0);
   const sorted = useMemo(() => [...modules].sort((a, b) => a.order - b.order), [modules]);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage modules" role={roleLabels[role]} backHref="/settings" />;
   const bump = () => force((n) => n + 1);
 

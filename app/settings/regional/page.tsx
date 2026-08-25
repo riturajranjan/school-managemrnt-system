@@ -14,12 +14,12 @@ import { roleLabels } from "@/lib/permissions/roles";
 import type { RegionalSettings } from "@/lib/types/admin";
 
 export default function RegionalPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const stored = useAdmin().regional;
   const [form, setForm] = useState<RegionalSettings>(stored);
   const [saved, setSaved] = useState(false);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage regional settings" role={roleLabels[role]} backHref="/settings" />;
   const dirty = JSON.stringify(form) !== JSON.stringify(stored);
   const set = <K extends keyof RegionalSettings>(k: K, v: RegionalSettings[K]) => { setForm((f) => ({ ...f, [k]: v })); setSaved(false); };

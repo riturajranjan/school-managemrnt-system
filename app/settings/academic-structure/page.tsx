@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export default function AcademicStructurePage() {
   const db = useSisStore();
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const [openId, setOpenId] = useState<string | null>(schoolClasses[3]?.id ?? null);
 
   const subjectsByClass = useMemo(() => {
@@ -22,7 +22,7 @@ export default function AcademicStructurePage() {
     return map;
   }, [db.subjects]);
 
-  const canView = role === "super-admin" || role === "administrator" || role === "principal" || role === "academic-coordinator";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view academic structure" role={roleLabels[role]} backHref="/settings" />;
 
   return (

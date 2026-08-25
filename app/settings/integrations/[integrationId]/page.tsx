@@ -17,11 +17,11 @@ export default function IntegrationDetailPage({
   params: Promise<{ integrationId: string }>;
 }) {
   const { integrationId } = use(params);
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const integration = useIntegrations().find((i) => i.id === integrationId);
   const [tested, setTested] = useState(false);
 
-  const canView = role === "super-admin" || role === "administrator";
+  const canView = hasServerPermission("settings.view");
   if (!canView)
     return (
       <PermissionDenied

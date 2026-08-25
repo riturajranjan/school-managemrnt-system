@@ -54,6 +54,10 @@ export default function GradingSchemesPage() {
 
   const previewIssues = useMemo(() => detectBandIssues(bands), [bands]);
 
+  if (!can("results.view")) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">You don&apos;t have permission to view grading schemes.</p>;
+  }
+
   function openEdit(scheme: GradingSchemeDto) {
     setEditScheme(scheme);
     setBands(scheme.bands.map((b) => ({ label: b.label, minPercent: b.minPercent, maxPercent: b.maxPercent, isPass: b.isPass, color: b.color })));

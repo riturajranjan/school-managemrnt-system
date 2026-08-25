@@ -11,18 +11,23 @@ import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useAccountLedger, useAccountingAccounts } from "@/lib/hooks/api/use-accounting-api";
 import type { LedgerEntryDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const typeLabels: Record<string, string> = { asset: "Asset", liability: "Liability", equity: "Equity", income: "Income", expense: "Expense" };
 const sourceLabels: Record<string, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund", payroll_payment: "Payroll payment", staff_advance_disbursement: "Loan/advance disbursement", staff_advance_repayment: "Loan/advance repayment" };
 
 export default function LedgerPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: accounts } = useAccountingAccounts();
   const [accountId, setAccountId] = useState<string>("");
   const selectedId = accountId || accounts[0]?.id || null;
   const { data: ledger, loading } = useAccountLedger(selectedId);
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   const entries = ledger?.entries ?? [];
   const totalDebit = entries.reduce((sum, e) => sum + e.debit, 0);

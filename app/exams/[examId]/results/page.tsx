@@ -17,7 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useExam } from "@/lib/hooks/api/use-exams-api";
 import { publishExamResultsRequest, useExamResults } from "@/lib/hooks/api/use-results-api";
 import type { StudentExamResultDto } from "@/lib/api/contracts";
@@ -29,12 +31,16 @@ export default function ExamResultsPage() {
   const params = useParams<{ examId: string }>();
   const { data: exam } = useExam(params.examId);
   const { data: results, reload } = useExamResults(params.examId);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canPublish = can("results.publish");
 
   const [detail, setDetail] = useState<StudentExamResultDto | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view exam results" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (!exam || !results) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
 

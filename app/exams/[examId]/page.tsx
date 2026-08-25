@@ -23,7 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
 import { reconcileExamClassesRequest, setExamStatusRequest, updateExamRequest, useExam, useExamSchedule } from "@/lib/hooks/api/use-exams-api";
 import { useGradingSchemes } from "@/lib/hooks/api/use-results-api";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatDate } from "@/lib/utils";
 
 const examTypeLabels: Record<string, string> = {
@@ -41,13 +43,17 @@ export default function ExamDetailPage() {
   const { data: schedule } = useExamSchedule(params.examId);
   const { data: classes } = useClasses();
   const { data: gradingSchemes } = useGradingSchemes();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("exams.manageSchedule");
 
   const [editOpen, setEditOpen] = useState(false);
   const [classesOpen, setClassesOpen] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view this exam" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (loading) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading exam…</p>;
   if (error || !exam) {

@@ -9,6 +9,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useGuardianDirectory } from "@/lib/hooks/api/use-guardians";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import type { GuardianDto } from "@/lib/api/contracts";
@@ -16,6 +19,7 @@ import { initialsOf } from "@/lib/utils";
 
 export default function ParentsPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 250);
   // Real, server-backed guardian directory (no mock store).
@@ -24,6 +28,10 @@ export default function ParentsPage() {
   const withPortal = useMemo(() => guardians.filter((g) => g.hasPortalAccount).length, [guardians]);
   const childrenLinked = useMemo(() => guardians.reduce((sum, g) => sum + g.children.length, 0), [guardians]);
   const totalGuardians = meta?.total ?? guardians.length;
+
+  if (!capabilitiesLoading && !hasServerPermission("guardians.view")) {
+    return <PermissionDenied action="view the parents directory" role={roleLabels[role]} backHref="/" />;
+  }
 
   const columns: ColumnDef<GuardianDto>[] = [
     {

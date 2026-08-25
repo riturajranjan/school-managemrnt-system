@@ -327,6 +327,7 @@ export type Permission =
   | "counselling.manage"
   | "counselling.private"
   | "counselling.viewOwn"
+  | "counseling.view" // aligned with the real RBAC catalog's counseling.view key (see campus-life/counselling pages — "counselling.view" above is a stale client-only spelling that never matches the DB-managed key)
   | "cafeteria.view"
   | "cafeteria.manage"
   | "cafeteria.order"

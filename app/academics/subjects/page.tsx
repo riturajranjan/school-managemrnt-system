@@ -20,7 +20,9 @@ import { FieldError, Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { subjectTypeLabels, subjectTypeTone } from "@/components/academics/subjects/subject-meta";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
 import {
   assignClassSubjectRequest,
@@ -111,7 +113,7 @@ function SubjectFormFields({ form }: { form: UseFormReturn<SubjectFormValues> })
 
 export default function SubjectsPage() {
   const { data: subjects, loading, error, reload } = useSubjects();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("academics.manageSubjects");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailSubject, setDetailSubject] = useState<SubjectDto | null>(null);
@@ -124,6 +126,10 @@ export default function SubjectsPage() {
     defaultValues: { type: "core", gradeRangeStart: 1, gradeRangeEnd: 10, credit: 4, passingMarks: 33, maxMarks: 100, theoryMarks: 100, practicalMarks: 0, color: "#18b0c8" },
   });
   const editForm = useForm<SubjectFormValues>({ resolver: zodResolver(subjectFormSchema) });
+
+  if (!capabilitiesLoading && !hasServerPermission("academics.view")) {
+    return <PermissionDenied action="view subjects" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   function openEdit(subject: SubjectDto) {
     setEditSubject(subject);

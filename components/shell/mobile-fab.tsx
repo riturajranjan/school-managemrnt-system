@@ -8,11 +8,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createActions } from "./nav-config";
+import { useVisibleCreateActions } from "./use-nav-access";
 
 // Floating quick-create action, mobile only. Sits above the bottom nav with
 // safe-area awareness so it never sits under a home-indicator gesture bar.
 export function MobileFab() {
+  const createActions = useVisibleCreateActions();
+  if (createActions.length === 0) return null;
   return (
     <div className="fixed right-4 bottom-[calc(var(--mobile-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] z-30 md:hidden">
       <DropdownMenu>

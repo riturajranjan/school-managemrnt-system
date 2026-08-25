@@ -13,8 +13,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
 import { createFeeStructureRequest, useFeeCategories } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 type ItemDraft = { categoryId: string; name: string; amount: string; dueDate: string };
@@ -30,6 +33,8 @@ export default function NewFeeStructurePage() {
   const [items, setItems] = useState<ItemDraft[]>([{ categoryId: "", name: "", amount: "", dueDate: "" }]);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   const total = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Zap } from "lucide-react";
-import { createActions } from "@/components/shell/nav-config";
+import { useVisibleCreateActions } from "@/components/shell/use-nav-access";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Mobile-only launcher — reuses the same action set as the header's quick-create
@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 // Not data-fetched, so it skips the loading/error/empty machinery other
 // widgets use — there's nothing asynchronous here to fail or be empty.
 export function QuickActionsWidget() {
+  const createActions = useVisibleCreateActions();
+  if (createActions.length === 0) return null;
   return (
     <section className="flex h-full flex-col rounded-lg border border-border bg-surface p-md shadow-card sm:p-lg">
       <h2 className="mb-sm flex items-center gap-xs text-sm font-semibold text-foreground">

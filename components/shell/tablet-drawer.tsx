@@ -3,15 +3,16 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
-import { navGroups } from "./nav-config";
 import { NavGroup } from "./nav-group";
 import { useShell } from "./shell-context";
+import { useVisibleNavGroups } from "./use-nav-access";
 
 // Tablet-only expandable nav drawer. The desktop sidebar handles its own
 // expand/collapse inline, so this overlay only ever opens below the lg breakpoint.
 export function TabletDrawer() {
   const { tabletDrawerOpen, setTabletDrawerOpen } = useShell();
   const reduceMotion = useReducedMotion();
+  const navGroups = useVisibleNavGroups();
 
   return (
     <Dialog.Root open={tabletDrawerOpen} onOpenChange={setTabletDrawerOpen}>

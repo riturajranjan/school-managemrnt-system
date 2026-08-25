@@ -9,9 +9,9 @@ import { roleLabels } from "@/lib/permissions/roles";
 import { formatDate } from "@/lib/utils";
 
 export default function PoliciesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const policies = usePolicies();
-  const canView = role === "super-admin" || role === "administrator" || role === "principal";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view policies" role={roleLabels[role]} backHref="/settings" />;
 
   return (

@@ -21,7 +21,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useFeeDashboard } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 const quickLinks = [
@@ -42,7 +45,9 @@ const quickLinks = [
 ];
 
 export default function FeesHubPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data, loading, error } = useFeeDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

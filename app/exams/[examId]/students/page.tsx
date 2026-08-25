@@ -5,7 +5,9 @@ import { useMemo } from "react";
 import { UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useManagedClasses } from "@/lib/hooks/use-academics";
 import { useExam, useExamClasses } from "@/lib/hooks/use-exams";
 import { useStudents } from "@/lib/hooks/use-students";
@@ -17,7 +19,7 @@ export default function ExamStudentsPage() {
   const examClasses = useExamClasses(params.examId);
   const classes = useManagedClasses();
   const students = useStudents();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("exams.manageSchedule");
 
   const rows = useMemo(
@@ -32,6 +34,10 @@ export default function ExamStudentsPage() {
       }),
     [examClasses, classes, students],
   );
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view exam students" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (!exam) return null;
 

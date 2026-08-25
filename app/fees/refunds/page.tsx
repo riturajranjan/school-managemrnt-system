@@ -10,14 +10,19 @@ import { RefreshCcw } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useAllFeeRefunds, useFeeRefundReport } from "@/lib/hooks/api/use-fees-api";
 import type { FeeRefundListItemDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 export default function RefundsPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: refunds, loading, error } = useAllFeeRefunds();
   const { data: report } = useFeeRefundReport();
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   const columns: ColumnDef<FeeRefundListItemDto>[] = [
     {

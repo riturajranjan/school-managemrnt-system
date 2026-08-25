@@ -14,13 +14,15 @@ import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { createVendorRequest, updateVendorRequest, useVendors } from "@/lib/hooks/api/use-accounting-api";
 import type { VendorDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 
 export default function VendorsPage() {
   const { data: vendors, loading, error, reload } = useVendors({ pageSize: 100 });
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("accounting.manage");
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -33,6 +35,8 @@ export default function VendorsPage() {
   const [taxId, setTaxId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   function resetForm() {
     setCode(""); setName(""); setContactPerson(""); setPhone(""); setEmail(""); setAddress(""); setTaxId(""); setFormError(null);

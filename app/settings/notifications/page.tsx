@@ -13,11 +13,11 @@ import { channelRequiresIntegration, notificationChannelLabels, type Notificatio
 const CHANNELS: NotificationChannel[] = ["in-app", "push", "email", "sms", "whatsapp"];
 
 export default function NotificationSettingsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const settings = useNotificationSettings();
   const [, force] = useState(0);
 
-  const canManage = role === "super-admin" || role === "administrator" || role === "communication-admin";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage notifications" role={roleLabels[role]} backHref="/settings" />;
 
   return (

@@ -8,9 +8,9 @@ import { useAdmin } from "@/lib/hooks/use-admin";
 import { roleLabels } from "@/lib/permissions/roles";
 
 export default function GeneralSettingsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const admin = useAdmin();
-  const canView = role === "super-admin" || role === "administrator" || role === "principal";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view general settings" role={roleLabels[role]} backHref="/settings" />;
 
   const rows = [

@@ -9,9 +9,9 @@ import { useAdmin } from "@/lib/hooks/use-admin";
 import { roleLabels } from "@/lib/permissions/roles";
 
 export default function DataCentrePage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const admin = useAdmin();
-  const canView = role === "super-admin" || role === "administrator";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view the data centre" role={roleLabels[role]} backHref="/settings" />;
 
   return (

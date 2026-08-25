@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useExams } from "@/lib/hooks/use-exams";
 import { useSisStore } from "@/lib/hooks/use-store";
 import { formatDateTime } from "@/lib/utils";
@@ -10,10 +11,15 @@ import { formatDateTime } from "@/lib/utils";
 export default function ResultPublicationHubPage() {
   const db = useSisStore();
   const exams = useExams();
+  const { can } = usePermissions();
 
   const publications = db.resultPublications
     .map((p) => ({ ...p, exam: exams.find((e) => e.id === p.examId) }))
     .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""));
+
+  if (!can("results.view")) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">You don&apos;t have permission to view results.</p>;
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

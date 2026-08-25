@@ -17,7 +17,7 @@ const EXPORT_MODULES = ["Students", "Staff", "Fees", "Attendance", "Exams", "Lib
 const STEPS = ["Template", "Upload", "Mapping", "Validation", "Review", "Import"];
 
 export default function ImportExportPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const admin = useAdmin();
   const [, force] = useState(0);
   const [tab, setTab] = useState<"import" | "export">("import");
@@ -25,7 +25,7 @@ export default function ImportExportPage() {
   const [exportModule, setExportModule] = useState("Students");
   const [format, setFormat] = useState<"csv" | "xlsx" | "pdf">("xlsx");
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="import or export data" role={roleLabels[role]} backHref="/settings" />;
 
   return (

@@ -12,14 +12,14 @@ import { compareRoles } from "@/lib/selectors/admin-brief";
 import { allRoles, roleLabels, type UserRole } from "@/lib/permissions/roles";
 
 function PermissionsInner() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const params = useSearchParams();
   const initial = (params.get("role") as UserRole) ?? "teacher";
   const [selected, setSelected] = useState<UserRole>(allRoles.includes(initial) ? initial : "teacher");
   const [compareWith, setCompareWith] = useState<UserRole | "">("");
   const cmp = useMemo(() => (compareWith ? compareRoles(selected, compareWith) : null), [selected, compareWith]);
 
-  const canView = role === "super-admin" || role === "administrator" || role === "principal";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view permissions" role={roleLabels[role]} backHref="/settings" />;
 
   return (

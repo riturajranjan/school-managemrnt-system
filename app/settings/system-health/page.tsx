@@ -9,9 +9,9 @@ import { roleLabels } from "@/lib/permissions/roles";
 import { systemHealthStateLabels, systemHealthStateTone } from "@/lib/types/admin";
 
 export default function SystemHealthPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const items = useAdmin().systemHealth;
-  const canView = role === "super-admin" || role === "administrator";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view system health" role={roleLabels[role]} backHref="/settings" />;
 
   return (

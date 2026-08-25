@@ -15,6 +15,7 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import {
   addManualPayrollAdjustmentRequest,
@@ -27,6 +28,7 @@ import {
   usePayrollRuns,
 } from "@/lib/hooks/api/use-payroll-api";
 import type { PayrollPaymentMethodDto, PayrollRunItemDto, PayrollRunStatusDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 const statusTone: Record<PayrollRunStatusDto, "success" | "warning" | "error" | "neutral"> = { draft: "neutral", calculated: "warning", finalized: "neutral", paid: "success" };
@@ -39,7 +41,7 @@ function nextPeriod(): { year: number; month: number } {
 
 export default function PayrollRunPage() {
   const { data: runs, reload: reloadRuns } = usePayrollRuns();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("payroll.manage");
   const canFinalize = can("payroll.finalize");
   const canPay = can("payroll.pay");
@@ -55,6 +57,8 @@ export default function PayrollRunPage() {
   const [period, setPeriod] = useState(nextPeriod());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/payroll" />;
 
   function reload() {
     reloadRuns();

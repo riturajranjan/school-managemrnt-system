@@ -10,15 +10,18 @@ import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, FileStack, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { setFeeStructureStatusRequest, useFeeStructures } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 export default function FeeStructuresPage() {
   const router = useRouter();
   const { data: structures, loading, error, reload } = useFeeStructures();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

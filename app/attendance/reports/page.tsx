@@ -13,6 +13,9 @@ import { useState } from "react";
 import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useAttendanceReport } from "@/lib/hooks/api/use-attendance";
 import type { AttendanceReportType } from "@/lib/api/contracts";
 
@@ -29,12 +32,17 @@ const reportLabels: Record<ReportTab, string> = {
 };
 
 export default function AttendanceReportsPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [reportTab, setReportTab] = useState<ReportTab>("daily");
   const apiType: AttendanceReportType | null = reportTab === "staff" ? null : reportTab;
   const { data: report, loading, error } = useAttendanceReport(apiType);
 
   const columns = report?.columns ?? [];
   const rows = report?.rows ?? [];
+
+  if (!capabilitiesLoading && !hasServerPermission("attendance.view")) {
+    return <PermissionDenied action="view attendance reports" role={roleLabels[role]} backHref="/attendance" />;
+  }
 
   function exportCsv() {
     const csv = Papa.unparse(rows);

@@ -10,11 +10,16 @@
 import Link from "next/link";
 import { Bell, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useFeeReminderCandidates } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 export default function RemindersPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: candidates, loading, error } = useFeeReminderCandidates();
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

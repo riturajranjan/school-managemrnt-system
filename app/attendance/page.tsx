@@ -13,17 +13,23 @@ import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Label } from "@/components/ui/label";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useAttendanceDashboard } from "@/lib/hooks/api/use-attendance";
 
 export default function AttendanceHubPage() {
   const { data: dashboard, loading, error } = useAttendanceDashboard();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [rulesOpen, setRulesOpen] = useState(false);
 
   const shortageThreshold = dashboard?.policy.shortageThresholdPct ?? 75;
   const consecutiveThreshold = dashboard?.policy.consecutiveAbsenceThreshold ?? 3;
   const pending = dashboard?.pendingSections ?? 0;
+
+  if (!capabilitiesLoading && !hasServerPermission("attendance.view")) {
+    return <PermissionDenied action="view the attendance module" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   return (
     <div className="flex flex-col gap-md">

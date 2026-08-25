@@ -11,9 +11,9 @@ import { roleLabels } from "@/lib/permissions/roles";
 import { branchStatusLabels, branchStatusTone } from "@/lib/types/admin";
 
 export default function BranchesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const branches = useBranches();
-  const canView = role === "super-admin" || role === "administrator" || role === "principal" || role === "school-owner";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view branches" role={roleLabels[role]} backHref="/settings" />;
 
   return (

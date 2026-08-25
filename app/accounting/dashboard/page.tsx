@@ -9,13 +9,18 @@ import Link from "next/link";
 import { AlertTriangle, BookOpen, CheckCircle2, Landmark, Scale, TrendingDown, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useAccountingDashboard } from "@/lib/hooks/api/use-accounting-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const sourceLabels: Record<string, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund", payroll_payment: "Payroll payment", staff_advance_disbursement: "Loan/advance disbursement", staff_advance_repayment: "Loan/advance repayment" };
 
 export default function AccountingDashboardPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data, loading, error } = useAccountingDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

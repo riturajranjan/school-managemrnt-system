@@ -10,11 +10,11 @@ import { toggleSecuritySetting } from "@/lib/services/admin-service";
 import { roleLabels } from "@/lib/permissions/roles";
 
 export default function SecurityPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const settings = useSecuritySettings();
   const [, force] = useState(0);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage security settings" role={roleLabels[role]} backHref="/settings" />;
 
   return (

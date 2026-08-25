@@ -10,12 +10,12 @@ import { toggleCustomStatus } from "@/lib/services/admin-service";
 import { roleLabels } from "@/lib/permissions/roles";
 
 export default function CustomStatusesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const statuses = useCustomStatuses();
   const [, force] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage statuses" role={roleLabels[role]} backHref="/settings" />;
 
   return (

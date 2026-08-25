@@ -4,15 +4,16 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { navGroups } from "./nav-config";
 import { NavGroup } from "./nav-group";
 import { useShell } from "./shell-context";
+import { useVisibleNavGroups } from "./use-nav-access";
 
 // Full grouped navigation as a bottom sheet — the mobile stand-in for the
 // desktop sidebar, sharing its brand gradient and nav components.
 export function MobileMoreSheet() {
   const { mobileMoreOpen, setMobileMoreOpen } = useShell();
   const reduceMotion = useReducedMotion();
+  const navGroups = useVisibleNavGroups();
 
   return (
     <Dialog.Root open={mobileMoreOpen} onOpenChange={setMobileMoreOpen}>

@@ -10,8 +10,11 @@ import Link from "next/link";
 import { BookOpen, Boxes, Calculator, ClipboardList, Gauge, Landmark, PiggyBank, Receipt, ScrollText, Store, TrendingUp, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useAccountingDashboard } from "@/lib/hooks/api/use-accounting-api";
 import { useFeeDashboard } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 const quickLinks = [
@@ -28,8 +31,10 @@ const quickLinks = [
 ];
 
 export default function AccountingHubPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: accounting } = useAccountingDashboard();
   const { data: fees } = useFeeDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/" />;
 
   const netCashFlow = accounting ? accounting.netIncome + (fees?.collectedThisMonth ?? 0) : null;
 

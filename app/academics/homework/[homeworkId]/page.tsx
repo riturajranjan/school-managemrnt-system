@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useHomework, closeHomeworkRequest, duplicateHomeworkRequest, publishHomeworkRequest, updateHomeworkRequest } from "@/lib/hooks/api/use-homework-api";
 import type { HomeworkStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
@@ -23,12 +25,16 @@ const statusTone: Record<HomeworkStatusDto, "neutral" | "info" | "success"> = { 
 
 export default function HomeworkDetailPage() {
   const params = useParams<{ homeworkId: string }>();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: homework, loading, error, reload } = useHomework(params.homeworkId);
   const [extendOpen, setExtendOpen] = useState(false);
   const [newDueDate, setNewDueDate] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("homework.view")) {
+    return <PermissionDenied action="view this homework" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   if (loading) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
   if (error || !homework) {

@@ -14,8 +14,10 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { approveBudgetRequest, createBudgetRequest, useAccountingAccounts, useBudget, useBudgets } from "@/lib/hooks/api/use-accounting-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 type AllocationDraft = { accountingAccountId: string; amount: number };
@@ -30,7 +32,7 @@ function utilizationPercent(actual: number, budgeted: number): number {
 export default function BudgetsPage() {
   const { data: budgets, loading, error, reload } = useBudgets({ pageSize: 100 });
   const { data: accounts } = useAccountingAccounts({ status: "active" });
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("accounting.manage");
 
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -43,6 +45,8 @@ export default function BudgetsPage() {
   const [allocations, setAllocations] = useState<AllocationDraft[]>([blankAllocation()]);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   function resetForm() {
     setName(""); setAllocations([blankAllocation()]); setFormError(null);

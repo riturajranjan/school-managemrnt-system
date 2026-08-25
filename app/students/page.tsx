@@ -14,7 +14,9 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { useStudentList, archiveStudentRequest } from "@/lib/hooks/api/use-students";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import type { StudentListItemDto } from "@/lib/api/contracts";
 import { studentStatusLabels } from "@/lib/types/students";
 
@@ -30,7 +32,7 @@ const STUDENT_FILTER_DEFAULTS = {
 
 function StudentsPageContent() {
   const goToStudent = useGoToStudent();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { filters, setFilters, clearAll } = useUrlFilters(STUDENT_FILTER_DEFAULTS);
   const [searchInput, setSearchInput] = useState(filters.q);
   const debouncedSearch = useDebouncedValue(searchInput, 250);
@@ -86,6 +88,10 @@ function StudentsPageContent() {
   ];
 
   const columns = useMemo(() => buildStudentColumns(), []);
+
+  if (!capabilitiesLoading && !hasServerPermission("students.view")) {
+    return <PermissionDenied action="view students" role={roleLabels[role]} backHref="/" />;
+  }
 
   function exportRows(rows: StudentListItemDto[]) {
     const csv = Papa.unparse(

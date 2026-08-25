@@ -17,7 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { studentStatusTone } from "@/components/students/student-meta";
 import {
   archiveStudentRequest,
@@ -44,10 +46,14 @@ import { formatCurrency, initialsOf } from "@/lib/utils";
 const REAL_TABS = new Set(["overview", "guardians", "documents", "timeline", "attendance", "fees", "transport", "library", "hostel", "health", "counseling", "cafeteria", "activities", "generated-documents"]);
 
 export function StudentProfile({ studentId, initialTab = "overview" }: { studentId: string; initialTab?: string }) {
-  const { can, hasServerPermission } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: student, loading, error, reload } = useStudentDetail(studentId);
   const [activeTab, setActiveTab] = useState(REAL_TABS.has(initialTab) ? initialTab : "overview");
   const [confirmArchive, setConfirmArchive] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("students.view")) {
+    return <PermissionDenied action="view this student profile" role={roleLabels[role]} backHref="/students" />;
+  }
 
   if (loading) return <div className="py-2xl text-center text-sm text-muted-foreground">Loading student…</div>;
   if (error || !student) {

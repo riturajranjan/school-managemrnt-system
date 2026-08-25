@@ -5,6 +5,9 @@ import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import {
   applyColumnMapping,
   generateTemplateCsv,
@@ -50,6 +53,7 @@ function toDto(r: MappedRow) {
 }
 
 export function ImportWizard() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState("");
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
@@ -138,6 +142,10 @@ export function ImportWizard() {
   }
 
   const combinedErrors = validation ? [...validation.errors, ...serverErrors] : [];
+
+  if (!capabilitiesLoading && !hasServerPermission("students.view")) {
+    return <PermissionDenied action="import students" role={roleLabels[role]} backHref="/students" />;
+  }
 
   return (
     <div className="flex flex-col gap-md">

@@ -12,9 +12,11 @@ import { Button } from "@/components/ui/button";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useFeePayment, listFeeRefundsRequest, createFeeRefundRequest, reconcilePaymentRequest } from "@/lib/hooks/api/use-fees-api";
 import type { FeeRefundDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 
 const methodLabels: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank transfer", cheque: "Cheque", other: "Other" };
@@ -22,7 +24,7 @@ const methodLabels: Record<string, string> = { cash: "Cash", upi: "UPI", card: "
 export default function ReceiptPage({ params }: { params: Promise<{ receiptId: string }> }) {
   const { receiptId } = use(params);
   const { data: payment, loading, error, reload } = useFeePayment(receiptId);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
   const canRefund = can("fees.refund");
 
@@ -35,6 +37,8 @@ export default function ReceiptPage({ params }: { params: Promise<{ receiptId: s
   useEffect(() => {
     if (payment) listFeeRefundsRequest(payment.id).then((res) => res.success && setRefunds(res.data));
   }, [payment]);
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   if (loading && !payment) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (error || !payment) {

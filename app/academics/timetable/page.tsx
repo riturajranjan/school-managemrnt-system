@@ -15,7 +15,9 @@ import Papa from "papaparse";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RealTimetableGrid } from "@/components/academics/timetable/real-timetable-grid";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useClasses, useSections } from "@/lib/hooks/api/use-academics-foundation";
 import { useTeachingStaff } from "@/lib/hooks/api/use-staff";
 import { useSectionTimetable, useTeacherTimetable } from "@/lib/hooks/api/use-timetable-api";
@@ -37,7 +39,7 @@ function exportCsv(entries: TimetableEntryDto[], name: string) {
 
 function TimetablePageContent() {
   const searchParams = useSearchParams();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("timetable.manage");
   const { data: classes } = useClasses();
   const { data: sections } = useSections();
@@ -53,6 +55,10 @@ function TimetablePageContent() {
   const { data: teacherTt, loading: tLoading, error: tError } = useTeacherTimetable(viewType === "teacher" ? staffId : undefined);
 
   const className = useMemo(() => new Map(classes.map((c) => [c.id, c.name])), [classes]);
+
+  if (!capabilitiesLoading && !hasServerPermission("timetable.view")) {
+    return <PermissionDenied action="view the timetable" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   return (
     <div className="flex flex-col gap-md">

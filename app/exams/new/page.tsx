@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { createExamRequest, useExamTerms } from "@/lib/hooks/api/use-exams-api";
 import type { ExamType } from "@/lib/api/contracts";
 
@@ -41,6 +44,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function NewExamPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: terms } = useExamTerms();
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,6 +53,10 @@ export default function NewExamPage() {
     resolver: zodResolver(formSchema),
     defaultValues: { type: "unit-test", scope: "internal", mode: "offline" },
   });
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="create an exam" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   async function onSubmit(values: FormValues) {
     setBusy(true); setFormError("");

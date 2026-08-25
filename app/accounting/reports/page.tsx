@@ -11,8 +11,10 @@ import Papa from "papaparse";
 import { BookOpen, Download, Scale, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useIncomeExpenseReport, useTrialBalance } from "@/lib/hooks/api/use-accounting-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { downloadTextFile, formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -24,12 +26,14 @@ const tabs: { key: Tab; label: string }[] = [
 const typeLabels: Record<string, string> = { asset: "Asset", liability: "Liability", equity: "Equity", income: "Income", expense: "Expense" };
 
 export default function AccountingReportsPage() {
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canExport = can("accounting.view");
   const [tab, setTab] = useState<Tab>("income-statement");
 
   const { data: statement } = useIncomeExpenseReport();
   const { data: trial } = useTrialBalance();
+
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   function exportCsv() {
     if (tab === "income-statement" && statement) {

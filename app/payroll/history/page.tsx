@@ -6,15 +6,20 @@ import { History } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { usePayrollRuns } from "@/lib/hooks/api/use-payroll-api";
 import type { PayrollRunListItemDto, PayrollRunStatusDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 const statusTone: Record<PayrollRunStatusDto, "success" | "warning" | "error" | "neutral"> = { draft: "neutral", calculated: "warning", finalized: "neutral", paid: "success" };
 const statusLabel: Record<PayrollRunStatusDto, string> = { draft: "Draft", calculated: "Calculated", finalized: "Finalized", paid: "Paid" };
 
 export default function PayrollHistoryPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: runs } = usePayrollRuns();
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/payroll" />;
 
   const columns: ColumnDef<PayrollRunListItemDto>[] = [
     { id: "period", header: "Period", alwaysVisible: true, sortValue: (r) => r.period, cell: (r) => <span className="text-sm font-medium text-foreground">{r.period}</span> },

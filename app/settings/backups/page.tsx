@@ -13,12 +13,12 @@ import { roleLabels } from "@/lib/permissions/roles";
 import { formatDateTime } from "@/lib/utils";
 
 export default function BackupsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const admin = useAdmin();
   const [, force] = useState(0);
   const [restoring, setRestoring] = useState<string | null>(null);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage backups" role={roleLabels[role]} backHref="/settings" />;
 
   const last = admin.backups[0];

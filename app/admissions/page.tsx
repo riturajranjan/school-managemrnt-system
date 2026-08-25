@@ -15,7 +15,9 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { useAdmissionList, useAdmissionStats, changeStageRequest } from "@/lib/hooks/api/use-admissions";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import type { AdmissionListItemDto } from "@/lib/api/contracts";
 import { admissionSourceLabels, admissionStageDefinitions, type AdmissionStageKey } from "@/lib/types/admissions";
 
@@ -30,7 +32,7 @@ const ADMISSIONS_FILTER_DEFAULTS = {
 
 function AdmissionsPageContent() {
   const goToApplicant = useGoToApplicant();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { filters, setFilters, clearAll } = useUrlFilters(ADMISSIONS_FILTER_DEFAULTS);
   const [searchInput, setSearchInput] = useState(filters.q);
   const debouncedSearch = useDebouncedValue(searchInput, 250);
@@ -54,6 +56,10 @@ function AdmissionsPageContent() {
     stage: selectedStage ? [selectedStage] : undefined,
     source: filters.source,
   });
+
+  if (!capabilitiesLoading && !hasServerPermission("admissions.view")) {
+    return <PermissionDenied action="view admissions" role={roleLabels[role]} backHref="/" />;
+  }
 
   // Pipeline counts come from the global stats endpoint (accurate across pages).
   const stageCounts = (stats.data?.byStage ?? {}) as Record<AdmissionStageKey, number>;

@@ -10,15 +10,20 @@ import { Receipt as ReceiptIcon } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useFeePayments } from "@/lib/hooks/api/use-fees-api";
 import type { FeePaymentDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 const methodLabels: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank transfer", cheque: "Cheque", other: "Other" };
 
 export default function ReceiptsPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: payments, loading, error } = useFeePayments({ pageSize: 100 });
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   const columns: ColumnDef<FeePaymentDto>[] = [
     {

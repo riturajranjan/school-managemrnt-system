@@ -15,16 +15,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoanAdvanceDetail, statusLabels, statusTone, useLoanAdvanceActionState } from "@/components/payroll/loan-advance-detail";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStaffList } from "@/lib/hooks/api/use-staff-api";
 import { approveAdvanceRequest, cancelAdvanceRequest, createAdvanceRequest, disburseAdvanceRequest, rejectAdvanceRequest, repayAdvanceRequest, useAdvance, useAdvances } from "@/lib/hooks/api/use-payroll-api";
 import type { StaffFinancialAdvanceListItemDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 export default function PayrollAdvancesPage() {
   const { data: advances, loading, error, reload } = useAdvances({ pageSize: 100 });
   const { data: staff } = useStaffList({ status: "active", pageSize: 200 });
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("payroll.manage");
   const canFinalize = can("payroll.finalize");
   const canPay = can("payroll.pay");
@@ -39,6 +41,8 @@ export default function PayrollAdvancesPage() {
   const [purpose, setPurpose] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/payroll" />;
 
   function resetCreateForm() {
     setStaffId(""); setPrincipalAmount(0); setPurpose(""); setFormError(null);

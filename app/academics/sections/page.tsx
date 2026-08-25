@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import {
   createSectionRequest,
   enrollStudentsRequest,
@@ -30,7 +32,7 @@ import type { SectionDto, Weekday } from "@/lib/api/contracts";
 
 function SectionsInner() {
   const classIdFilter = useSearchParams().get("classId") ?? undefined;
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("academics.manageClasses");
   const { data: classes } = useClasses();
   const { data: sections, loading, error, reload } = useSections(classIdFilter);
@@ -48,6 +50,10 @@ function SectionsInner() {
     const res = await createSectionRequest({ classId, name: name.trim(), capacity: Number(capacity) || 40 });
     if (!res.success) { setActionError(res.error.message); return; }
     setName(""); setAddOpen(false); reload();
+  }
+
+  if (!capabilitiesLoading && !hasServerPermission("academics.view")) {
+    return <PermissionDenied action="view sections" role={roleLabels[role]} backHref="/academics" />;
   }
 
   return (

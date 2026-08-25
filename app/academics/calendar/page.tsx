@@ -9,7 +9,9 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useCalendarEvents, createCalendarEventRequest } from "@/lib/hooks/api/use-calendar-api";
 import type { CalendarEventDto, CalendarEventTypeDto, CalendarRecurrenceDto } from "@/lib/api/contracts";
 import { cn, formatDate } from "@/lib/utils";
@@ -41,7 +43,7 @@ function weekdayLabel(d: Date) {
 }
 
 export default function AcademicCalendarPage() {
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [view, setView] = useState<ViewMode>("month");
   const [cursor, setCursor] = useState(new Date());
   const [typeFilter, setTypeFilter] = useState<Set<DisplayType>>(new Set());
@@ -80,6 +82,10 @@ export default function AcademicCalendarPage() {
     for (const e of events) counts.set(e.type as DisplayType, (counts.get(e.type as DisplayType) ?? 0) + 1);
     return allDisplayTypes.filter((t) => (counts.get(t) ?? 0) > 0).map((t) => ({ type: t, count: counts.get(t) ?? 0 }));
   }, [events]);
+
+  if (!capabilitiesLoading && !hasServerPermission("calendar.view")) {
+    return <PermissionDenied action="view the academic calendar" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   function toggleType(t: DisplayType) {
     setTypeFilter((prev) => {

@@ -13,13 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { createFeeCategoryRequest, updateFeeCategoryRequest, useFeeCategories } from "@/lib/hooks/api/use-fees-api";
 import type { FeeCategoryDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 
 export default function FeeCategoriesPage() {
   const { data: categories, loading, error, reload } = useFeeCategories(true);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -27,6 +29,8 @@ export default function FeeCategoriesPage() {
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   const columns: ColumnDef<FeeCategoryDto>[] = [
     {

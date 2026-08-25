@@ -14,17 +14,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { setExamStatusRequest, useExam, useExamSchedule } from "@/lib/hooks/api/use-exams-api";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatDate } from "@/lib/utils";
 
 export default function ExamSchedulePage() {
   const params = useParams<{ examId: string }>();
   const { data: exam, reload: reloadExam } = useExam(params.examId);
   const { data: schedule, loading, error } = useExamSchedule(params.examId);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("exams.publishSchedule");
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view the exam schedule" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (!exam) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
 

@@ -13,13 +13,13 @@ import { accessScopeLabels } from "@/lib/types/admin";
 import { roleLabels } from "@/lib/permissions/roles";
 
 export default function RolesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const roles = useRolesMeta();
   const users = useSystemUsers();
 
   const userCounts = useMemo(() => { const m = new Map<string, number>(); users.forEach((u) => m.set(u.role, (m.get(u.role) ?? 0) + 1)); return m; }, [users]);
 
-  const canView = role === "super-admin" || role === "administrator" || role === "principal";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view roles" role={roleLabels[role]} backHref="/settings" />;
 
   return (

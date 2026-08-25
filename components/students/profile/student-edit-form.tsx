@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { schoolClasses } from "@/lib/data/seed/reference";
 import { updateStudentRequest, useStudentDetail } from "@/lib/hooks/api/use-students";
 import type { StudentStatus } from "@/lib/types/students";
@@ -25,6 +28,7 @@ type EditValues = {
 
 export function StudentEditForm({ studentId }: { studentId: string }) {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: student, loading, error } = useStudentDetail(studentId);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -49,6 +53,10 @@ export function StudentEditForm({ studentId }: { studentId: string }) {
 
   const classId = form.watch("classId");
   const sections = schoolClasses.find((c) => c.id === classId)?.sections ?? [];
+
+  if (!capabilitiesLoading && !hasServerPermission("students.view")) {
+    return <PermissionDenied action="edit this student" role={roleLabels[role]} backHref="/students" />;
+  }
 
   if (loading) return <div className="py-2xl text-center text-sm text-muted-foreground">Loading student…</div>;
   if (error || !student) {

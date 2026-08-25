@@ -11,14 +11,14 @@ import { roleLabels } from "@/lib/permissions/roles";
 import { integrationCategoryLabels, type IntegrationCategory } from "@/lib/types/admin";
 
 export default function IntegrationsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const integrations = useIntegrations();
   const [cat, setCat] = useState<IntegrationCategory | "all">("all");
 
   const cats = useMemo(() => Array.from(new Set(integrations.map((i) => i.category))), [integrations]);
   const rows = useMemo(() => (cat === "all" ? integrations : integrations.filter((i) => i.category === cat)), [integrations, cat]);
 
-  const canView = role === "super-admin" || role === "administrator";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view integrations" role={roleLabels[role]} backHref="/settings" />;
 
   return (

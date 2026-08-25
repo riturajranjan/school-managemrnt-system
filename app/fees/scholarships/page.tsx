@@ -11,14 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStudentList } from "@/lib/hooks/api/use-students";
 import { applyFeeAdjustmentRequest, useFeeAdjustmentReport, useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
 import type { FeeAdjustmentAmountTypeDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 export default function ScholarshipsPage() {
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
   const { data: report } = useFeeAdjustmentReport("scholarship");
 
@@ -32,6 +34,8 @@ export default function ScholarshipsPage() {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   if (!canManage) {
     return (

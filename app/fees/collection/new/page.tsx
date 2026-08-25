@@ -16,10 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStudentDetail, useStudentList } from "@/lib/hooks/api/use-students";
 import { recordFeePaymentRequest, useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
 import type { FeePaymentMethodDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const methodLabels: Record<FeePaymentMethodDto, string> = { cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank transfer", cheque: "Cheque", other: "Other" };
@@ -31,7 +33,7 @@ function CollectionContent() {
   const studentId = searchParams.get("studentId") ?? "";
   const { data: student } = useStudentDetail(studentId || undefined);
   const { data: ledger, reload: reloadLedger } = useStudentFeeLedger(studentId || null);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canRecord = can("fees.collect");
 
   const [cashierMode, setCashierMode] = useState(false);
@@ -48,6 +50,8 @@ function CollectionContent() {
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<{ receiptNumber: string; amount: string; paymentId: string } | null>(null);
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   if (!studentId || !student) {
     return (

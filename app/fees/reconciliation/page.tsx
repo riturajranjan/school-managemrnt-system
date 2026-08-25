@@ -11,17 +11,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { reconcilePaymentRequest, useFeePayments, useFeeReconciliationReport } from "@/lib/hooks/api/use-fees-api";
 import type { FeeReconciliationStatusDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 export default function ReconciliationPage() {
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
   const { data: report } = useFeeReconciliationReport();
   const [statusFilter, setStatusFilter] = useState<FeeReconciliationStatusDto | "all">("unreconciled");
   const { data: payments, loading, error, reload } = useFeePayments({ reconciliationStatus: statusFilter === "all" ? undefined : statusFilter, pageSize: 50 });
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

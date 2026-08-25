@@ -18,16 +18,18 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { createAndPostJournalEntryRequest, useAccountingAccounts, useJournalEntries } from "@/lib/hooks/api/use-accounting-api";
 import type { JournalEntryListItemDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function ExpensesPage() {
   const { data: entries, loading, error, reload } = useJournalEntries({ sourceType: "manual", pageSize: 100 });
   const { data: expenseAccounts } = useAccountingAccounts({ type: "expense", status: "active" });
   const { data: assetAccounts } = useAccountingAccounts({ type: "asset", status: "active" });
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("accounting.manage");
 
   // A manual expense entry always debits an EXPENSE account and credits a
@@ -44,6 +46,8 @@ export default function ExpensesPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   const defaultCashOrBank = cashOrBankAccountId || assetAccounts.find((a) => a.systemKey === "BANK")?.id || assetAccounts[0]?.id || "";
 

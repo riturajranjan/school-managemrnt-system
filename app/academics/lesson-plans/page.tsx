@@ -23,7 +23,9 @@ import { Button } from "@/components/ui/button";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useAssignableTeaching } from "@/lib/hooks/api/use-homework-api";
 import { useAssignableCurriculumTopics, useLessonPlan, useLessonPlanList } from "@/lib/hooks/api/use-lesson-plans-api";
 import { useSubjects } from "@/lib/hooks/api/use-academics-subjects";
@@ -39,7 +41,7 @@ const FILTER_DEFAULTS = { q: "", status: [] as string[], subject: [] as string[]
 const statusTone: Record<LessonPlanStatusDto, "neutral" | "info" | "success" | "error"> = { draft: "neutral", submitted: "info", approved: "success", rejected: "error", completed: "success" };
 
 function LessonPlansPageContent() {
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { filters, setFilters, clearAll } = useUrlFilters(FILTER_DEFAULTS);
   const { data: subjects } = useSubjects();
   const { data: plans, loading, error, reload } = useLessonPlanList({ status: filters.status[0], subjectId: filters.subject[0], search: filters.q || undefined });
@@ -55,6 +57,10 @@ function LessonPlansPageContent() {
   async function afterAction() {
     closeDetail();
     reload();
+  }
+
+  if (!capabilitiesLoading && !hasServerPermission("lessonPlans.view")) {
+    return <PermissionDenied action="view lesson plans" role={roleLabels[role]} backHref="/academics" />;
   }
 
   const filterFields: FilterFieldConfig[] = [

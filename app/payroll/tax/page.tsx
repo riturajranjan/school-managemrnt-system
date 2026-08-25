@@ -6,8 +6,13 @@
 // removed rather than migrated. See prisma/schema.prisma's Phase 9H doc
 // comment: inventing these rules was explicitly out of scope for Payroll V1.
 import { Percent } from "lucide-react";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 
 export default function PayrollTaxPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/payroll" />;
   return (
     <div className="mx-auto flex flex-col items-center gap-sm px-md py-2xl text-center">
       <span className="flex size-11 items-center justify-center rounded-full bg-surface-secondary text-muted-foreground">

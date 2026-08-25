@@ -5,6 +5,7 @@ import { AlertTriangle, BarChart3, Calendar, ClipboardCheck, FileText, Graduatio
 import { PipelineStrip } from "@/components/results/pipeline-stages";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useResultsDashboard } from "@/lib/hooks/api/use-results-dashboard";
 import { formatDate } from "@/lib/utils";
 
@@ -14,8 +15,13 @@ const publicationBadge: Record<"published" | "not-published", { label: string; t
 };
 
 export default function ResultsHubPage() {
+  const { can } = usePermissions();
   const { data, loading, error, reload } = useResultsDashboard();
   const rows = data?.rows ?? [];
+
+  if (!can("results.view")) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">You don&apos;t have permission to view results.</p>;
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

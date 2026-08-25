@@ -8,9 +8,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createActions } from "./nav-config";
+import { useVisibleCreateActions } from "./use-nav-access";
 
 export function QuickCreateButton() {
+  const createActions = useVisibleCreateActions();
+  if (createActions.length === 0) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

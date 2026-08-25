@@ -22,13 +22,13 @@ const CONTACT: { k: keyof SchoolProfile; label: string; type?: string }[] = [
 ];
 
 export default function SchoolProfilePage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const stored = useSchoolProfile();
   const [form, setForm] = useState<SchoolProfile>(stored);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canManage = role === "super-admin" || role === "administrator" || role === "principal";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="edit the school profile" role={roleLabels[role]} backHref="/settings" />;
 
   const dirty = JSON.stringify(form) !== JSON.stringify(stored);

@@ -7,7 +7,10 @@ import Link from "next/link";
 import { Banknote, CalendarClock, FileText, Gauge, HandCoins, History, Percent, Receipt, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { usePayrollDashboard } from "@/lib/hooks/api/use-payroll-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 const quickLinks = [
@@ -21,7 +24,9 @@ const quickLinks = [
 ];
 
 export default function PayrollHubPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data } = usePayrollDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

@@ -17,7 +17,7 @@ export default function CounsellingResourcesPage() {
   const db = useSisStore();
   const { can, role } = usePermissions();
   const [query, setQuery] = useState("");
-  if (!can("counselling.view") && !can("counselling.viewOwn")) return <PermissionDenied action="view counselling resources" role={roleLabels[role]} backHref="/counselling" />;
+  if (!can("counseling.view") && !can("counselling.viewOwn")) return <PermissionDenied action="view counselling resources" role={roleLabels[role]} backHref="/counselling" />;
 
   const q = query.trim().toLowerCase();
   const rows = db.counsellingResources.filter((r) => (q ? r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) : true));

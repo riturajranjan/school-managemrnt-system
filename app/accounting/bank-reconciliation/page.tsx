@@ -13,14 +13,19 @@ import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useAccountingAccounts } from "@/lib/hooks/api/use-accounting-api";
 import { useFeeReconciliationReport } from "@/lib/hooks/api/use-fees-api";
 import type { AccountingAccountDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 export default function BankAndCashPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: accounts, loading, error } = useAccountingAccounts({ type: "asset", status: "active" });
   const { data: feeRecon } = useFeeReconciliationReport();
+  if (!capabilitiesLoading && !hasServerPermission("accounting.view")) return <PermissionDenied action="view the accounting module" role={roleLabels[role]} backHref="/accounting" />;
 
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
 

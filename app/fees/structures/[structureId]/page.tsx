@@ -5,15 +5,19 @@ import Link from "next/link";
 import { use } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { setFeeStructureStatusRequest, useFeeStructure } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function FeeStructureDetailPage({ params }: { params: Promise<{ structureId: string }> }) {
   const { structureId } = use(params);
   const { data: structure, loading, error, reload } = useFeeStructure(structureId);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("fees.manage");
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   if (loading && !structure) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (error || !structure) {

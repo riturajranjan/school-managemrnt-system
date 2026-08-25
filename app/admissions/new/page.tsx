@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { schoolClasses } from "@/lib/data/seed/reference";
 import { createAdmissionRequest } from "@/lib/hooks/api/use-admissions";
 
@@ -38,6 +41,7 @@ type Values = z.infer<typeof schema>;
 
 export default function NewAdmissionPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,6 +49,10 @@ export default function NewAdmissionPage() {
     resolver: zodResolver(schema),
     defaultValues: { gender: "prefer-not-to-say", admissionType: "new", source: "website", priority: "medium" },
   });
+
+  if (!capabilitiesLoading && !hasServerPermission("admissions.view")) {
+    return <PermissionDenied action="create an admission application" role={roleLabels[role]} backHref="/admissions" />;
+  }
 
   async function onSubmit(values: Values) {
     setSubmitError(null);

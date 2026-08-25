@@ -20,9 +20,9 @@ const SCOPES: { kind: AccessScopeKind; desc: string }[] = [
 ];
 
 export default function AccessScopesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const roles = useRolesMeta();
-  const canView = role === "super-admin" || role === "administrator" || role === "principal";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view access scopes" role={roleLabels[role]} backHref="/settings" />;
 
   return (

@@ -14,13 +14,13 @@ import { roleLabels } from "@/lib/permissions/roles";
 const AVAILABLE = [{ code: "en", label: "English" }, { code: "hi", label: "हिन्दी (Hindi)" }, { code: "ta", label: "தமிழ் (Tamil)" }, { code: "bn", label: "বাংলা (Bengali)" }, { code: "mr", label: "मराठी (Marathi)" }];
 
 export default function LanguagesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const stored = useAdmin().localization;
   const [enabled, setEnabled] = useState(() => new Set(stored.enabledLanguages.filter((l) => l.enabled).map((l) => l.code)));
   const [defaultLang, setDefaultLang] = useState(stored.defaultLanguage);
   const [saved, setSaved] = useState(false);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage languages" role={roleLabels[role]} backHref="/settings" />;
 
   const dirty = JSON.stringify([...enabled].sort()) !== JSON.stringify(stored.enabledLanguages.filter((l) => l.enabled).map((l) => l.code).sort()) || defaultLang !== stored.defaultLanguage;

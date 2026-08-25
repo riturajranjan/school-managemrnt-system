@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { stageTone } from "@/components/admissions/stage-meta";
 import {
   addNoteRequest,
@@ -29,10 +31,14 @@ const CONVERTIBLE = new Set(["approved", "fee-pending"]);
 
 export function ApplicantWorkspace({ applicationId }: { applicationId: string }) {
   const router = useRouter();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: app, loading, error, reload } = useAdmissionDetail(applicationId);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("admissions.view")) {
+    return <PermissionDenied action="view this admission application" role={roleLabels[role]} backHref="/admissions" />;
+  }
 
   if (loading) return <div className="py-2xl text-center text-sm text-muted-foreground">Loading application…</div>;
   if (error || !app) {

@@ -13,12 +13,12 @@ import { roleLabels } from "@/lib/permissions/roles";
 import type { CommunicationSetting } from "@/lib/types/admin";
 
 export default function CommunicationSettingsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const stored = useAdmin().communication;
   const [form, setForm] = useState<CommunicationSetting>(stored);
   const [saved, setSaved] = useState(false);
 
-  const canManage = role === "super-admin" || role === "administrator" || role === "communication-admin";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage communication settings" role={roleLabels[role]} backHref="/settings" />;
   const dirty = JSON.stringify(form) !== JSON.stringify(stored);
   const set = <K extends keyof CommunicationSetting>(k: K, v: CommunicationSetting[K]) => { setForm((f) => ({ ...f, [k]: v })); setSaved(false); };

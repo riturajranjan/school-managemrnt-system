@@ -49,6 +49,10 @@ export default function GradingRulesPage() {
   const [editing, setEditing] = useState<ResultRule | RuleDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  if (!can("results.view")) {
+    return <p className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">You don&apos;t have permission to view grading rules.</p>;
+  }
+
   const schemeName = (id: string) => schemes.find((s) => s.id === id)?.name ?? "—";
 
   function set<K extends keyof RuleDraft>(key: K, value: RuleDraft[K]) {

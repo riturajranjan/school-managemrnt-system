@@ -19,6 +19,7 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStaff } from "@/lib/hooks/api/use-staff";
 import {
@@ -33,6 +34,7 @@ import {
   useStaffSalaryAssignments,
 } from "@/lib/hooks/api/use-payroll-api";
 import type { CreateSalaryStructureComponentInput, SalaryComponentDto, SalaryComponentTypeDto, SalaryStructureListItemDto, StaffSalaryAssignmentDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +46,11 @@ const tabs: { key: Tab; label: string }[] = [
 ];
 
 export default function SalaryStructuresPage() {
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("payroll.manage");
   const [tab, setTab] = useState<Tab>("structures");
+
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/payroll" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

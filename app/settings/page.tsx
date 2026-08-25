@@ -24,11 +24,11 @@ const CATEGORIES = [
 
 export default function SettingsCommandCentre() {
   const db = useSisStore();
-  const { can, role } = usePermissions();
+  const { can, role, hasServerPermission } = usePermissions();
   const readiness = useMemo(() => systemReadiness(db), [db]);
 
   // Everyone with any settings-ish access can view; deny only truly restricted roles.
-  const canView = can("documents.view") || can("hr.view") || can("fees.view") || role === "super-admin" || role === "administrator" || role === "principal";
+  const canView = can("documents.view") || can("hr.view") || can("fees.view") || hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view settings" role={roleLabels[role]} backHref="/" />;
 
   const R = 52, C = 2 * Math.PI * R;

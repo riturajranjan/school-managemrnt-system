@@ -25,12 +25,12 @@ function contrastRatio(hex: string, bg: "#ffffff" | "#0b1a24"): number {
 }
 
 export default function ThemesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const admin = useAdmin();
   const { theme: mode, setTheme } = useTheme();
   const [schoolTheme, setSchoolTheme] = useState<SchoolTheme>(admin.theme.schoolTheme);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage themes" role={roleLabels[role]} backHref="/settings" />;
 
   const applySchoolTheme = (t: SchoolTheme) => { setSchoolTheme(t); saveTheme({ mode: (mode as ThemeMode) ?? "system", schoolTheme: t }); };

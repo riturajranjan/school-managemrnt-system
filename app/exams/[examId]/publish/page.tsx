@@ -8,7 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useManagedClasses } from "@/lib/hooks/use-academics";
 import { useExam, useResultPublications } from "@/lib/hooks/use-exams";
 import { useSisStore } from "@/lib/hooks/use-store";
@@ -31,7 +33,7 @@ export default function ExamPublishPage() {
   const exam = useExam(params.examId);
   const classes = useManagedClasses();
   const publications = useResultPublications(params.examId);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canPublish = can("results.publish");
 
   const [scope, setScope] = useState<ResultPublicationScope>("all");
@@ -46,6 +48,10 @@ export default function ExamPublishPage() {
   const checklist = useMemo(() => (exam ? computePublicationChecklist(db, exam.id) : []), [db, exam]);
   const allDone = checklist.every((c) => c.done);
   const activePublication = publications.find((p) => p.status === "published" || p.status === "scheduled");
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view exam publication" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (!exam) return null;
 

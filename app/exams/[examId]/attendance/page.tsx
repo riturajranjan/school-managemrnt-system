@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useManagedClasses } from "@/lib/hooks/use-academics";
 import { useExam, useExamAttendance, useExamSubjects } from "@/lib/hooks/use-exams";
 import { useStudents } from "@/lib/hooks/use-students";
@@ -27,7 +29,7 @@ export default function ExamAttendancePage() {
   const attendance = useExamAttendance(params.examId);
   const classes = useManagedClasses();
   const students = useStudents();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("exams.manageAttendance");
 
   const scheduled = useMemo(() => examSubjects.filter((s) => s.date).sort((a, b) => (a.date! < b.date! ? -1 : 1)), [examSubjects]);
@@ -36,6 +38,10 @@ export default function ExamAttendancePage() {
 
   const selected = scheduled.find((s) => s.id === selectedId) ?? scheduled[0];
   const roster = useMemo(() => (selected ? students.filter((s) => s.sectionId === selected.sectionId).sort((a, b) => (a.rollNumber ?? "").localeCompare(b.rollNumber ?? "")) : []), [selected, students]);
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view exam attendance" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (!exam) return null;
 

@@ -15,7 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CapacityBar } from "@/components/academics/classes/capacity-bar";
 import { classCapacity } from "@/components/academics/classes/class-table";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { roomById, subjectById, teacherById } from "@/lib/data/seed/academics";
 import { useManagedClass, useSubjects, useTeachers } from "@/lib/hooks/use-academics";
 import { useHomeworkList } from "@/lib/hooks/use-academics";
@@ -31,7 +33,7 @@ export default function ClassDetailPage({ params }: { params: Promise<{ classId:
   const { classId } = use(params);
   const schoolClass = useManagedClass(classId);
   const db = useSisStore();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const teachers = useTeachers();
   const subjects = useSubjects();
   const goToStudent = useGoToStudent();
@@ -50,6 +52,10 @@ export default function ClassDetailPage({ params }: { params: Promise<{ classId:
   const classHomework = useMemo(() => allHomework.filter((h) => h.classId === classId), [allHomework, classId]);
   const classLessonPlans = useMemo(() => allLessonPlans.filter((p) => p.classId === classId), [allLessonPlans, classId]);
   const classTeacherIds = useMemo(() => new Set(assignments.map((a) => a.primaryTeacherId)), [assignments]);
+
+  if (!capabilitiesLoading && !hasServerPermission("academics.view")) {
+    return <PermissionDenied action="view this class" role={roleLabels[role]} backHref="/academics/classes" />;
+  }
 
   if (!schoolClass) {
     return (

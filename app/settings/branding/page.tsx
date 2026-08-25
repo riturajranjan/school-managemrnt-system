@@ -13,13 +13,13 @@ import { roleLabels } from "@/lib/permissions/roles";
 import type { BrandingSettings } from "@/lib/types/admin";
 
 export default function BrandingStudioPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const stored = useBrandingSettings();
   const [form, setForm] = useState<BrandingSettings>(stored);
   const [saved, setSaved] = useState(false);
   const [preview, setPreview] = useState<"dashboard" | "login" | "sidebar">("dashboard");
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage branding" role={roleLabels[role]} backHref="/settings" />;
 
   const dirty = JSON.stringify(form) !== JSON.stringify(stored);

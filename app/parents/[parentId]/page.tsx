@@ -6,6 +6,9 @@ import { Mail, Phone, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { studentStatusTone } from "@/components/students/student-meta";
 import { useGuardian } from "@/lib/hooks/api/use-guardians";
 import { studentStatusLabels, type StudentStatus } from "@/lib/types/students";
@@ -17,7 +20,12 @@ import { initialsOf } from "@/lib/utils";
 // are migrated (spec §24 — do not fake other modules' data here).
 export default function ParentProfilePage({ params }: { params: Promise<{ parentId: string }> }) {
   const { parentId } = use(params);
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: guardian, loading, error } = useGuardian(parentId);
+
+  if (!capabilitiesLoading && !hasServerPermission("guardians.view")) {
+    return <PermissionDenied action="view this parent profile" role={roleLabels[role]} backHref="/parents" />;
+  }
 
   if (loading) {
     return <div className="py-2xl text-center text-sm text-muted-foreground">Loading guardian…</div>;

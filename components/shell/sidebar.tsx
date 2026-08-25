@@ -3,8 +3,8 @@
 import type { CSSProperties } from "react";
 import { PanelLeftClose, PanelLeftOpen, PanelsTopLeft } from "lucide-react";
 import { SchoolSwitcher } from "./school-switcher";
-import { navGroups } from "./nav-config";
 import { NavGroup } from "./nav-group";
+import { useVisibleNavGroups } from "./use-nav-access";
 import { useShell } from "./shell-context";
 import { UserMenu } from "./user-menu";
 import { WorkspaceStatus } from "./workspace-status";
@@ -17,6 +17,7 @@ const railButtonClass =
 
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebarCollapsed, setTabletDrawerOpen } = useShell();
+  const navGroups = useVisibleNavGroups();
 
   const widthStyle = {
     "--current-sidebar-width": sidebarCollapsed ? "var(--sidebar-width-collapsed)" : "var(--sidebar-width)",

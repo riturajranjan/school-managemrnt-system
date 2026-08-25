@@ -14,13 +14,13 @@ import { roleLabels } from "@/lib/permissions/roles";
 const MODULES = ["All", "Student", "Parent", "Staff", "Admission", "Fees", "Transport", "Library", "Assets", "Health", "Hostel"];
 
 export default function CustomFieldsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const fields = useCustomFields();
   const [, force] = useState(0);
   const [module, setModule] = useState("All");
 
   const rows = useMemo(() => (module === "All" ? fields : fields.filter((f) => f.module === module)), [fields, module]);
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage custom fields" role={roleLabels[role]} backHref="/settings" />;
 
   return (

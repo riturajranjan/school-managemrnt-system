@@ -16,6 +16,9 @@ import { Button } from "@/components/ui/button";
 import { FieldError, Label } from "@/components/ui/label";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useAssignableTeaching, createHomeworkRequest, publishHomeworkRequest } from "@/lib/hooks/api/use-homework-api";
 
 const formSchema = z.object({
@@ -29,6 +32,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function NewHomeworkPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: assignable, loading, error } = useAssignableTeaching();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -39,6 +43,10 @@ export default function NewHomeworkPage() {
   });
   const teachingAssignmentId = form.watch("teachingAssignmentId");
   const chosen = useMemo(() => assignable.find((a) => a.teachingAssignmentId === teachingAssignmentId), [assignable, teachingAssignmentId]);
+
+  if (!capabilitiesLoading && !hasServerPermission("homework.view")) {
+    return <PermissionDenied action="create homework" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   async function onSubmit(values: FormValues, publish: boolean) {
     const assignment = assignable.find((a) => a.teachingAssignmentId === values.teachingAssignmentId);

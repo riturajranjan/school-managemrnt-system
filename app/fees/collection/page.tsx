@@ -7,8 +7,11 @@ import { useState } from "react";
 import { Search, Wallet } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStudentList } from "@/lib/hooks/api/use-students";
 import { useFeePayments, useStudentFeeLedger } from "@/lib/hooks/api/use-fees-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 const methodLabels: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank transfer", cheque: "Cheque", other: "Other" };
@@ -35,8 +38,10 @@ function StudentRow({ studentId, name, admissionNumber, classLabel }: { studentI
 
 export default function FeeCollectionSearchPage() {
   const [query, setQuery] = useState("");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: results } = useStudentList({ search: query.trim() || undefined, pageSize: 25, status: ["active"] });
   const { data: recentPayments } = useFeePayments({ pageSize: 8 });
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">

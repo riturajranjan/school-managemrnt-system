@@ -15,10 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
 import { useDuesSummary, useStudentDues } from "@/lib/hooks/api/use-fees-api";
 import type { StudentDuesRowDto, DuesAgingBucketDto } from "@/lib/api/contracts";
+import { roleLabels } from "@/lib/permissions/roles";
 import { downloadTextFile, formatCurrency } from "@/lib/utils";
 
 const bucketLabels: Record<DuesAgingBucketDto["bucket"], string> = { current: "Current", "1-15": "1–15 days", "16-30": "16–30 days", "31-60": "31–60 days", "61-90": "61–90 days", "90-plus": "90+ days" };
@@ -26,13 +28,15 @@ const bucketTone: Record<DuesAgingBucketDto["bucket"], string> = { current: "bg-
 
 export default function DuesPage() {
   const { data: classes } = useClasses();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canAct = can("fees.view") || can("fees.manage");
 
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const { data: summary } = useDuesSummary();
   const { data: rows, loading, error } = useStudentDues({ search: search.trim() || undefined, classId: classFilter === "all" ? undefined : classFilter });
+
+  if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   const allRows = rows ?? [];
   const totalAgingAmount = summary?.aging.reduce((sum, b) => sum + b.amount, 0) || 1;

@@ -24,7 +24,7 @@ export default function CampusLifeCommandCentre() {
   const { activeSession } = useShell();
   const [pulseOpen, setPulseOpen] = useState(false);
 
-  const anyAccess = can("hostel.view") || can("health.view") || can("counselling.view") || can("cafeteria.view");
+  const anyAccess = can("hostel.view") || can("health.view") || can("counseling.view") || can("cafeteria.view");
   if (!anyAccess) return <PermissionDenied action="view campus services" role={roleLabels[role]} backHref="/" />;
 
   const today = new Date().toISOString().slice(0, 10);
@@ -97,7 +97,7 @@ export default function CampusLifeCommandCentre() {
           <div className="mt-md grid grid-cols-2 gap-xs">
             {can("hostel.view") && <Button asChild size="sm" variant="outline"><Link href="/hostel"><Hotel className="size-3.5" /> Hostel</Link></Button>}
             {can("health.view") && <Button asChild size="sm" variant="outline"><Link href="/health"><HeartPulse className="size-3.5" /> Health</Link></Button>}
-            {can("counselling.view") && <Button asChild size="sm" variant="outline"><Link href="/counselling"><HandHeart className="size-3.5" /> Counselling</Link></Button>}
+            {can("counseling.view") && <Button asChild size="sm" variant="outline"><Link href="/counselling"><HandHeart className="size-3.5" /> Counselling</Link></Button>}
             {can("cafeteria.view") && <Button asChild size="sm" variant="outline"><Link href="/cafeteria"><UtensilsCrossed className="size-3.5" /> Cafeteria</Link></Button>}
           </div>
         </div>

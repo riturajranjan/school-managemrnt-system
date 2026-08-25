@@ -13,12 +13,12 @@ import { sessionStatusLabels, sessionStatusTone } from "@/lib/types/admin";
 import { formatDate } from "@/lib/utils";
 
 export default function AcademicSessionsPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const sessions = useAcademicSessions();
   const [, force] = useState(0);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  const canManage = role === "super-admin" || role === "administrator" || role === "principal";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage academic sessions" role={roleLabels[role]} backHref="/settings" />;
 
   const activate = (id: string) => { setSessionStatus(id, "active"); setConfirmId(null); force((n) => n + 1); };

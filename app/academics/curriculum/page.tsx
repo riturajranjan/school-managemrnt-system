@@ -14,13 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
 import { LearningPathTimeline } from "@/components/academics/curriculum/learning-path-timeline";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useClasses, useSections } from "@/lib/hooks/api/use-academics-foundation";
 import { useClassSubjects } from "@/lib/hooks/api/use-academics-subjects";
 import { createCurriculumRequest, useCurriculum, useCurriculumInsights, useCurriculumList, useSectionCurriculum } from "@/lib/hooks/api/use-curriculum-api";
 
 export default function CurriculumPage() {
-  const { can, role } = usePermissions();
+  const { can, role, hasServerPermission, capabilitiesLoading } = usePermissions();
   // Content authoring (create curriculum, reschedule a unit) is a broad-manager
   // action server-side (SCHOOL_ADMIN/PRINCIPAL only); recording progress is
   // available to any curriculum.manage holder with a real TeachingAssignment,
@@ -58,6 +60,10 @@ export default function CurriculumPage() {
     const result = await createCurriculumRequest({ classId, subjectId, title: `${className} — ${subjectName}` });
     setCreating(false);
     if (result.success) refetchSectionCurriculum();
+  }
+
+  if (!capabilitiesLoading && !hasServerPermission("curriculum.view")) {
+    return <PermissionDenied action="view the curriculum" role={roleLabels[role]} backHref="/academics" />;
   }
 
   return (

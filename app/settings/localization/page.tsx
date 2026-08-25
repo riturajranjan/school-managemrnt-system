@@ -13,12 +13,12 @@ import { roleLabels } from "@/lib/permissions/roles";
 import type { LocalizationSettings } from "@/lib/types/admin";
 
 export default function LocalizationPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const stored = useAdmin().localization;
   const [form, setForm] = useState<LocalizationSettings>(stored);
   const [saved, setSaved] = useState(false);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage localization" role={roleLabels[role]} backHref="/settings" />;
   const dirty = JSON.stringify(form) !== JSON.stringify(stored);
   const set = <K extends keyof LocalizationSettings>(k: K, v: LocalizationSettings[K]) => { setForm((f) => ({ ...f, [k]: v })); setSaved(false); };

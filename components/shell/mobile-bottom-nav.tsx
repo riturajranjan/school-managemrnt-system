@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
-import { mobileBottomNavItems } from "./nav-config";
 import { useShell } from "./shell-context";
+import { useVisibleMobileBottomNavItems } from "./use-nav-access";
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
@@ -14,6 +14,7 @@ function isActive(pathname: string, href: string) {
 export function MobileBottomNav() {
   const pathname = usePathname();
   const { mobileMoreOpen, setMobileMoreOpen } = useShell();
+  const mobileBottomNavItems = useVisibleMobileBottomNavItems();
 
   return (
     <nav

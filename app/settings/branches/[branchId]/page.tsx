@@ -17,11 +17,11 @@ const TABS = ["Overview", "Academic", "Departments", "Users", "Modules", "Brandi
 
 export default function BranchDetailPage({ params }: { params: Promise<{ branchId: string }> }) {
   const { branchId } = use(params);
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const branch = useBranches().find((b) => b.id === branchId);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
 
-  const canView = role === "super-admin" || role === "administrator" || role === "principal" || role === "school-owner";
+  const canView = hasServerPermission("settings.view");
   if (!canView) return <PermissionDenied action="view this branch" role={roleLabels[role]} backHref="/settings/branches" />;
   if (!branch) return <div className="rounded-lg border border-dashed border-border p-md text-center text-sm text-muted-foreground">Branch not found. <Link href="/settings/branches" className="text-primary">Back</Link></div>;
 

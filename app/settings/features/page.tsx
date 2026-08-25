@@ -12,11 +12,11 @@ import { roleLabels } from "@/lib/permissions/roles";
 import { featureStateLabels, featureStateTone, type FeatureState } from "@/lib/types/admin";
 
 export default function FeaturesPage() {
-  const { role } = usePermissions();
+  const { role, hasServerPermission } = usePermissions();
   const features = useFeatureFlags();
   const [, force] = useState(0);
 
-  const canManage = role === "super-admin" || role === "administrator";
+  const canManage = hasServerPermission("settings.manage");
   if (!canManage) return <PermissionDenied action="manage features" role={roleLabels[role]} backHref="/settings" />;
 
   return (

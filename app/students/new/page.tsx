@@ -14,6 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { schoolClasses } from "@/lib/data/seed/reference";
 import {
   studentFormSchema,
@@ -23,6 +26,7 @@ import { createStudentRequest } from "@/lib/hooks/api/use-students";
 
 export default function NewStudentPage() {
   const router = useRouter();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,6 +40,10 @@ export default function NewStudentPage() {
 
   const classId = form.watch("classId");
   const sections = schoolClasses.find((c) => c.id === classId)?.sections ?? [];
+
+  if (!capabilitiesLoading && !hasServerPermission("students.view")) {
+    return <PermissionDenied action="add a student" role={roleLabels[role]} backHref="/students" />;
+  }
 
   // Real create: POST /api/students. Class/section come from the reference
   // picklist (labels); the server assigns tenant/school/branch/session.

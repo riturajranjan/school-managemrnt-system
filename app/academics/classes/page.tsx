@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { createClassRequest, useClasses } from "@/lib/hooks/api/use-academics-foundation";
 import type { ColumnDef } from "@/components/data-table/types";
 import type { ClassDto } from "@/lib/api/contracts";
@@ -39,13 +41,17 @@ const columns: ColumnDef<ClassDto>[] = [
 
 export default function ClassesPage() {
   const router = useRouter();
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data: classes, loading, error, reload } = useClasses();
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  if (!capabilitiesLoading && !hasServerPermission("academics.view")) {
+    return <PermissionDenied action="view classes" role={roleLabels[role]} backHref="/academics" />;
+  }
 
   const active = classes.filter((c) => c.status === "active");
   const totals = active.reduce((acc, c) => ({ capacity: acc.capacity + c.capacity, enrolled: acc.enrolled + c.enrolledCount, sections: acc.sections + c.sectionCount }), { capacity: 0, enrolled: 0, sections: 0 });

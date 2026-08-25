@@ -11,11 +11,15 @@ import type { PulseFactor } from "@/components/dashboard/data/types";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useShell } from "@/components/shell/shell-context";
 import { useAcademicsDashboard } from "@/lib/hooks/api/use-academics-dashboard";
 import { formatDate } from "@/lib/utils";
 
 export default function AcademicsPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data, loading, error, reload } = useAcademicsDashboard();
   const { activeSession, activeBranchName } = useShell();
   const [pulseOpen, setPulseOpen] = useState(false);
@@ -63,6 +67,10 @@ export default function AcademicsPage() {
     }
     return items;
   }, [data]);
+
+  if (!capabilitiesLoading && !hasServerPermission("academics.view")) {
+    return <PermissionDenied action="view the academics module" role={roleLabels[role]} backHref="/" />;
+  }
 
   return (
     <div className="flex flex-col gap-md">

@@ -16,7 +16,9 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { roleLabels } from "@/lib/permissions/roles";
 import { useSections } from "@/lib/hooks/api/use-academics-foundation";
 import { useSectionSubjects } from "@/lib/hooks/api/use-academics-subjects";
 import { useStaff } from "@/lib/hooks/api/use-staff";
@@ -28,7 +30,7 @@ export default function ExamSubjectsPage() {
   const { data: exam } = useExam(params.examId);
   const { data: allSections } = useSections();
   const { data: schedule, reload } = useExamSchedule(params.examId);
-  const { can } = usePermissions();
+  const { can, hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const canManage = can("exams.manageSubjects");
 
   const examClassIds = useMemo(() => new Set((exam?.classes ?? []).map((c) => c.id)), [exam]);
@@ -38,6 +40,10 @@ export default function ExamSubjectsPage() {
   const { data: offeredSubjects } = useSectionSubjects(activeSectionId || undefined);
 
   const [target, setTarget] = useState<{ subject: SubjectDto; entry: ExamScheduleEntryDto | null } | null>(null);
+
+  if (!capabilitiesLoading && !hasServerPermission("exams.view")) {
+    return <PermissionDenied action="view exam subjects" role={roleLabels[role]} backHref="/exams" />;
+  }
 
   if (!exam) return <p className="py-2xl text-center text-sm text-muted-foreground">Loading…</p>;
 

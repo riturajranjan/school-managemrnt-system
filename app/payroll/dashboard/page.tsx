@@ -6,11 +6,16 @@
 // comment). Every KPI here reads real, finalized/paid PayrollRun data.
 import { CalendarClock, HandCoins, Layers, Users } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import { usePayrollDashboard } from "@/lib/hooks/api/use-payroll-api";
+import { roleLabels } from "@/lib/permissions/roles";
 import { formatCurrency } from "@/lib/utils";
 
 export default function PayrollDashboardPage() {
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
   const { data } = usePayrollDashboard();
+  if (!capabilitiesLoading && !hasServerPermission("payroll.view")) return <PermissionDenied action="view the payroll module" role={roleLabels[role]} backHref="/payroll" />;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
