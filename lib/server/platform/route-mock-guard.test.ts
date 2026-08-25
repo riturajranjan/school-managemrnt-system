@@ -317,15 +317,11 @@ const MIGRATED_FILES = [
   // StudentTransportAssignment/StaffTransportAssignment/TransportTrip via
   // /api/transport/* (PostgreSQL). Drivers/Attendants are the real Staff
   // directory (no parallel Driver/Employee identity, no fake safety score).
-  // No GPS/live-tracking/fuel/maintenance/incidents/documents/fees/
-  // notifications — those stay fully mock (app/transport/live,
-  // attendance, incidents, maintenance, fuel, documents, fees,
-  // notifications, reports, settings). app/transport/page.tsx (hub) is now
+  // No GPS/live-tracking — app/transport/live stays fully mock (no real
+  // GPS/telemetry infrastructure exists). app/transport/page.tsx (hub) is now
   // guarded too (Phase 9W fix) — the mock-derived document-expiry banner
   // (db.vehicleDocuments/driverDocuments) was removed since a real hub must
-  // never surface a fake actionable number; its quickLinks still legitimately
-  // point at the still-mock sub-pages listed above, which is fine (navigation
-  // only, no fabricated data claim).
+  // never surface a fake actionable number.
   "app/transport/page.tsx",
   "app/transport/vehicles/page.tsx",
   "app/transport/vehicles/new/page.tsx",
@@ -342,6 +338,38 @@ const MIGRATED_FILES = [
   "app/transport/trips/page.tsx",
   "app/transport/trips/[tripId]/page.tsx",
   "app/transport/dashboard/page.tsx",
+  // Transport checkpoint — the remaining 9 mock surfaces, now real. Attendance
+  // is a read-only summary over the real TransportTripStudent boarding/drop
+  // rows (marking still happens on the trip detail page) — never academic
+  // Attendance, never the mock's richer 7+7 status vocabulary. Incidents/
+  // Maintenance/Fuel are new minimal real models (TransportIncident/
+  // TransportMaintenanceRecord/TransportFuelLog) — factual operational
+  // records only, no insurance/police workflow, no procurement/accounting
+  // system, Decimal-safe money. Documents (TransportDocument) is deliberately
+  // metadata-only — no file/attachment field, since no file-storage
+  // infrastructure exists anywhere in this codebase. Fees is a thin read view
+  // over the real Phase 9F Fees engine scoped to a "Transport" FeeCategory —
+  // no TransportPayment/TransportReceipt, no second charge-calculation
+  // formula (computeCharge is reused verbatim); actions happen on the real
+  // /fees/* pages this links to. Notifications reuses the real Phase 9D
+  // Notification engine (new TRANSPORT_ALERT type) — staff-only recipients
+  // (no linked Guardian/Student User account exists), no SMS/WhatsApp/push
+  // simulation, no rule/trigger automation. Reports is pure aggregation
+  // (route utilization, maintenance/fuel cost totals, document compliance) —
+  // no fabricated on-time%/delay-minutes/cost-per-km (no real scheduled-vs-
+  // actual timing or per-vehicle distance series exists). Settings persists
+  // nothing new — branch/session are read live from shell context, the GPS
+  // threshold is shown as a read-only system constant (no real consumer for
+  // a per-shift-default setting was found, so none was fabricated).
+  "app/transport/attendance/page.tsx",
+  "app/transport/incidents/page.tsx",
+  "app/transport/maintenance/page.tsx",
+  "app/transport/fuel/page.tsx",
+  "app/transport/documents/page.tsx",
+  "app/transport/fees/page.tsx",
+  "app/transport/notifications/page.tsx",
+  "app/transport/reports/page.tsx",
+  "app/transport/settings/page.tsx",
   // Phase 9O — Inventory Management. Real InventoryItem/InventoryLocation/
   // InventoryStockMovement/InventoryIssue via /api/inventory/* (PostgreSQL).
   // The movement ledger + a transactionally-maintained InventoryStockBalance
@@ -759,7 +787,7 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "db.conversationParticipants", why: "mock conversation-participant store slice" },
   // Phase 9M — transport mock authority (real surfaces must use hooks/api/use-transport-api).
   { marker: 'hooks/use-transport"', why: "mock transport hooks (useVehicles/useDrivers/useTransportRoutes/useTransportStops/useTransportTrips/useRouteStops — use hooks/api/use-transport-api)" },
-  { marker: "services/driver-service", why: "mock driver-identity create service — drivers are real Staff, never a parallel identity" },
+  { marker: "services/driver-service", why: "mock driver-identity create service — drivers are real Staff, never a parallel identity (deleted — dead import; the real /transport/documents driver picker uses hooks/api/use-transport-api's useCurrentTransportStaff)" },
   { marker: "services/stop-service", why: "mock stop service (deleted authority — use hooks/api/use-transport-api)" },
   { marker: "services/trip-service", why: "mock trip service (deleted authority — use hooks/api/use-transport-api)" },
   { marker: "services/student-transport-service", why: "mock student-transport-assignment service (deleted authority — use hooks/api/use-transport-api)" },
@@ -769,6 +797,22 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "selectors/transport-pulse", why: "mock Transport Pulse gauge selector (deleted from the dashboard — no real GPS/telemetry/delay data exists)" },
   { marker: "selectors/transport-brief", why: "mock daily transport brief/exception-feed selector (deleted from the dashboard)" },
   { marker: '"@/lib/types/transport"', why: "mock Transport types (Vehicle/Driver/TransportRoute/TransportStop/StudentTransportAssignment/TransportTrip) — real surfaces use lib/api/contracts.ts DTOs instead" },
+  // Transport checkpoint — attendance/incidents/maintenance/fuel/documents/
+  // fees/notifications/reports/settings mock authority (real surfaces must
+  // use hooks/api/use-transport-api).
+  { marker: "selectors/transport-attendance-insights", why: "mock transport attendance selector (deleted — dead import; real surfaces use hooks/api/use-transport-api's useTransportAttendance)" },
+  { marker: "selectors/maintenance-insights", why: "mock maintenance insights selector (deleted — dead import)" },
+  { marker: "selectors/fuel-insights", why: "mock fuel insights selector, including fabricated km/L efficiency/anomaly scoring (deleted — dead import)" },
+  { marker: "selectors/document-compliance", why: "mock vehicle/driver document-compliance selector (deleted — dead import)" },
+  { marker: "selectors/transport-reports", why: "mock transport reports selector, including fabricated on-time%/delay-minutes (deleted — dead import)" },
+  { marker: "selectors/transport-fee-insights", why: "mock transport-fee insights selector (deleted — dead import)" },
+  { marker: '"@/lib/services/maintenance-service"', why: "mock maintenance mutation service (deleted — dead import)" },
+  { marker: '"@/lib/services/fuel-service"', why: "mock fuel-log mutation service (deleted — dead import)" },
+  { marker: '"@/lib/services/transport-notification-service"', why: "mock transport notification rule/trigger/template simulation engine (deleted — dead import; real surfaces use the Phase 9D Notification engine via hooks/api/use-transport-api)" },
+  { marker: '"@/lib/services/transport-settings-service"', why: "mock shift-policy settings service (deleted — dead import; no real per-shift-default consumer exists, so Settings shows read-only info instead)" },
+  { marker: '"@/lib/services/transport-fee-service"', why: "mock transport fee rule/charge collection engine (deleted — dead import; real surfaces use the Phase 9F Fees engine, scoped to a \"Transport\" FeeCategory)" },
+  { marker: '"@/lib/services/incident-service"', why: "mock incident-report mutation service — still consumed by the deferred driver self-service app/driver/incidents page, but real /transport/incidents uses hooks/api/use-transport-api" },
+  { marker: '"@/lib/services/vehicle-service"', why: "mock vehicle document-add mutation service — still consumed by the deferred driver self-service app/driver/checklist and app/driver/trip pages, but real Transport surfaces use hooks/api/use-transport-api" },
   // Phase 9N — library mock authority (real surfaces must use hooks/api/use-library-api).
   { marker: 'hooks/use-library"', why: "mock library hooks (deleted authority for real surfaces — use hooks/api/use-library-api)" },
   { marker: "services/book-service", why: "mock book/catalog service (deleted authority for real surfaces)" },

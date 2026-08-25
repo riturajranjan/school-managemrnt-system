@@ -11,78 +11,72 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/input";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useTransportIncidents } from "@/lib/hooks/use-transport";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { reportIncident, updateIncidentStatus } from "@/lib/services/incident-service";
-import { incidentSeverityLabels, incidentStatusLabels, incidentTypeLabels, type IncidentSeverity, type IncidentStatus, type IncidentType, type TransportIncident } from "@/lib/types/transport";
+import { useTransportIncidents, useTransportVehicles, reportIncidentRequest, updateIncidentStatusRequest } from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
+import type { TransportIncidentDto, TransportIncidentSeverityDto, TransportIncidentStatusDto, TransportIncidentTypeDto } from "@/lib/api/contracts";
 import { formatDateTime } from "@/lib/utils";
 
-const ACTOR = { name: "Transport Manager", role: "Transport Manager" };
-const typeOptions = Object.keys(incidentTypeLabels) as IncidentType[];
-const severityOptions = Object.keys(incidentSeverityLabels) as IncidentSeverity[];
+const typeLabels: Record<TransportIncidentTypeDto, string> = { breakdown: "Breakdown", accident: "Accident", delay: "Delay", "safety-concern": "Safety concern", behaviour: "Behaviour", other: "Other" };
+const severityLabels: Record<TransportIncidentSeverityDto, string> = { low: "Low", medium: "Medium", high: "High", critical: "Critical" };
+const statusLabels: Record<TransportIncidentStatusDto, string> = { open: "Open", investigating: "Investigating", resolved: "Resolved", closed: "Closed" };
+const typeOptions = Object.keys(typeLabels) as TransportIncidentTypeDto[];
+const severityOptions = Object.keys(severityLabels) as TransportIncidentSeverityDto[];
 
-const severityTone: Record<IncidentSeverity, "success" | "warning" | "error" | "neutral"> = {
-  low: "neutral",
-  medium: "warning",
-  high: "error",
-  critical: "error",
-};
-
-const statusTone: Record<IncidentStatus, "success" | "warning" | "error" | "neutral"> = {
-  open: "error",
-  investigating: "warning",
-  "action-required": "warning",
-  resolved: "success",
-  closed: "neutral",
-  escalated: "error",
-};
+const severityTone: Record<TransportIncidentSeverityDto, "success" | "warning" | "error" | "neutral"> = { low: "neutral", medium: "warning", high: "error", critical: "error" };
+const statusTone: Record<TransportIncidentStatusDto, "success" | "warning" | "error" | "neutral"> = { open: "error", investigating: "warning", resolved: "success", closed: "neutral" };
 
 export default function IncidentsPage() {
-  const incidents = useTransportIncidents();
-  const db = useSisStore();
-  const { can } = usePermissions();
-  const canManage = can("transport.manageIncidents");
+  const { data, loading, error, reload } = useTransportIncidents();
+  const { data: vehicles } = useTransportVehicles();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const incidents = data?.incidents ?? [];
 
-  const [detail, setDetail] = useState<TransportIncident | null>(null);
+  const [detail, setDetail] = useState<TransportIncidentDto | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [resolution, setResolution] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const [type, setType] = useState<IncidentType>("other");
-  const [severity, setSeverity] = useState<IncidentSeverity>("medium");
+  const [type, setType] = useState<TransportIncidentTypeDto>("other");
+  const [severity, setSeverity] = useState<TransportIncidentSeverityDto>("medium");
   const [description, setDescription] = useState("");
   const [vehicleId, setVehicleId] = useState("");
 
-  function vehicleName(id?: string) {
-    return db.vehicles.find((v) => v.id === id)?.registrationNumber ?? "—";
+  if (!capabilitiesLoading && !hasServerPermission("transport.view")) {
+    return <PermissionDenied action="view transport incidents" role={roleLabels[role]} backHref="/transport" />;
   }
-  function routeName(id?: string) {
-    return db.transportRoutes.find((r) => r.id === id)?.name ?? "—";
+  const canManage = hasServerPermission("transport.manage");
+
+  async function changeStatus(id: string, status: "investigating" | "resolved" | "closed", res?: string) {
+    setBusy(true);
+    const result = await updateIncidentStatusRequest(id, { status, resolution: res });
+    setBusy(false);
+    if (result.success) reload();
   }
 
-  const columns: ColumnDef<TransportIncident>[] = [
+  const columns: ColumnDef<TransportIncidentDto>[] = [
     {
-      id: "number",
+      id: "incident",
       header: "Incident",
       alwaysVisible: true,
-      sortValue: (i) => i.incidentNumber,
+      sortValue: (i) => i.occurredAt,
       cell: (i) => (
         <button type="button" onClick={() => setDetail(i)} className="text-left">
-          <p className="text-sm font-medium text-foreground underline-offset-2 hover:underline">{i.incidentNumber}</p>
-          <p className="text-xs text-muted-foreground">{incidentTypeLabels[i.type]}</p>
+          <p className="text-sm font-medium text-foreground underline-offset-2 hover:underline">{formatDateTime(i.occurredAt)}</p>
+          <p className="text-xs text-muted-foreground">{typeLabels[i.type]}</p>
         </button>
       ),
     },
-    { id: "vehicle", header: "Vehicle", cell: (i) => <span className="text-sm text-muted-foreground">{vehicleName(i.vehicleId)}</span>, defaultVisible: false },
-    { id: "reporter", header: "Reported by", cell: (i) => <span className="text-sm text-muted-foreground">{i.reportedBy}</span> },
-    { id: "severity", header: "Severity", cell: (i) => <Badge tone={severityTone[i.severity]}>{incidentSeverityLabels[i.severity]}</Badge> },
-    { id: "status", header: "Status", align: "right", cell: (i) => <Badge tone={statusTone[i.status]}>{incidentStatusLabels[i.status]}</Badge> },
+    { id: "vehicle", header: "Vehicle", cell: (i) => <span className="text-sm text-muted-foreground">{i.vehicleRegistration ?? "—"}</span>, defaultVisible: false },
+    { id: "reporter", header: "Reported by", cell: (i) => <span className="text-sm text-muted-foreground">{i.reportedByName}</span> },
+    { id: "severity", header: "Severity", cell: (i) => <Badge tone={severityTone[i.severity]}>{severityLabels[i.severity]}</Badge> },
+    { id: "status", header: "Status", align: "right", cell: (i) => <Badge tone={statusTone[i.status]}>{statusLabels[i.status]}</Badge> },
   ];
 
-  const rowActions: RowAction<TransportIncident>[] = canManage
+  const rowActions: RowAction<TransportIncidentDto>[] = canManage
     ? [
-        { key: "investigate", label: "Start investigating", hidden: (i) => i.status !== "open", onSelect: (i) => updateIncidentStatus(i.id, "investigating", ACTOR) },
-        { key: "escalate", label: "Escalate", hidden: (i) => i.status === "closed" || i.status === "resolved", destructive: true, onSelect: (i) => updateIncidentStatus(i.id, "escalated", ACTOR) },
+        { key: "investigate", label: "Start investigating", hidden: (i) => i.status !== "open", onSelect: (i) => void changeStatus(i.id, "investigating") },
         {
           key: "resolve",
           label: "Resolve",
@@ -110,43 +104,54 @@ export default function IncidentsPage() {
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={[...incidents].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))}
-        getRowId={(i) => i.id}
-        caption="Incidents"
-        rowActions={rowActions}
-        renderMobileCard={(i) => (
-          <button type="button" onClick={() => setDetail(i)} className="surface-3d flex w-full flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left">
-            <div className="flex items-center justify-between gap-xs">
-              <p className="truncate text-sm font-semibold text-foreground">{i.incidentNumber}</p>
-              <Badge tone={statusTone[i.status]}>{incidentStatusLabels[i.status]}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {incidentTypeLabels[i.type]} · {incidentSeverityLabels[i.severity]}
-            </p>
-          </button>
-        )}
-        emptyIcon={AlertTriangle}
-        emptyTitle="No incidents reported"
-      />
+      {error ? (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
+          Could not load incidents: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>
+            Retry
+          </Button>
+        </div>
+      ) : loading && incidents.length === 0 ? (
+        <div className="rounded-lg border border-border bg-surface p-2xl text-center text-sm text-muted-foreground">Loading incidents…</div>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={incidents}
+          getRowId={(i) => i.id}
+          caption="Incidents"
+          rowActions={rowActions}
+          renderMobileCard={(i) => (
+            <button type="button" onClick={() => setDetail(i)} className="surface-3d flex w-full flex-col gap-1 rounded-lg border border-border bg-surface p-sm text-left">
+              <div className="flex items-center justify-between gap-xs">
+                <p className="truncate text-sm font-semibold text-foreground">{formatDateTime(i.occurredAt)}</p>
+                <Badge tone={statusTone[i.status]}>{statusLabels[i.status]}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {typeLabels[i.type]} · {severityLabels[i.severity]}
+              </p>
+            </button>
+          )}
+          emptyIcon={AlertTriangle}
+          emptyTitle="No incidents reported"
+        />
+      )}
 
-      <DetailDrawer open={!!detail} onOpenChange={(open) => !open && setDetail(null)} title={detail?.incidentNumber ?? ""} description={detail ? incidentTypeLabels[detail.type] : undefined}>
+      <DetailDrawer open={!!detail} onOpenChange={(open) => !open && setDetail(null)} title={detail ? typeLabels[detail.type] : ""} description={detail ? formatDateTime(detail.occurredAt) : undefined}>
         {detail && (
           <div className="flex flex-col gap-sm">
             <div className="flex items-center gap-xs">
-              <Badge tone={severityTone[detail.severity]}>{incidentSeverityLabels[detail.severity]}</Badge>
-              <Badge tone={statusTone[detail.status]}>{incidentStatusLabels[detail.status]}</Badge>
+              <Badge tone={severityTone[detail.severity]}>{severityLabels[detail.severity]}</Badge>
+              <Badge tone={statusTone[detail.status]}>{statusLabels[detail.status]}</Badge>
             </div>
             <dl className="grid grid-cols-2 gap-y-2 text-sm">
               <dt className="text-muted-foreground">Occurred</dt>
               <dd className="text-foreground">{formatDateTime(detail.occurredAt)}</dd>
               <dt className="text-muted-foreground">Vehicle</dt>
-              <dd className="text-foreground">{vehicleName(detail.vehicleId)}</dd>
+              <dd className="text-foreground">{detail.vehicleRegistration ?? "—"}</dd>
               <dt className="text-muted-foreground">Route</dt>
-              <dd className="text-foreground">{routeName(detail.routeId)}</dd>
+              <dd className="text-foreground">{detail.routeName ?? "—"}</dd>
               <dt className="text-muted-foreground">Reported by</dt>
-              <dd className="text-foreground">{detail.reportedBy}</dd>
+              <dd className="text-foreground">{detail.reportedByName}</dd>
               <dt className="text-muted-foreground">Location</dt>
               <dd className="text-foreground">{detail.location ?? "—"}</dd>
             </dl>
@@ -167,9 +172,9 @@ export default function IncidentsPage() {
               </div>
             )}
             <div className="flex items-center gap-xs text-xs text-muted-foreground">
-              <span>Parent {detail.parentCommunicated ? "notified" : "not yet notified"}</span>
+              <span>Parent {detail.parentNotified ? "notified" : "not yet notified"}</span>
               <span>·</span>
-              <span>Authority {detail.authorityCommunicated ? "informed" : "not informed"}</span>
+              <span>Authority {detail.authorityNotified ? "informed" : "not informed"}</span>
             </div>
 
             {canManage && detail.status !== "resolved" && detail.status !== "closed" && (
@@ -179,9 +184,9 @@ export default function IncidentsPage() {
                 <div className="flex items-center gap-xs">
                   <Button
                     size="sm"
-                    disabled={!resolution.trim()}
-                    onClick={() => {
-                      updateIncidentStatus(detail.id, "resolved", ACTOR, resolution.trim());
+                    disabled={!resolution.trim() || busy}
+                    onClick={async () => {
+                      await changeStatus(detail.id, "resolved", resolution.trim());
                       setDetail(null);
                     }}
                   >
@@ -190,8 +195,9 @@ export default function IncidentsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      updateIncidentStatus(detail.id, "closed", ACTOR, resolution.trim() || undefined);
+                    disabled={busy}
+                    onClick={async () => {
+                      await changeStatus(detail.id, "closed", resolution.trim() || undefined);
                       setDetail(null);
                     }}
                   >
@@ -208,14 +214,14 @@ export default function IncidentsPage() {
         <div className="flex flex-col gap-sm">
           <div>
             <Label>Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as IncidentType)}>
+            <Select value={type} onValueChange={(v) => setType(v as TransportIncidentTypeDto)}>
               <SelectTrigger aria-label="Incident type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {typeOptions.map((t) => (
                   <SelectItem key={t} value={t}>
-                    {incidentTypeLabels[t]}
+                    {typeLabels[t]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -223,14 +229,14 @@ export default function IncidentsPage() {
           </div>
           <div>
             <Label>Severity</Label>
-            <Select value={severity} onValueChange={(v) => setSeverity(v as IncidentSeverity)}>
+            <Select value={severity} onValueChange={(v) => setSeverity(v as TransportIncidentSeverityDto)}>
               <SelectTrigger aria-label="Severity">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {severityOptions.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {incidentSeverityLabels[s]}
+                    {severityLabels[s]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -243,7 +249,7 @@ export default function IncidentsPage() {
                 <SelectValue placeholder="Not vehicle-specific" />
               </SelectTrigger>
               <SelectContent>
-                {db.vehicles.map((v) => (
+                {(vehicles ?? []).map((v) => (
                   <SelectItem key={v.id} value={v.id}>
                     {v.registrationNumber}
                   </SelectItem>
@@ -256,12 +262,17 @@ export default function IncidentsPage() {
             <Textarea id="incident-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
           <Button
-            disabled={!description.trim()}
-            onClick={() => {
-              reportIncident({ type, occurredAt: new Date().toISOString(), vehicleId: vehicleId || undefined, reportedBy: ACTOR.name, severity, description: description.trim(), parentCommunicated: false, authorityCommunicated: false }, ACTOR);
-              setCreateOpen(false);
-              setDescription("");
-              setVehicleId("");
+            disabled={!description.trim() || busy}
+            onClick={async () => {
+              setBusy(true);
+              const result = await reportIncidentRequest({ type, severity, vehicleId: vehicleId || undefined, description: description.trim() });
+              setBusy(false);
+              if (result.success) {
+                setCreateOpen(false);
+                setDescription("");
+                setVehicleId("");
+                reload();
+              }
             }}
           >
             Report incident

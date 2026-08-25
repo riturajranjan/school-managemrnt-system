@@ -5,18 +5,24 @@
 import { apiPost, apiPut, apiPatch, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
+  AddTransportDocumentRequest,
   AssignStaffTransportRequest,
   AssignStudentTransportRequest,
   BulkAssignResultDto,
   BulkAssignStudentTransportRequest,
+  CompleteTransportMaintenanceRequest,
   CreateTransportRouteRequest,
   CreateTransportStopRequest,
   CreateTransportTripRequest,
   CreateTransportVehicleRequest,
   CurrentTransportStaffDto,
   FlagStopUnsafeRequest,
+  LogFuelEntryRequest,
   MarkBoardingRequest,
   MarkDropRequest,
+  ReportIncidentRequest,
+  ScheduleMaintenanceRequest,
+  SendTransportNotificationRequest,
   SetRouteAssignmentRequest,
   SetRouteStopsRequest,
   SetStopStatusRequest,
@@ -24,7 +30,19 @@ import type {
   StaffTransportAssignmentDto,
   StudentTransportAssignmentDto,
   StudentTransportProfileDto,
+  TransportAttendanceDto,
   TransportDashboardDto,
+  TransportDocumentDto,
+  TransportDocumentsListDto,
+  TransportFeesSummaryDto,
+  TransportFuelListDto,
+  TransportFuelLogDto,
+  TransportIncidentDto,
+  TransportIncidentsListDto,
+  TransportMaintenanceListDto,
+  TransportMaintenanceRecordDto,
+  TransportNotificationsListDto,
+  TransportReportsDto,
   TransportRouteAssignmentDto,
   TransportRouteListItemDto,
   TransportRouteStopDto,
@@ -32,6 +50,7 @@ import type {
   TransportTripDetailDto,
   TransportTripListItemDto,
   TransportVehicleDto,
+  UpdateIncidentStatusRequest,
   UpdateTransportRouteRequest,
   UpdateTransportVehicleRequest,
   WithdrawStudentTransportRequest,
@@ -127,4 +146,60 @@ export function useTransportDashboard() {
 }
 export function useStudentTransportProfile(studentId: string | undefined) {
   return useApiResource<StudentTransportProfileDto>(studentId ? `/api/students/${studentId}/transport` : null);
+}
+
+// ── Attendance (real per-trip boarding/drop summary, read-only) ────────────
+
+export function useTransportAttendance(date: string) {
+  return useApiResource<TransportAttendanceDto>(`/api/transport/attendance${buildQuery({ date })}`);
+}
+
+// ── Incidents ────────────────────────────────────────────────────────────
+
+export function useTransportIncidents(filters: { status?: string; vehicleId?: string } = {}) {
+  return useApiResource<TransportIncidentsListDto>(`/api/transport/incidents${buildQuery(filters)}`);
+}
+export const reportIncidentRequest = (body: ReportIncidentRequest): Promise<ApiResult<TransportIncidentDto>> => apiPost<TransportIncidentDto>("/api/transport/incidents", body);
+export const updateIncidentStatusRequest = (id: string, body: UpdateIncidentStatusRequest): Promise<ApiResult<TransportIncidentDto>> => apiPatch<TransportIncidentDto>(`/api/transport/incidents/${id}/status`, body);
+
+// ── Maintenance ──────────────────────────────────────────────────────────
+
+export function useTransportMaintenance(filters: { vehicleId?: string; status?: string } = {}) {
+  return useApiResource<TransportMaintenanceListDto>(`/api/transport/maintenance${buildQuery(filters)}`);
+}
+export const scheduleMaintenanceRequest = (body: ScheduleMaintenanceRequest): Promise<ApiResult<TransportMaintenanceRecordDto>> => apiPost<TransportMaintenanceRecordDto>("/api/transport/maintenance", body);
+export const startMaintenanceRequest = (id: string): Promise<ApiResult<TransportMaintenanceRecordDto>> => apiPost<TransportMaintenanceRecordDto>(`/api/transport/maintenance/${id}/start`, {});
+export const completeMaintenanceRequest = (id: string, body: CompleteTransportMaintenanceRequest): Promise<ApiResult<TransportMaintenanceRecordDto>> => apiPost<TransportMaintenanceRecordDto>(`/api/transport/maintenance/${id}/complete`, body);
+
+// ── Fuel ─────────────────────────────────────────────────────────────────
+
+export function useTransportFuel(filters: { vehicleId?: string } = {}) {
+  return useApiResource<TransportFuelListDto>(`/api/transport/fuel${buildQuery(filters)}`);
+}
+export const logFuelEntryRequest = (body: LogFuelEntryRequest): Promise<ApiResult<TransportFuelLogDto>> => apiPost<TransportFuelLogDto>("/api/transport/fuel", body);
+
+// ── Documents / compliance ───────────────────────────────────────────────
+
+export function useTransportDocuments(filters: { subjectType?: string } = {}) {
+  return useApiResource<TransportDocumentsListDto>(`/api/transport/documents${buildQuery(filters)}`);
+}
+export const addTransportDocumentRequest = (body: AddTransportDocumentRequest): Promise<ApiResult<TransportDocumentDto>> => apiPost<TransportDocumentDto>("/api/transport/documents", body);
+
+// ── Fees (thin view over the real Phase 9F Fees engine) ─────────────────
+
+export function useTransportFees() {
+  return useApiResource<TransportFeesSummaryDto>("/api/transport/fees");
+}
+
+// ── Notifications (real Phase 9D engine, staff-only) ─────────────────────
+
+export function useTransportNotifications() {
+  return useApiResource<TransportNotificationsListDto>("/api/transport/notifications");
+}
+export const sendTransportNotificationRequest = (body: SendTransportNotificationRequest): Promise<ApiResult<{ sentTo: number; skipped: number }>> => apiPost("/api/transport/notifications", body);
+
+// ── Reports ──────────────────────────────────────────────────────────────
+
+export function useTransportReports() {
+  return useApiResource<TransportReportsDto>("/api/transport/reports");
 }

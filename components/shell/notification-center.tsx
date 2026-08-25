@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import { Bell, BellOff, BookOpen, CalendarDays, ClipboardCheck, FileBadge, HandHeart, HardDrive, MessageSquare, Trophy, UserCheck, UserRoundCheck, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, BookOpen, Bus, CalendarDays, ClipboardCheck, FileBadge, HandHeart, HardDrive, MessageSquare, Trophy, UserCheck, UserRoundCheck, type LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
 import { useShell } from "./shell-context";
 import { timeAgo } from "@/lib/utils";
@@ -25,6 +25,7 @@ const TYPE_ICON: Record<NotificationTypeDto, LucideIcon> = {
   "asset-returned": HardDrive,
   "counseling-case-assigned": HandHeart,
   "activity-staff-assigned": Trophy,
+  "transport-alert": Bus,
 };
 
 export function NotificationCenter() {

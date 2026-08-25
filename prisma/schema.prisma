@@ -2133,6 +2133,7 @@ model Staff {
   transportTripsAsDriver             TransportTrip[]                  @relation("TransportTripDriver") // Phase 9M
   transportTripsAsAttendant          TransportTrip[]                  @relation("TransportTripAttendant") // Phase 9M
   staffTransportAssignments          StaffTransportAssignment[] // Phase 9M
+  transportDocuments                 TransportDocument[] // Transport checkpoint — own compliance documents (license etc.)
   libraryLoans                       LibraryLoan[] // Phase 9N — library circulation
   assetAssignments                   AssetAssignment[] // Phase 9O — durable asset custody
   hostelStaffAssignments             HostelStaffAssignment[] // Phase 9Q — warden/assistant-warden assignment
@@ -3247,6 +3248,7 @@ enum NotificationType {
   ASSET_RETURNED
   COUNSELING_CASE_ASSIGNED
   ACTIVITY_STAFF_ASSIGNED
+  TRANSPORT_ALERT
 }
 
 model Notification {
@@ -4600,8 +4602,12 @@ model TransportVehicle {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  routeAssignments TransportRouteAssignment[]
-  trips            TransportTrip[]
+  routeAssignments   TransportRouteAssignment[]
+  trips              TransportTrip[]
+  incidents          TransportIncident[]
+  maintenanceRecords TransportMaintenanceRecord[]
+  fuelLogs           TransportFuelLog[]
+  documents          TransportDocument[]
 
   // Registration number unique within the school — the real concurrency
   // guarantee against duplicate vehicle registration (a race-losing insert
@@ -4654,6 +4660,7 @@ model TransportRoute {
   studentAssignments StudentTransportAssignment[]
   staffAssignments   StaffTransportAssignment[]
   trips              TransportTrip[]
+  incidents          TransportIncident[]
 
   @@unique([schoolId, code])
   @@index([tenantId])
@@ -4872,6 +4879,7 @@ model TransportTrip {
   attendant    Staff?                 @relation("TransportTripAttendant", fields: [attendantStaffId], references: [id], onDelete: SetNull)
   stops        TransportTripStop[]
   tripStudents TransportTripStudent[]
+  incidents    TransportIncident[]
 
   // One trip per route per date per type — the real concurrency guarantee
   // against a duplicate trip being created twice.
@@ -4950,6 +4958,213 @@ model TransportTripStudent {
   @@unique([tripId, studentId])
   @@index([tripId])
   @@map("transport_trip_students")
+}
+
+// ===========================================================================
+// Transport checkpoint — Incidents, Maintenance, Fuel, Documents. Minimal,
+// factual operational records extending the real Phase 9M domain — no
+// parallel Vehicle/Staff/Student identity. parentNotified/authorityNotified
+// on TransportIncident are plain factual flags ("was X told"), never an
+// insurance/police workflow engine. No fabricated efficiency/utilization/
+// safety scores anywhere — every derived number a service computes from
+// these tables is a plain ratio/sum of real stored values, computed at read
+// time, never persisted. TransportDocument is deliberately metadata-only
+// (documentNumber/expiryDate) — no file/attachment field, because no file-
+// storage infrastructure exists anywhere in this codebase.
+enum TransportIncidentType {
+  BREAKDOWN
+  ACCIDENT
+  DELAY
+  SAFETY_CONCERN
+  BEHAVIOUR
+  OTHER
+}
+
+enum TransportIncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TransportIncidentStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+}
+
+model TransportIncident {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  vehicleId String?
+  routeId   String?
+  tripId    String?
+
+  type        TransportIncidentType
+  severity    TransportIncidentSeverity
+  status      TransportIncidentStatus   @default(OPEN)
+  occurredAt  DateTime                  @db.Timestamptz(6)
+  location    String?
+  description String
+
+  immediateAction   String?
+  resolution        String?
+  parentNotified    Boolean @default(false)
+  authorityNotified Boolean @default(false)
+
+  reportedByUserId String
+  reportedByName   String?
+  resolvedAt       DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  vehicle TransportVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  route   TransportRoute?   @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  trip    TransportTrip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@index([vehicleId])
+  @@map("transport_incidents")
+}
+
+enum TransportMaintenanceType {
+  ROUTINE_SERVICE
+  REPAIR
+  INSPECTION
+  TYRE
+  BATTERY
+  OTHER
+}
+
+enum TransportMaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * "Overdue"/"due soon" are deliberately NOT stored statuses — they're
+ * derived at read time from scheduledDate vs today, exactly like
+ * TransportStop's "never computed/estimated" sibling fields stay manual.
+ */
+model TransportMaintenanceRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  vehicleId String
+
+  type          TransportMaintenanceType
+  status        TransportMaintenanceStatus @default(SCHEDULED)
+  scheduledDate DateTime                   @db.Date
+  completedDate DateTime?                  @db.Date
+  vendor        String?
+  odometerKm    Int?
+  partsCost     Decimal                    @default(0) @db.Decimal(12, 2)
+  labourCost    Decimal                    @default(0) @db.Decimal(12, 2)
+  notes         String?
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  vehicle TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@index([vehicleId])
+  @@map("transport_maintenance_records")
+}
+
+/**
+ * fuelType is deliberately not duplicated here — TransportVehicle.type
+ * already distinguishes ELECTRIC_VEHICLE from fuel-burning types, so "fleet
+ * fuel vehicles" is derived from that, not a second fuel-type field.
+ */
+model TransportFuelLog {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  vehicleId String
+
+  date           DateTime @db.Date
+  odometerKm     Int
+  quantityLitres Decimal  @db.Decimal(8, 2)
+  ratePerLitre   Decimal  @db.Decimal(8, 2)
+  totalCost      Decimal  @db.Decimal(12, 2)
+  vendor         String?
+  filledByName   String?
+  fullTank       Boolean  @default(true)
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  vehicle TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, date])
+  @@index([vehicleId])
+  @@map("transport_fuel_logs")
+}
+
+enum TransportDocumentSubjectType {
+  VEHICLE
+  STAFF
+}
+
+enum TransportDocumentType {
+  INSURANCE
+  REGISTRATION
+  FITNESS_CERTIFICATE
+  PERMIT
+  POLLUTION_CERTIFICATE
+  DRIVING_LICENSE
+  POLICE_VERIFICATION
+  MEDICAL_CERTIFICATE
+}
+
+/**
+ * Metadata-only compliance tracking — exactly one of vehicleId/staffId is
+ * set, matching subjectType (enforced in the service layer; Prisma has no
+ * native XOR constraint). Never claims to hold a document file.
+ */
+model TransportDocument {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  subjectType TransportDocumentSubjectType
+  vehicleId   String?
+  staffId     String?
+
+  type           TransportDocumentType
+  documentNumber String?
+  expiryDate     DateTime?             @db.Date
+  notes          String?
+
+  createdByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  vehicle TransportVehicle? @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  staff   Staff?            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([schoolId])
+  @@index([vehicleId])
+  @@index([staffId])
+  @@map("transport_documents")
 }
 
 // ===========================================================================

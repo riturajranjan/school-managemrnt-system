@@ -1739,7 +1739,7 @@ export type UpdateCalendarEventRequest = Partial<CreateCalendarEventRequest>;
 // --- Phase 9D.2: In-app Notifications — real Notification + per-recipient
 // NotificationRecipient rows. V1 is in-app only (no email/SMS/push). ---
 
-export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned" | "counseling-case-assigned" | "activity-staff-assigned";
+export type NotificationTypeDto = "lesson-plan-approved" | "lesson-plan-rejected" | "exam-scheduled" | "calendar-event" | "leave-request-submitted" | "leave-request-approved" | "leave-request-rejected" | "visitor-checked-in" | "message-received" | "library-book-issued" | "library-book-returned" | "asset-assigned" | "asset-returned" | "counseling-case-assigned" | "activity-staff-assigned" | "transport-alert";
 
 export type NotificationDto = {
   id: string;
@@ -2607,6 +2607,195 @@ export type StudentTransportProfileDto = {
   vehicle: { id: string; registrationNumber: string } | null;
   driverName: string | null;
   attendantName: string | null;
+};
+
+// ── Transport checkpoint — Incidents, Maintenance, Fuel, Documents, real-
+// data Attendance/Fees/Notifications/Reports/Settings surfaces. No fabricated
+// efficiency/utilization/punctuality scores anywhere below; every percentage
+// is a plain ratio of two real counts, computed at read time.
+
+export type TransportIncidentTypeDto = "breakdown" | "accident" | "delay" | "safety-concern" | "behaviour" | "other";
+export type TransportIncidentSeverityDto = "low" | "medium" | "high" | "critical";
+export type TransportIncidentStatusDto = "open" | "investigating" | "resolved" | "closed";
+
+export type TransportIncidentDto = {
+  id: string;
+  vehicleId: string | null;
+  vehicleRegistration: string | null;
+  routeId: string | null;
+  routeName: string | null;
+  tripId: string | null;
+  type: TransportIncidentTypeDto;
+  severity: TransportIncidentSeverityDto;
+  status: TransportIncidentStatusDto;
+  occurredAt: string;
+  location: string | null;
+  description: string;
+  immediateAction: string | null;
+  resolution: string | null;
+  parentNotified: boolean;
+  authorityNotified: boolean;
+  reportedByName: string;
+  resolvedAt: string | null;
+  createdAt: string;
+};
+
+export type ReportIncidentRequest = {
+  type: TransportIncidentTypeDto;
+  severity: TransportIncidentSeverityDto;
+  occurredAt?: string;
+  vehicleId?: string;
+  routeId?: string;
+  tripId?: string;
+  location?: string;
+  description: string;
+  immediateAction?: string;
+  parentNotified?: boolean;
+  authorityNotified?: boolean;
+};
+
+export type UpdateIncidentStatusRequest = { status: "investigating" | "resolved" | "closed"; resolution?: string };
+
+export type TransportMaintenanceTypeDto = "routine-service" | "repair" | "inspection" | "tyre" | "battery" | "other";
+export type TransportMaintenanceStatusDto = "scheduled" | "in-progress" | "completed" | "cancelled";
+
+export type TransportMaintenanceRecordDto = {
+  id: string;
+  vehicleId: string;
+  vehicleRegistration: string;
+  type: TransportMaintenanceTypeDto;
+  status: TransportMaintenanceStatusDto;
+  scheduledDate: string;
+  completedDate: string | null;
+  /** Derived at read time (scheduledDate < today, not yet completed/cancelled) — never stored. */
+  overdue: boolean;
+  vendor: string | null;
+  odometerKm: number | null;
+  partsCost: number;
+  labourCost: number;
+  totalCost: number;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type ScheduleMaintenanceRequest = { vehicleId: string; type: TransportMaintenanceTypeDto; scheduledDate: string; vendor?: string; notes?: string };
+export type CompleteTransportMaintenanceRequest = { completedDate?: string; odometerKm?: number; partsCost: number; labourCost: number };
+
+export type TransportMaintenanceInsightsDto = {
+  scheduledOrInProgressCount: number;
+  overdueCount: number;
+  completedThisMonthCount: number;
+  completedCostThisMonth: number;
+};
+
+export type TransportFuelLogDto = {
+  id: string;
+  vehicleId: string;
+  vehicleRegistration: string;
+  date: string;
+  odometerKm: number;
+  quantityLitres: number;
+  ratePerLitre: number;
+  totalCost: number;
+  vendor: string | null;
+  filledByName: string | null;
+  fullTank: boolean;
+  createdAt: string;
+};
+
+export type LogFuelEntryRequest = { vehicleId: string; date: string; odometerKm: number; quantityLitres: number; ratePerLitre: number; vendor?: string; filledByName?: string; fullTank?: boolean };
+
+export type TransportFuelInsightsDto = { costThisMonth: number; litresThisMonth: number; fuelVehicleCount: number };
+
+export type TransportDocumentSubjectTypeDto = "vehicle" | "staff";
+export type TransportDocumentTypeDto = "insurance" | "registration" | "fitness-certificate" | "permit" | "pollution-certificate" | "driving-license" | "police-verification" | "medical-certificate";
+/** Derived at read time from expiryDate vs today — never stored. */
+export type TransportDocumentEffectiveStatusDto = "valid" | "expiring-soon" | "expired" | "no-expiry";
+
+export type TransportDocumentDto = {
+  id: string;
+  subjectType: TransportDocumentSubjectTypeDto;
+  vehicleId: string | null;
+  vehicleRegistration: string | null;
+  staffId: string | null;
+  staffName: string | null;
+  type: TransportDocumentTypeDto;
+  documentNumber: string | null;
+  expiryDate: string | null;
+  effectiveStatus: TransportDocumentEffectiveStatusDto;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type AddTransportDocumentRequest = { subjectType: TransportDocumentSubjectTypeDto; vehicleId?: string; staffId?: string; type: TransportDocumentTypeDto; documentNumber?: string; expiryDate?: string; notes?: string };
+
+export type TransportComplianceSummaryDto = {
+  expiredCount: number;
+  expiringSoonCount: number;
+  blockedVehicleCount: number;
+  blockedDriverCount: number;
+};
+
+/** Real per-trip TransportTripStudent rows for one date, grouped three ways —
+ *  never academic Attendance, never the richer mock status set (only the
+ *  real EXPECTED/BOARDED/ABSENT + ONBOARD/DROPPED enums exist). Read-only:
+ *  marking happens on the trip detail page (markStudentBoarding/Drop). */
+export type TransportAttendanceRouteRowDto = { routeId: string; routeName: string; expected: number; boarded: number; dropped: number; absent: number };
+export type TransportAttendanceStopRowDto = { stopId: string; stopName: string; expected: number; boarded: number; absent: number };
+export type TransportAttendanceStudentRowDto = {
+  tripStudentId: string; studentId: string; studentName: string; routeName: string;
+  boardingStatus: TransportBoardingStatusDto; dropStatus: TransportDropStatusDto;
+};
+export type TransportAttendanceDto = {
+  date: string;
+  expected: number;
+  boarded: number;
+  missed: number;
+  byRoute: TransportAttendanceRouteRowDto[];
+  byStop: TransportAttendanceStopRowDto[];
+  students: TransportAttendanceStudentRowDto[];
+};
+
+/** Thin view over the real Phase 9F Fees engine, scoped to the "Transport"
+ *  FeeCategory — never a parallel collection engine. Actions (assign a
+ *  structure, collect a payment) happen on the real Fees pages this links to. */
+export type TransportFeesSummaryDto = {
+  categoryExists: boolean;
+  totalBilled: number;
+  totalCollected: number;
+  totalOutstanding: number;
+  overdueChargeCount: number;
+  rows: { studentId: string; studentName: string; admissionNumber: string; itemName: string | null; dueDate: string; billedAmount: number; paidAmount: number; balance: number; status: string }[];
+};
+
+/** Thin view over the real Phase 9D Notification engine (type=TRANSPORT_ALERT,
+ *  sourceType="transport") — staff-linked User recipients only. No SMS/
+ *  WhatsApp/push simulation, no parent audience (no Guardian User account
+ *  exists), no rule/trigger automation engine. */
+export type TransportNotificationDto = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  recipientCount: number;
+  readCount: number;
+};
+
+export type SendTransportNotificationRequest = { title: string; body: string; recipientStaffIds: string[] };
+
+// Combined list+insights responses — one GET per page instead of two, so the
+// client never has to fire a second request just to render a page's stat tiles.
+export type TransportIncidentsListDto = { incidents: TransportIncidentDto[] };
+export type TransportMaintenanceListDto = { records: TransportMaintenanceRecordDto[]; insights: TransportMaintenanceInsightsDto };
+export type TransportFuelListDto = { records: TransportFuelLogDto[]; insights: TransportFuelInsightsDto };
+export type TransportDocumentsListDto = { documents: TransportDocumentDto[]; compliance: TransportComplianceSummaryDto };
+export type TransportNotificationsListDto = { notifications: TransportNotificationDto[] };
+
+export type TransportReportsDto = {
+  routeUtilization: { routeId: string; routeName: string; assignedCount: number; capacity: number | null; occupancyPercent: number | null }[];
+  maintenanceCostCompleted: number;
+  fuelCostThisMonth: number;
+  compliance: TransportComplianceSummaryDto;
 };
 
 // ── Library (Phase 9N) ──────────────────────────────────────────────────────

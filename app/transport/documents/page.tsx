@@ -12,131 +12,98 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useDrivers, useVehicles } from "@/lib/hooks/use-transport";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { documentCompliance, type DriverComplianceRow, type VehicleComplianceRow } from "@/lib/selectors/document-compliance";
-import { addDriverDocument } from "@/lib/services/driver-service";
-import { addVehicleDocument } from "@/lib/services/vehicle-service";
-import { driverDocumentTypeLabels, vehicleDocumentTypeLabels, type DriverDocumentType, type TransportDocumentStatus, type VehicleDocumentType } from "@/lib/types/transport";
+import { useTransportDocuments, useTransportVehicles, useCurrentTransportStaff, addTransportDocumentRequest } from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
+import type { TransportDocumentDto, TransportDocumentEffectiveStatusDto, TransportDocumentSubjectTypeDto, TransportDocumentTypeDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
 
-const ACTOR = { name: "Transport Administrator", role: "Transport Administrator" };
-const vehicleDocTypes = Object.keys(vehicleDocumentTypeLabels) as VehicleDocumentType[];
-const driverDocTypes = Object.keys(driverDocumentTypeLabels) as DriverDocumentType[];
+const vehicleTypeLabels: Record<string, string> = { insurance: "Insurance", registration: "Registration", "fitness-certificate": "Fitness certificate", permit: "Permit", "pollution-certificate": "Pollution certificate" };
+const staffTypeLabels: Record<string, string> = { "driving-license": "Driving license", "police-verification": "Police verification", "medical-certificate": "Medical certificate" };
+const allTypeLabels: Record<TransportDocumentTypeDto, string> = { ...vehicleTypeLabels, ...staffTypeLabels } as Record<TransportDocumentTypeDto, string>;
+const vehicleDocTypes = Object.keys(vehicleTypeLabels) as TransportDocumentTypeDto[];
+const staffDocTypes = Object.keys(staffTypeLabels) as TransportDocumentTypeDto[];
 
-const statusTone: Record<TransportDocumentStatus, "success" | "warning" | "error" | "neutral"> = {
-  valid: "success",
-  "expiring-soon": "warning",
-  expired: "error",
-  missing: "error",
-  "under-review": "warning",
-  rejected: "error",
-};
+const statusTone: Record<TransportDocumentEffectiveStatusDto, "success" | "warning" | "error" | "neutral"> = { valid: "success", "expiring-soon": "warning", expired: "error", "no-expiry": "neutral" };
+const statusLabel: Record<TransportDocumentEffectiveStatusDto, string> = { valid: "Valid", "expiring-soon": "Expiring soon", expired: "Expired", "no-expiry": "No expiry set" };
 
 export default function TransportDocumentsPage() {
-  const db = useSisStore();
-  const vehicles = useVehicles();
-  const drivers = useDrivers();
-  const { can } = usePermissions();
-  const canManage = can("transport.manageDocuments");
-
-  const compliance = documentCompliance(db);
+  const { data, loading, error, reload } = useTransportDocuments();
+  const { data: vehicles } = useTransportVehicles();
+  const { data: drivers } = useCurrentTransportStaff("driver");
+  const { data: attendants } = useCurrentTransportStaff("attendant");
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const documents = data?.documents ?? [];
+  const vehicleDocs = documents.filter((d) => d.subjectType === "vehicle");
+  const staffDocs = documents.filter((d) => d.subjectType === "staff");
+  const staffOptions = [...new Map([...(drivers ?? []), ...(attendants ?? [])].map((a) => [a.staffId, a.staffName])).entries()];
 
   const [addOpen, setAddOpen] = useState(false);
-  const [subject, setSubject] = useState<"vehicle" | "driver">("vehicle");
+  const [subject, setSubject] = useState<TransportDocumentSubjectTypeDto>("vehicle");
   const [entityId, setEntityId] = useState("");
-  const [vehicleDocType, setVehicleDocType] = useState<VehicleDocumentType>("insurance");
-  const [driverDocType, setDriverDocType] = useState<DriverDocumentType>("license");
+  const [docType, setDocType] = useState<TransportDocumentTypeDto>("insurance");
   const [documentNumber, setDocumentNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function vehicleName(id: string) {
-    return vehicles.find((v) => v.id === id)?.registrationNumber ?? id;
+  if (!capabilitiesLoading && !hasServerPermission("transport.view")) {
+    return <PermissionDenied action="view transport documents" role={roleLabels[role]} backHref="/transport" />;
   }
-  function driverName(id: string) {
-    return drivers.find((d) => d.id === id)?.name ?? id;
-  }
+  const canManage = hasServerPermission("transport.manage");
 
-  function submit() {
+  async function submit() {
     if (!entityId) return;
-    if (subject === "vehicle") {
-      addVehicleDocument({ vehicleId: entityId, type: vehicleDocType, documentNumber: documentNumber.trim() || undefined, expiryDate: expiryDate || undefined, status: expiryDate ? "valid" : "under-review" }, ACTOR);
-    } else {
-      addDriverDocument({ driverId: entityId, type: driverDocType, documentNumber: documentNumber.trim() || undefined, expiryDate: expiryDate || undefined, status: expiryDate ? "valid" : "under-review" }, ACTOR);
+    setBusy(true);
+    const result = await addTransportDocumentRequest({
+      subjectType: subject, vehicleId: subject === "vehicle" ? entityId : undefined, staffId: subject === "staff" ? entityId : undefined,
+      type: docType, documentNumber: documentNumber.trim() || undefined, expiryDate: expiryDate || undefined,
+    });
+    setBusy(false);
+    if (result.success) {
+      setAddOpen(false);
+      setEntityId("");
+      setDocumentNumber("");
+      setExpiryDate("");
+      reload();
     }
-    setAddOpen(false);
-    setEntityId("");
-    setDocumentNumber("");
-    setExpiryDate("");
   }
 
-  const vehicleColumns: ColumnDef<VehicleComplianceRow>[] = [
-    {
-      id: "vehicle",
-      header: "Vehicle",
-      alwaysVisible: true,
-      sortValue: (r) => vehicleName(r.vehicleId),
-      cell: (r) => (
-        <div>
-          <p className="text-sm font-medium text-foreground">{vehicleName(r.vehicleId)}</p>
-          {r.blocked && <p className="text-xs text-error">{r.blockedReasons.join(", ")}</p>}
+  function renderDocMobileCard(d: TransportDocumentDto) {
+    return (
+      <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
+        <div className="flex items-center justify-between gap-xs">
+          <p className="truncate text-sm font-semibold text-foreground">{d.vehicleRegistration ?? d.staffName ?? "—"}</p>
+          <Badge tone={statusTone[d.effectiveStatus]}>{statusLabel[d.effectiveStatus]}</Badge>
         </div>
-      ),
-    },
-    {
-      id: "docs",
-      header: "Documents",
-      cell: (r) => (
-        <div className="flex flex-wrap gap-1">
-          {r.documents.map((d) => (
-            <Badge key={d.id} tone={statusTone[d.effectiveStatus]}>
-              {vehicleDocumentTypeLabels[d.type]}
-              {d.expiryDate ? ` · ${formatDate(d.expiryDate)}` : ""}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    { id: "status", header: "Assignment", align: "right", cell: (r) => <Badge tone={r.blocked ? "error" : "success"}>{r.blocked ? "Blocked" : "Cleared"}</Badge> },
-  ];
+        <p className="text-xs text-muted-foreground">
+          {allTypeLabels[d.type]} {d.expiryDate ? `· ${formatDate(d.expiryDate)}` : ""}
+        </p>
+      </div>
+    );
+  }
 
-  const driverColumns: ColumnDef<DriverComplianceRow>[] = [
-    {
-      id: "driver",
-      header: "Driver",
-      alwaysVisible: true,
-      sortValue: (r) => driverName(r.driverId),
-      cell: (r) => (
-        <div>
-          <p className="text-sm font-medium text-foreground">{driverName(r.driverId)}</p>
-          {r.blocked && <p className="text-xs text-error">{r.blockedReasons.join(", ")}</p>}
-        </div>
-      ),
-    },
-    {
-      id: "docs",
-      header: "Documents",
-      cell: (r) => (
-        <div className="flex flex-wrap gap-1">
-          {r.documents.map((d) => (
-            <Badge key={d.id} tone={statusTone[d.effectiveStatus]}>
-              {driverDocumentTypeLabels[d.type]}
-              {d.expiryDate ? ` · ${formatDate(d.expiryDate)}` : ""}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    { id: "status", header: "Assignment", align: "right", cell: (r) => <Badge tone={r.blocked ? "error" : "success"}>{r.blocked ? "Blocked" : "Cleared"}</Badge> },
-  ];
+  function columnsFor(): ColumnDef<TransportDocumentDto>[] {
+    return [
+      {
+        id: "subject",
+        header: "Subject",
+        alwaysVisible: true,
+        sortValue: (d) => d.vehicleRegistration ?? d.staffName ?? "",
+        cell: (d) => <p className="text-sm font-medium text-foreground">{d.vehicleRegistration ?? d.staffName ?? "—"}</p>,
+      },
+      { id: "type", header: "Document", cell: (d) => <span className="text-sm text-muted-foreground">{allTypeLabels[d.type]}</span> },
+      { id: "expiry", header: "Expiry", cell: (d) => <span className="text-sm text-muted-foreground">{d.expiryDate ? formatDate(d.expiryDate) : "—"}</span> },
+      { id: "status", header: "Status", align: "right", cell: (d) => <Badge tone={statusTone[d.effectiveStatus]}>{statusLabel[d.effectiveStatus]}</Badge> },
+    ];
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Documents &amp; compliance</h1>
-          <p className="text-xs text-muted-foreground">Vehicle and driver document expiry tracking</p>
+          <p className="text-xs text-muted-foreground">Vehicle and driver document expiry tracking — metadata only, no file upload</p>
         </div>
         {canManage && (
           <Button size="sm" onClick={() => setAddOpen(true)}>
@@ -146,64 +113,45 @@ export default function TransportDocumentsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Expired documents" value={String(compliance.expiredCount)} tone={compliance.expiredCount > 0 ? "error" : "success"} />
-        <StatTile label="Expiring soon" value={String(compliance.expiringSoonCount)} tone={compliance.expiringSoonCount > 0 ? "warning" : "success"} />
-        <StatTile label="Vehicles blocked" value={String(compliance.blockedVehicles.length)} tone={compliance.blockedVehicles.length > 0 ? "error" : "success"} />
-        <StatTile label="Drivers blocked" value={String(compliance.blockedDrivers.length)} tone={compliance.blockedDrivers.length > 0 ? "error" : "success"} />
-      </div>
-
-      {(compliance.blockedVehicles.length > 0 || compliance.blockedDrivers.length > 0) && (
-        <div className="flex items-start gap-xs rounded-lg border border-error/30 bg-error/8 p-sm text-sm text-error">
-          <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-          <span>Vehicles/drivers with expired or missing critical documents should not be assigned to a live route until resolved.</span>
+      {error ? (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
+          Could not load documents: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>
+            Retry
+          </Button>
         </div>
-      )}
+      ) : loading && !data ? (
+        <div className="rounded-lg border border-border bg-surface p-2xl text-center text-sm text-muted-foreground">Loading documents…</div>
+      ) : data ? (
+        <>
+          <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
+            <StatTile label="Expired documents" value={String(data.compliance.expiredCount)} tone={data.compliance.expiredCount > 0 ? "error" : "success"} />
+            <StatTile label="Expiring soon" value={String(data.compliance.expiringSoonCount)} tone={data.compliance.expiringSoonCount > 0 ? "warning" : "success"} />
+            <StatTile label="Vehicles blocked" value={String(data.compliance.blockedVehicleCount)} tone={data.compliance.blockedVehicleCount > 0 ? "error" : "success"} />
+            <StatTile label="Drivers blocked" value={String(data.compliance.blockedDriverCount)} tone={data.compliance.blockedDriverCount > 0 ? "error" : "success"} />
+          </div>
 
-      <Tabs defaultValue="vehicles">
-        <TabsList>
-          <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-          <TabsTrigger value="drivers">Drivers</TabsTrigger>
-        </TabsList>
-        <TabsContent value="vehicles" className="mt-sm">
-          <DataTable
-            columns={vehicleColumns}
-            rows={compliance.vehicleRows}
-            getRowId={(r) => r.vehicleId}
-            caption="Vehicle document compliance"
-            renderMobileCard={(r) => (
-              <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-                <div className="flex items-center justify-between gap-xs">
-                  <p className="truncate text-sm font-semibold text-foreground">{vehicleName(r.vehicleId)}</p>
-                  <Badge tone={r.blocked ? "error" : "success"}>{r.blocked ? "Blocked" : "Cleared"}</Badge>
-                </div>
-                {r.blocked && <p className="text-xs text-error">{r.blockedReasons.join(", ")}</p>}
-              </div>
-            )}
-            emptyIcon={ScrollText}
-            emptyTitle="No vehicles found"
-          />
-        </TabsContent>
-        <TabsContent value="drivers" className="mt-sm">
-          <DataTable
-            columns={driverColumns}
-            rows={compliance.driverRows}
-            getRowId={(r) => r.driverId}
-            caption="Driver document compliance"
-            renderMobileCard={(r) => (
-              <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-                <div className="flex items-center justify-between gap-xs">
-                  <p className="truncate text-sm font-semibold text-foreground">{driverName(r.driverId)}</p>
-                  <Badge tone={r.blocked ? "error" : "success"}>{r.blocked ? "Blocked" : "Cleared"}</Badge>
-                </div>
-                {r.blocked && <p className="text-xs text-error">{r.blockedReasons.join(", ")}</p>}
-              </div>
-            )}
-            emptyIcon={ScrollText}
-            emptyTitle="No drivers found"
-          />
-        </TabsContent>
-      </Tabs>
+          {(data.compliance.blockedVehicleCount > 0 || data.compliance.blockedDriverCount > 0) && (
+            <div className="flex items-start gap-xs rounded-lg border border-error/30 bg-error/8 p-sm text-sm text-error">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+              <span>Vehicles/drivers with an expired document should not be assigned to a live route until resolved.</span>
+            </div>
+          )}
+
+          <Tabs defaultValue="vehicles">
+            <TabsList>
+              <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
+              <TabsTrigger value="drivers">Drivers</TabsTrigger>
+            </TabsList>
+            <TabsContent value="vehicles" className="mt-sm">
+              <DataTable columns={columnsFor()} rows={vehicleDocs} getRowId={(d) => d.id} caption="Vehicle document compliance" renderMobileCard={renderDocMobileCard} emptyIcon={ScrollText} emptyTitle="No vehicle documents recorded" />
+            </TabsContent>
+            <TabsContent value="drivers" className="mt-sm">
+              <DataTable columns={columnsFor()} rows={staffDocs} getRowId={(d) => d.id} caption="Driver document compliance" renderMobileCard={renderDocMobileCard} emptyIcon={ScrollText} emptyTitle="No driver documents recorded" />
+            </TabsContent>
+          </Tabs>
+        </>
+      ) : null}
 
       <DetailDrawer open={addOpen} onOpenChange={setAddOpen} title="Add document" description="Attach a compliance document to a vehicle or driver">
         <div className="flex flex-col gap-sm">
@@ -212,8 +160,9 @@ export default function TransportDocumentsPage() {
             <Select
               value={subject}
               onValueChange={(v) => {
-                setSubject(v as "vehicle" | "driver");
+                setSubject(v as TransportDocumentSubjectTypeDto);
                 setEntityId("");
+                setDocType(v === "vehicle" ? "insurance" : "driving-license");
               }}
             >
               <SelectTrigger aria-label="Subject">
@@ -221,7 +170,7 @@ export default function TransportDocumentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="vehicle">Vehicle</SelectItem>
-                <SelectItem value="driver">Driver</SelectItem>
+                <SelectItem value="staff">Driver</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -229,18 +178,18 @@ export default function TransportDocumentsPage() {
             <Label>{subject === "vehicle" ? "Vehicle" : "Driver"}</Label>
             <Select value={entityId} onValueChange={setEntityId}>
               <SelectTrigger aria-label={subject === "vehicle" ? "Vehicle" : "Driver"}>
-                <SelectValue placeholder={`Select ${subject}`} />
+                <SelectValue placeholder={`Select ${subject === "vehicle" ? "vehicle" : "driver"}`} />
               </SelectTrigger>
               <SelectContent>
                 {subject === "vehicle"
-                  ? vehicles.map((v) => (
+                  ? (vehicles ?? []).map((v) => (
                       <SelectItem key={v.id} value={v.id}>
                         {v.registrationNumber}
                       </SelectItem>
                     ))
-                  : drivers.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
+                  : staffOptions.map(([id, name]) => (
+                      <SelectItem key={id} value={id}>
+                        {name}
                       </SelectItem>
                     ))}
               </SelectContent>
@@ -248,33 +197,18 @@ export default function TransportDocumentsPage() {
           </div>
           <div>
             <Label>Document type</Label>
-            {subject === "vehicle" ? (
-              <Select value={vehicleDocType} onValueChange={(v) => setVehicleDocType(v as VehicleDocumentType)}>
-                <SelectTrigger aria-label="Vehicle document type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicleDocTypes.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {vehicleDocumentTypeLabels[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Select value={driverDocType} onValueChange={(v) => setDriverDocType(v as DriverDocumentType)}>
-                <SelectTrigger aria-label="Driver document type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {driverDocTypes.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {driverDocumentTypeLabels[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Select value={docType} onValueChange={(v) => setDocType(v as TransportDocumentTypeDto)}>
+              <SelectTrigger aria-label="Document type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(subject === "vehicle" ? vehicleDocTypes : staffDocTypes).map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {allTypeLabels[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="doc-number">Document number</Label>
@@ -284,7 +218,7 @@ export default function TransportDocumentsPage() {
             <Label htmlFor="doc-expiry">Expiry date</Label>
             <Input id="doc-expiry" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
           </div>
-          <Button disabled={!entityId} onClick={submit}>
+          <Button disabled={!entityId || busy} onClick={submit}>
             Add document
           </Button>
         </div>

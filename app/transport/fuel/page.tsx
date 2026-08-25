@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Fuel, Plus, TriangleAlert } from "lucide-react";
+import { Fuel, Plus } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import type { ColumnDef } from "@/components/data-table/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
@@ -12,25 +11,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { useVehicles } from "@/lib/hooks/use-transport";
-import { formatMoney, moneyFromMajor, multiplyMoney } from "@/lib/finance/money";
-import { useSisStore } from "@/lib/hooks/use-store";
-import { fuelInsights } from "@/lib/selectors/fuel-insights";
-import { logFuelEntry } from "@/lib/services/fuel-service";
-import { fuelTypeLabels, type FuelRecord, type FuelType } from "@/lib/types/transport";
+import { useTransportFuel, useTransportVehicles, logFuelEntryRequest } from "@/lib/hooks/api/use-transport-api";
+import { roleLabels } from "@/lib/permissions/roles";
+import type { TransportFuelLogDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
 
-const ACTOR = { name: "Transport Office", role: "Transport Manager" };
+const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function FuelPage() {
-  const db = useSisStore();
-  const vehicles = useVehicles();
-  const { can } = usePermissions();
-  const canManage = can("transport.manageFuel");
-
-  const insights = fuelInsights(db);
-  const fuelVehicles = vehicles.filter((v) => v.fuelType !== "electric");
+  const { data, loading, error, reload } = useTransportFuel();
+  const { data: allVehicles } = useTransportVehicles();
+  const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
+  const records = data?.records ?? [];
+  const fuelVehicles = (allVehicles ?? []).filter((v) => v.type !== "electric-vehicle");
 
   const [logOpen, setLogOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
@@ -39,54 +34,44 @@ export default function FuelPage() {
   const [quantityLitres, setQuantityLitres] = useState(0);
   const [rate, setRate] = useState(96);
   const [vendor, setVendor] = useState("");
-  const [filledBy, setFilledBy] = useState("");
+  const [filledByName, setFilledByName] = useState("");
   const [fullTank, setFullTank] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  function vehicleName(id: string) {
-    return vehicles.find((v) => v.id === id)?.registrationNumber ?? id;
+  if (!capabilitiesLoading && !hasServerPermission("transport.view")) {
+    return <PermissionDenied action="view transport fuel log" role={roleLabels[role]} backHref="/transport" />;
   }
+  const canManage = hasServerPermission("transport.manage");
 
   function openLogFor(vId: string) {
-    const vehicle = vehicles.find((v) => v.id === vId);
     setVehicleId(vId);
-    setOdometerKm(vehicle?.odometerKm ?? 0);
-    setError(null);
+    setOdometerKm(0);
+    setFormError(null);
     setLogOpen(true);
   }
 
-  function submit() {
-    const totalCost = multiplyMoney(moneyFromMajor(rate, "INR"), quantityLitres);
-    const result = logFuelEntry(
-      { vehicleId, date, odometerKm, quantityLitres, fuelType: fuelVehicles.find((v) => v.id === vehicleId)?.fuelType as FuelType, rate: moneyFromMajor(rate, "INR"), totalCost, vendor: vendor.trim() || undefined, filledBy, fullTank },
-      ACTOR,
-    );
-    if (!result.ok) {
-      setError(result.error);
+  async function submit() {
+    setBusy(true);
+    setFormError(null);
+    const result = await logFuelEntryRequest({ vehicleId, date, odometerKm, quantityLitres, ratePerLitre: rate, vendor: vendor.trim() || undefined, filledByName: filledByName.trim() || undefined, fullTank });
+    setBusy(false);
+    if (!result.success) {
+      setFormError(result.error.message);
       return;
     }
     setLogOpen(false);
     setVendor("");
-    setFilledBy("");
+    setFilledByName("");
     setQuantityLitres(0);
+    reload();
   }
 
-  const columns: ColumnDef<FuelRecord>[] = [
-    {
-      id: "vehicle",
-      header: "Vehicle",
-      alwaysVisible: true,
-      sortValue: (f) => vehicleName(f.vehicleId),
-      cell: (f) => (
-        <div>
-          <p className="text-sm font-medium text-foreground">{vehicleName(f.vehicleId)}</p>
-          <p className="text-xs capitalize text-muted-foreground">{fuelTypeLabels[f.fuelType]}</p>
-        </div>
-      ),
-    },
+  const columns: ColumnDef<TransportFuelLogDto>[] = [
+    { id: "vehicle", header: "Vehicle", alwaysVisible: true, sortValue: (f) => f.vehicleRegistration, cell: (f) => <span className="text-sm font-medium text-foreground">{f.vehicleRegistration}</span> },
     { id: "date", header: "Date", cell: (f) => <span className="text-sm text-muted-foreground">{formatDate(f.date)}</span> },
     { id: "quantity", header: "Litres", align: "right", cell: (f) => <span className="text-sm text-foreground">{f.quantityLitres.toFixed(1)} L</span> },
-    { id: "cost", header: "Cost", align: "right", cell: (f) => <span className="text-sm text-foreground">{formatMoney(f.totalCost)}</span> },
+    { id: "cost", header: "Cost", align: "right", cell: (f) => <span className="text-sm text-foreground">{rupees(f.totalCost)}</span> },
   ];
 
   return (
@@ -94,7 +79,7 @@ export default function FuelPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Fuel</h1>
-          <p className="text-xs text-muted-foreground">Fill-up log, efficiency and cost tracking</p>
+          <p className="text-xs text-muted-foreground">Fill-up log and cost tracking</p>
         </div>
         {canManage && (
           <Button size="sm" onClick={() => openLogFor(fuelVehicles[0]?.id ?? "")}>
@@ -104,67 +89,50 @@ export default function FuelPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Cost this month" value={formatMoney(insights.totalCostThisMonth, { compact: true })} tone="neutral" />
-        <StatTile label="Litres this month" value={insights.totalLitresThisMonth.toFixed(0)} tone="neutral" />
-        <StatTile label="Fleet fuel vehicles" value={String(fuelVehicles.length)} tone="neutral" />
-        <StatTile label="Efficiency anomalies" value={String(insights.anomalies.length)} tone={insights.anomalies.length > 0 ? "error" : "success"} />
-      </div>
-
-      {insights.anomalies.length > 0 && (
-        <div className="flex items-start gap-xs rounded-lg border border-error/30 bg-error/8 p-sm text-sm text-error">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            {insights.anomalies.length} fill-up(s) show mileage well below the vehicle&apos;s own average — worth checking for leaks or pilferage:{" "}
-            {insights.anomalies.map((a) => vehicleName(a.vehicleId)).join(", ")}
-          </span>
+      {error ? (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
+          Could not load fuel log: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>
+            Retry
+          </Button>
         </div>
-      )}
-
-      {insights.leastEfficientVehicles.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-sm">
-          <p className="mb-xs text-xs font-medium text-muted-foreground">Least efficient vehicles</p>
-          <div className="flex flex-wrap gap-xs">
-            {insights.leastEfficientVehicles.map((v) => (
-              <Badge key={v.vehicleId} tone="neutral">
-                {vehicleName(v.vehicleId)} · {v.avgKmpl.toFixed(1)} km/L
-              </Badge>
-            ))}
+      ) : loading && !data ? (
+        <div className="rounded-lg border border-border bg-surface p-2xl text-center text-sm text-muted-foreground">Loading fuel log…</div>
+      ) : data ? (
+        <>
+          <div className="grid grid-cols-2 gap-sm sm:grid-cols-3">
+            <StatTile label="Cost this month" value={rupees(data.insights.costThisMonth)} tone="neutral" />
+            <StatTile label="Litres this month" value={data.insights.litresThisMonth.toFixed(0)} tone="neutral" />
+            <StatTile label="Fleet fuel vehicles" value={String(data.insights.fuelVehicleCount)} tone="neutral" />
           </div>
-        </div>
-      )}
 
-      <DataTable
-        columns={columns}
-        rows={[...db.fuelRecords].sort((a, b) => (a.date < b.date ? 1 : -1))}
-        getRowId={(f) => f.id}
-        caption="Fuel log"
-        renderMobileCard={(f) => (
-          <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
-            <div className="flex items-center justify-between gap-xs">
-              <p className="truncate text-sm font-semibold text-foreground">{vehicleName(f.vehicleId)}</p>
-              <span className="text-sm text-foreground">{formatMoney(f.totalCost)}</span>
-            </div>
-            <p className="text-xs capitalize text-muted-foreground">
-              {f.quantityLitres.toFixed(1)} L · {formatDate(f.date)}
-            </p>
-          </div>
-        )}
-        emptyIcon={Fuel}
-        emptyTitle="No fuel entries logged"
-      />
+          <DataTable
+            columns={columns}
+            rows={records}
+            getRowId={(f) => f.id}
+            caption="Fuel log"
+            renderMobileCard={(f) => (
+              <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
+                <div className="flex items-center justify-between gap-xs">
+                  <p className="truncate text-sm font-semibold text-foreground">{f.vehicleRegistration}</p>
+                  <span className="text-sm text-foreground">{rupees(f.totalCost)}</span>
+                </div>
+                <p className="text-xs capitalize text-muted-foreground">
+                  {f.quantityLitres.toFixed(1)} L · {formatDate(f.date)}
+                </p>
+              </div>
+            )}
+            emptyIcon={Fuel}
+            emptyTitle="No fuel entries logged"
+          />
+        </>
+      ) : null}
 
-      <DetailDrawer open={logOpen} onOpenChange={setLogOpen} title="Log fuel entry" description="Records a fill-up and advances the vehicle's odometer">
+      <DetailDrawer open={logOpen} onOpenChange={setLogOpen} title="Log fuel entry" description="Records a fill-up">
         <div className="flex flex-col gap-sm">
           <div>
             <Label>Vehicle</Label>
-            <Select
-              value={vehicleId}
-              onValueChange={(v) => {
-                setVehicleId(v);
-                setOdometerKm(vehicles.find((veh) => veh.id === v)?.odometerKm ?? 0);
-              }}
-            >
+            <Select value={vehicleId} onValueChange={setVehicleId}>
               <SelectTrigger aria-label="Vehicle">
                 <SelectValue placeholder="Select vehicle" />
               </SelectTrigger>
@@ -193,21 +161,21 @@ export default function FuelPage() {
             <Label htmlFor="fuel-rate">Rate per litre (₹)</Label>
             <Input id="fuel-rate" type="number" min={0} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
           </div>
-          <p className="text-xs text-muted-foreground">Total: {formatMoney(multiplyMoney(moneyFromMajor(rate, "INR"), quantityLitres))}</p>
+          <p className="text-xs text-muted-foreground">Total: {rupees(Math.round(rate * quantityLitres * 100) / 100)}</p>
           <div>
             <Label htmlFor="fuel-vendor">Vendor</Label>
             <Input id="fuel-vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Optional" />
           </div>
           <div>
             <Label htmlFor="fuel-filledby">Filled by</Label>
-            <Input id="fuel-filledby" value={filledBy} onChange={(e) => setFilledBy(e.target.value)} placeholder="Driver name" />
+            <Input id="fuel-filledby" value={filledByName} onChange={(e) => setFilledByName(e.target.value)} placeholder="Driver name" />
           </div>
           <div className="flex items-center gap-xs">
             <Checkbox id="fuel-full" checked={fullTank} onCheckedChange={(checked) => setFullTank(checked === true)} />
             <Label htmlFor="fuel-full">Full tank</Label>
           </div>
-          {error && <p className="text-xs text-error">{error}</p>}
-          <Button disabled={!vehicleId || quantityLitres <= 0 || !filledBy.trim()} onClick={submit}>
+          {formError && <p className="text-xs text-error">{formError}</p>}
+          <Button disabled={!vehicleId || quantityLitres <= 0 || rate <= 0 || busy} onClick={submit}>
             Log entry
           </Button>
         </div>
