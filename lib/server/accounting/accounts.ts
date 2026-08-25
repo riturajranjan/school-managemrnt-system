@@ -21,7 +21,7 @@ const typeToUi = (t: string): AccountingAccountTypeDto => t.toLowerCase() as Acc
 /** ASSET/EXPENSE carry a normal DEBIT balance; LIABILITY/EQUITY/INCOME carry
  * a normal CREDIT balance — the standard accounting sign convention applied
  * when presenting a balance as a single signed number. */
-function normalBalance(type: string, debit: number, credit: number): number {
+export function normalBalance(type: string, debit: number, credit: number): number {
   return type === "ASSET" || type === "EXPENSE" ? debit - credit : credit - debit;
 }
 

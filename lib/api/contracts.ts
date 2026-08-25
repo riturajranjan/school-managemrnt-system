@@ -2150,6 +2150,84 @@ export type AccountingDashboardDto = {
   trialBalanceOk: boolean; // debits == credits across all POSTED lines
 };
 
+// --- Production Accounting checkpoint: Vendors / Purchase Orders / Budgets.
+// A PurchaseOrder never produces a JournalEntry (not a payment). A Budget's
+// `budgeted` figure is stored; `actual`/`variance` are always derived live
+// from POSTED JournalLines, never persisted. ---
+
+export type VendorStatusDto = "active" | "inactive";
+export type VendorDto = {
+  id: string;
+  code: string;
+  name: string;
+  contactPerson: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  taxId: string | null;
+  notes: string | null;
+  status: VendorStatusDto;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateVendorRequest = { code: string; name: string; contactPerson?: string; email?: string; phone?: string; address?: string; taxId?: string; notes?: string };
+export type UpdateVendorRequest = { name?: string; contactPerson?: string | null; email?: string | null; phone?: string | null; address?: string | null; taxId?: string | null; notes?: string | null; status?: VendorStatusDto };
+
+export type PurchaseOrderStatusDto = "draft" | "approved" | "cancelled";
+export type PurchaseOrderItemDto = { id: string; description: string; quantity: number; unitRate: number; taxPercent: number; lineTotal: number };
+export type PurchaseOrderListItemDto = {
+  id: string;
+  poNumber: string;
+  vendorId: string;
+  vendorName: string;
+  status: PurchaseOrderStatusDto;
+  orderDate: string;
+  expectedDeliveryDate: string | null;
+  totalAmount: number;
+  itemCount: number;
+  createdAt: string;
+};
+export type PurchaseOrderDetailDto = PurchaseOrderListItemDto & {
+  vendorCode: string;
+  items: PurchaseOrderItemDto[];
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  notes: string | null;
+  createdByName: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  cancelledByName: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+};
+export type CreatePurchaseOrderRequest = {
+  vendorId: string;
+  orderDate: string;
+  expectedDeliveryDate?: string;
+  notes?: string;
+  discountTotal?: number;
+  items: { description: string; quantity: number; unitRate: number; taxPercent?: number }[];
+};
+export type CancelPurchaseOrderRequest = { reason: string };
+
+export type BudgetStatusDto = "draft" | "approved";
+export type BudgetAllocationDto = { id: string; accountingAccountId: string; accountCode: string; accountName: string; budgeted: number; actual: number; variance: number };
+export type BudgetListItemDto = {
+  id: string;
+  name: string;
+  periodStart: string;
+  periodEnd: string;
+  status: BudgetStatusDto;
+  totalBudgeted: number;
+  totalActual: number;
+  totalVariance: number;
+  createdAt: string;
+};
+export type BudgetDetailDto = BudgetListItemDto & { notes: string | null; allocations: BudgetAllocationDto[]; approvedByName: string | null; approvedAt: string | null };
+export type CreateBudgetRequest = { name: string; periodStart: string; periodEnd: string; notes?: string; allocations: { accountingAccountId: string; amount: number }[] };
+export type UpdateBudgetAllocationsRequest = { allocations: { accountingAccountId: string; amount: number }[] };
+
 // --- Phase 9H: Payroll ---
 
 export type SalaryComponentTypeDto = "earning" | "deduction";

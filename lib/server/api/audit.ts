@@ -301,7 +301,16 @@ export type AuditAction =
   | "USER_ROLE_ASSIGNED"
   | "USER_ACCOUNT_LINKED"
   | "USER_ACCOUNT_ACTIVATED"
-  | "USER_ACCOUNT_SUSPENDED";
+  | "USER_ACCOUNT_SUSPENDED"
+  // Production Accounting checkpoint — Vendors / Purchase Orders / Budgets.
+  | "VENDOR_CREATED"
+  | "VENDOR_UPDATED"
+  | "VENDOR_STATUS_CHANGED"
+  | "PURCHASE_ORDER_CREATED"
+  | "PURCHASE_ORDER_APPROVED"
+  | "PURCHASE_ORDER_CANCELLED"
+  | "BUDGET_CREATED"
+  | "BUDGET_APPROVED";
 
 export async function recordAudit(
   db: Prisma.TransactionClient,

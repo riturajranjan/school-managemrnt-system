@@ -103,17 +103,6 @@ describe("finance seed data", () => {
     expect(run.totalNet.minorUnits).toBeGreaterThan(0);
   });
 
-  it("keeps every seeded budget line's actual amount non-negative and currency-consistent", () => {
-    resetDemoData();
-    const db = getSnapshot();
-    for (const budget of db.budgets) {
-      for (const line of budget.lines) {
-        expect(line.actualAmount.minorUnits).toBeGreaterThanOrEqual(0);
-        expect(line.actualAmount.currency).toBe("INR");
-      }
-    }
-  });
-
   it("computes a non-zero opening chart of accounts with no duplicate account codes", () => {
     resetDemoData();
     const db = getSnapshot();

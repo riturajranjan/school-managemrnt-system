@@ -198,8 +198,8 @@ const MIGRATED_FILES = [
   // deleted mock chart-of-accounts/income-expense/cashier-shift services.
   // journal-service.ts was retained here pending its last consumer (the mock
   // Payroll run service) — Phase 9H deleted both together, see below.
-  // Vendors/Purchase-Orders/Budgets pages stay mock (out of Phase 9G scope) —
-  // not guarded here.
+  // Vendors/Purchase-Orders/Budgets were out of Phase 9G scope — now real,
+  // see the Production Accounting checkpoint entry below.
   "app/accounting/page.tsx",
   "app/accounting/accounts/page.tsx",
   "app/accounting/journals/page.tsx",
@@ -662,6 +662,26 @@ const MIGRATED_FILES = [
   "app/academics/page.tsx",
   "app/results/page.tsx",
   "components/results/pipeline-stages.tsx",
+  // Production Accounting checkpoint — Vendors / Purchase Orders / Budgets.
+  // Real Vendor/PurchaseOrder/PurchaseOrderItem/Budget/BudgetAllocation via
+  // /api/accounting/{vendors,purchase-orders,budgets}* (PostgreSQL), reusing
+  // the REAL Phase 9G AccountingAccount/JournalEntry/JournalLine ledger as
+  // the sole accounting-truth authority — no second Chart of Accounts, no
+  // second journal engine. A PurchaseOrder never creates a JournalEntry
+  // (not a payment) — V1 lifecycle is DRAFT -> APPROVED / DRAFT ->
+  // CANCELLED only, APPROVED is terminal. A Budget's `amount` is the only
+  // persisted figure; actual/variance are always derived live from POSTED
+  // JournalLines, never a second "actual spent" authority, never computed
+  // from a PurchaseOrder. The mock Vendor type/db.vendors slice is
+  // deliberately RETAINED (not deleted) — app/inventory/vendors/page.tsx
+  // still legitimately reads it as a separate, out-of-scope, still-mock
+  // "shared supplier directory" pointer page; only these Accounting pages
+  // are guarded. Must never reintroduce services/vendor-service,
+  // services/purchase-order-service, services/budget-service, or
+  // selectors/budget-insights (all deleted — zero remaining consumers).
+  "app/accounting/vendors/page.tsx",
+  "app/accounting/purchase-orders/page.tsx",
+  "app/accounting/budgets/page.tsx",
 ];
 
 // Forbidden mock-authority markers (substring match against source text).
@@ -876,6 +896,12 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   // surfaces must use hooks/api/use-academics-dashboard, hooks/api/use-results-dashboard).
   { marker: "selectors/academics-insights", why: "mock Academic Pulse factor selectors (curriculum/lesson-plan/homework %) — still consumed by lib/selectors/class-insights.ts, which backs the deferred class-detail page (app/academics/classes/[classId]), but the hub itself must use the real /api/academics/dashboard aggregation" },
   { marker: "selectors/exam-insights", why: "mock exam-readiness (marksEntryPercent/verificationPercent/resultsCalculated) selector — deleted, zero remaining consumers, dead import" },
+  // Production Accounting checkpoint — Vendors/Purchase-Orders/Budgets mock
+  // authority (real surfaces must use hooks/api/use-accounting-api).
+  { marker: "services/vendor-service", why: "mock vendor create/status service (deleted — zero remaining consumers, dead import; real surfaces use createVendorRequest/updateVendorRequest)" },
+  { marker: "services/purchase-order-service", why: "mock PO lifecycle service (deleted — zero remaining consumers, dead import; real surfaces use createPurchaseOrderRequest/approvePurchaseOrderRequest/cancelPurchaseOrderRequest)" },
+  { marker: "services/budget-service", why: "mock budget create/approve/revise service (deleted — zero remaining consumers, dead import; real surfaces use createBudgetRequest/approveBudgetRequest)" },
+  { marker: "selectors/budget-insights", why: "mock budget actual-spend selector reading db.expenses (deleted — zero remaining consumers, dead import; real actual/variance is server-derived from POSTED JournalLines)" },
 ];
 
 function collectSources(dir: string): string[] {

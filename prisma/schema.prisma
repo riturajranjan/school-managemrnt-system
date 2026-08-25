@@ -3960,9 +3960,10 @@ model AccountingAccount {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  parent   AccountingAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children AccountingAccount[] @relation("AccountHierarchy")
-  lines    JournalLine[]
+  parent            AccountingAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          AccountingAccount[] @relation("AccountHierarchy")
+  lines             JournalLine[]
+  budgetAllocations BudgetAllocation[]
 
   // One code per school; systemKey (when set) is also unique per school.
   @@unique([schoolId, code])
@@ -6870,4 +6871,215 @@ model DocumentNumberCounter {
 
   @@unique([schoolId, docType, year])
   @@map("document_number_counters")
+}
+
+// ===========================================================================
+// Production Accounting checkpoint — Vendors / Purchase Orders / Budgets.
+// Reuses the REAL Phase 9G AccountingAccount/JournalEntry/JournalLine ledger
+// as the sole accounting-truth authority — no second Chart of Accounts, no
+// second journal engine. A PurchaseOrder is explicitly NOT a payment: neither
+// creating nor approving one ever writes a JournalEntry, moves inventory, or
+// implies goods receipt — there is no accounts-payable/invoice-matching/GST
+// engine here. A Budget's BUDGETED figure is the only thing ever persisted;
+// ACTUAL is always derived live from POSTED JournalLines against the
+// allocation's real AccountingAccount — never a second "actual spent"
+// authority, never computed from a PurchaseOrder (which carries no ledger
+// weight at all).
+// ===========================================================================
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/**
+ * School-scoped vendor master. No balance/payable field exists anywhere on
+ * this model — this checkpoint deliberately implements no accounts-payable
+ * ledger, so a "vendor balance" would be fabricated. There is no delete
+ * endpoint (see purchase-orders.ts/vendors.ts) — INACTIVE is the only
+ * removal path, so a vendor referenced by a historical PurchaseOrder can
+ * never be destructively removed.
+ */
+model Vendor {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  code          String
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  taxId         String?
+  notes         String?
+  status        VendorStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([schoolId, code])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("accounting_vendors")
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
+/**
+ * V1 lifecycle only: DRAFT -> APPROVED, DRAFT -> CANCELLED. APPROVED is a
+ * terminal state — no APPROVED -> CANCELLED path exists yet (the spec calls
+ * this out explicitly: safe cancellation-after-approval needs its own design
+ * once a real receiving/payment flow exists, so it is left undesigned rather
+ * than guessed at). `vendorNameSnapshot`/`vendorCodeSnapshot` freeze the
+ * vendor's identity as it was at creation time so a later Vendor rename can
+ * never change what an already-issued PO meant. Line items are children
+ * (PurchaseOrderItem) and, like the header, are only ever written at create
+ * time — no line-edit endpoint exists post-creation, so an approved PO's
+ * historical document can never be silently rewritten.
+ */
+model PurchaseOrder {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  poNumber String
+  vendorId String
+
+  vendorNameSnapshot String
+  vendorCodeSnapshot String
+
+  status PurchaseOrderStatus @default(DRAFT)
+
+  orderDate            DateTime  @db.Date
+  expectedDeliveryDate DateTime? @db.Date
+  notes                String?
+
+  subtotal      Decimal @db.Decimal(12, 2)
+  discountTotal Decimal @default(0) @db.Decimal(12, 2)
+  taxTotal      Decimal @db.Decimal(12, 2)
+  totalAmount   Decimal @db.Decimal(12, 2)
+
+  createdByUserId String
+  createdByName   String?
+
+  approvedByUserId String?
+  approvedByName   String?
+  approvedAt       DateTime? @db.Timestamptz(6)
+
+  cancelledByUserId  String?
+  cancelledByName    String?
+  cancelledAt        DateTime? @db.Timestamptz(6)
+  cancellationReason String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  vendor Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  items  PurchaseOrderItem[]
+
+  @@unique([schoolId, poNumber])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@index([vendorId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(cuid())
+  purchaseOrderId String
+
+  description String
+  quantity    Int
+  unitRate    Decimal @db.Decimal(12, 2)
+  taxPercent  Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+/**
+ * Race-safe, school-scoped PO-number sequence — the same atomic
+ * `UPDATE ... RETURNING` strategy as AccountingEntryCounter/FeeReceiptCounter.
+ */
+model PurchaseOrderCounter {
+  schoolId String @id
+  counter  Int    @default(0)
+
+  @@map("purchase_order_counters")
+}
+
+enum BudgetStatus {
+  DRAFT
+  APPROVED
+}
+
+/**
+ * A planned allocation envelope over real AccountingAccounts for a period.
+ * Only BUDGETED amounts are ever persisted here (on BudgetAllocation) —
+ * ACTUAL is always derived live from POSTED JournalLines against the same
+ * account within [periodStart, periodEnd] (see budgets.ts), never stored,
+ * never computed from a PurchaseOrder. Allocations may only be replaced
+ * while status = DRAFT — once APPROVED, the allocation set is immutable
+ * (later JournalEntries change the derived actual/variance on read, never
+ * the stored budgeted figure).
+ */
+model Budget {
+  id       String  @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String?
+
+  name        String
+  periodStart DateTime     @db.Date
+  periodEnd   DateTime     @db.Date
+  status      BudgetStatus @default(DRAFT)
+  notes       String?
+
+  createdByUserId String
+  createdByName   String?
+
+  approvedByUserId String?
+  approvedByName   String?
+  approvedAt       DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  allocations BudgetAllocation[]
+
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("budgets")
+}
+
+model BudgetAllocation {
+  id                  String @id @default(cuid())
+  budgetId            String
+  accountingAccountId String
+
+  amount Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  budget  Budget            @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  account AccountingAccount @relation(fields: [accountingAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([budgetId, accountingAccountId])
+  @@index([accountingAccountId])
+  @@map("budget_allocations")
 }

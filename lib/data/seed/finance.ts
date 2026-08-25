@@ -18,13 +18,10 @@ import { feeComponentTypeLabels } from "@/lib/types/fees";
 import type { BankTransaction, Payment, PaymentAllocation, Receipt } from "@/lib/types/payments";
 import type {
   BankAccount,
-  Budget,
-  BudgetLine,
   CashAccount,
   ChartOfAccount,
   Expense,
   JournalEntry,
-  PurchaseOrder,
   Vendor,
 } from "@/lib/types/accounting";
 import type { EmployeeAdvance, EmployeeLoan, PayrollEmployeeLine, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
@@ -516,27 +513,6 @@ export const vendors: Vendor[] = [
   { id: "vendor-5", name: "Horizon Transport Co.", contactPerson: "Manoj Singh", phone: "9845033445", categories: ["transport"], status: "active", rating: 3, createdAt: "2025-06-01T00:00:00.000Z" },
 ];
 
-export const purchaseOrders: PurchaseOrder[] = [
-  {
-    id: "po-1",
-    poNumber: "PO-2026-0001",
-    vendorId: "vendor-1",
-    items: [
-      { id: generateId("poi"), description: "A4 notebooks (bulk, 2000 units)", quantity: 2000, rate: moneyFromMajor(18, "INR"), taxPercent: 12 },
-      { id: generateId("poi"), description: "Whiteboard markers (500 units)", quantity: 500, rate: moneyFromMajor(22, "INR"), taxPercent: 12 },
-    ],
-    discount: zeroMoney("INR"),
-    deliveryDate: "2026-08-20",
-    branch: BRANCH,
-    department: "Academics",
-    status: "approved",
-    createdBy: "Finance Administrator",
-    createdAt: "2026-07-28T00:00:00.000Z",
-    approvedBy: "Principal",
-    approvedAt: "2026-07-29T00:00:00.000Z",
-  },
-];
-
 export const expenses: Expense[] = [
   { id: "exp-1", expenseNumber: "EXP-2026-0001", date: "2026-07-05", vendorId: "vendor-2", category: "utilities", amount: moneyFromMajor(42500, "INR"), tax: zeroMoney("INR"), paymentMethod: "bank-transfer", accountId: "coa-expense-utilities", branch: BRANCH, department: "Facilities", description: "July electricity bill", status: "paid", recurring: true, createdBy: "Accountant", createdAt: "2026-07-05T00:00:00.000Z", approvedBy: "Finance Administrator", approvedAt: "2026-07-05T00:00:00.000Z", paidAt: "2026-07-06T00:00:00.000Z" },
   { id: "exp-2", expenseNumber: "EXP-2026-0002", date: "2026-07-10", vendorId: "vendor-3", category: "maintenance", amount: moneyFromMajor(28000, "INR"), tax: zeroMoney("INR"), paymentMethod: "bank-transfer", accountId: "coa-expense-maintenance", branch: BRANCH, department: "Facilities", description: "Monthly campus housekeeping contract", status: "paid", recurring: true, createdBy: "Accountant", createdAt: "2026-07-10T00:00:00.000Z", approvedBy: "Finance Administrator", approvedAt: "2026-07-10T00:00:00.000Z", paidAt: "2026-07-11T00:00:00.000Z" },
@@ -568,44 +544,6 @@ const expenseJournalEntries: JournalEntry[] = expenses
 export function expenseJournals(): JournalEntry[] {
   return expenseJournalEntries;
 }
-
-const expenseCategoryTotals = expenses.reduce<Record<string, Money>>((acc, e) => {
-  acc[e.category] = addMoney(acc[e.category] ?? zeroMoney("INR"), e.amount);
-  return acc;
-}, {});
-
-const budgetLineSeed: { category: Expense["category"]; planned: number }[] = [
-  { category: "salaries", planned: 4200000 },
-  { category: "utilities", planned: 550000 },
-  { category: "rent", planned: 1800000 },
-  { category: "maintenance", planned: 350000 },
-  { category: "academic-materials", planned: 480000 },
-  { category: "technology", planned: 600000 },
-  { category: "marketing", planned: 250000 },
-  { category: "travel", planned: 150000 },
-];
-
-export const budgets: Budget[] = [
-  {
-    id: "budget-2026",
-    name: `${CURRENT_SESSION} Operating Budget`,
-    session: CURRENT_SESSION,
-    financialYear: "2026-2027",
-    branch: BRANCH,
-    lines: budgetLineSeed.map((line) => ({
-      id: generateId("bl"),
-      budgetId: "budget-2026",
-      category: line.category,
-      plannedAmount: moneyFromMajor(line.planned, "INR"),
-      committedAmount: zeroMoney("INR"),
-      actualAmount: expenseCategoryTotals[line.category] ?? zeroMoney("INR"),
-      alertThresholdPercent: 85,
-    })) as BudgetLine[],
-    status: "approved",
-    createdBy: "Finance Administrator",
-    createdAt: "2026-04-01T00:00:00.000Z",
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Payroll — salary structures, one completed run for the prior month, payslips

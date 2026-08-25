@@ -122,40 +122,6 @@ export type Vendor = {
   createdAt: string;
 };
 
-export type PurchaseOrderStatus = "draft" | "submitted" | "approved" | "ordered" | "partially-received" | "received" | "invoiced" | "paid" | "cancelled";
-
-export const purchaseOrderStatusLabels: Record<PurchaseOrderStatus, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  approved: "Approved",
-  ordered: "Ordered",
-  "partially-received": "Partially received",
-  received: "Received",
-  invoiced: "Invoiced",
-  paid: "Paid",
-  cancelled: "Cancelled",
-};
-
-export type PurchaseOrderItem = { id: ID; description: string; quantity: number; rate: Money; taxPercent: number };
-
-export type PurchaseOrder = {
-  id: ID;
-  poNumber: string;
-  vendorId: ID;
-  items: PurchaseOrderItem[];
-  discount: Money;
-  deliveryDate?: string;
-  branch: string;
-  department?: string;
-  budgetLineId?: ID;
-  status: PurchaseOrderStatus;
-  createdBy: string;
-  createdAt: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  attachmentName?: string;
-};
-
 export type ChartOfAccountType = "asset" | "liability" | "equity" | "income" | "expense" | "bank" | "cash" | "receivable" | "payable";
 
 export const chartOfAccountTypeLabels: Record<ChartOfAccountType, string> = {
@@ -286,36 +252,3 @@ export type CashierShift = {
   approvedBy?: string;
 };
 
-export type BudgetStatus = "draft" | "approved" | "revised" | "closed";
-
-export const budgetStatusLabels: Record<BudgetStatus, string> = {
-  draft: "Draft",
-  approved: "Approved",
-  revised: "Revised",
-  closed: "Closed",
-};
-
-export type BudgetLine = {
-  id: ID;
-  budgetId: ID;
-  category: ExpenseCategory | IncomeCategory;
-  plannedAmount: Money;
-  committedAmount: Money;
-  actualAmount: Money;
-  alertThresholdPercent: number;
-};
-
-export type Budget = {
-  id: ID;
-  name: string;
-  session: string;
-  financialYear: string;
-  branch: string;
-  department?: string;
-  costCentre?: string;
-  lines: BudgetLine[];
-  status: BudgetStatus;
-  createdBy: string;
-  createdAt: string;
-  revisionOf?: ID;
-};

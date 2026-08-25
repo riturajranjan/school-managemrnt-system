@@ -47,7 +47,6 @@ import type {
 } from "@/lib/types/payments";
 import type {
   BankAccount,
-  Budget,
   CashAccount,
   CashierShift,
   ChartOfAccount,
@@ -55,7 +54,6 @@ import type {
   Income,
   JournalEntry,
   LedgerEntry,
-  PurchaseOrder,
   Vendor,
 } from "@/lib/types/accounting";
 import type { EmployeeAdvance, EmployeeLoan, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
@@ -250,7 +248,6 @@ import {
   buildLoansAndAdvances,
   buildPayrollForJuly,
   buildSalaryStructures,
-  budgets,
   cashAccounts,
   chartOfAccounts,
   expenseJournals,
@@ -259,7 +256,6 @@ import {
   generateBankTransactions,
   generateFinanceData,
   lateFeeRules,
-  purchaseOrders,
   reminderRules,
   vendors,
 } from "./seed/finance";
@@ -385,14 +381,12 @@ export type Db = {
   incomes: Income[];
   expenses: Expense[];
   vendors: Vendor[];
-  purchaseOrders: PurchaseOrder[];
   chartOfAccounts: ChartOfAccount[];
   journalEntries: JournalEntry[];
   ledgerEntries: LedgerEntry[];
   bankAccounts: BankAccount[];
   cashAccounts: CashAccount[];
   cashierShifts: CashierShift[];
-  budgets: Budget[];
   salaryStructures: SalaryStructure[];
   payrollRuns: PayrollRun[];
   payslips: Payslip[];
@@ -681,14 +675,12 @@ function buildSeedDb(): Db {
     incomes: [],
     expenses,
     vendors,
-    purchaseOrders,
     chartOfAccounts,
     journalEntries: allJournalEntries,
     ledgerEntries: buildLedgerFromJournal(allJournalEntries),
     bankAccounts,
     cashAccounts,
     cashierShifts: [],
-    budgets,
     salaryStructures,
     payrollRuns: [julyPayroll.run],
     payslips: julyPayroll.payslips,
@@ -960,14 +952,12 @@ export function hydrateFromStorage() {
         incomes: parsed.incomes ?? [],
         expenses: parsed.expenses ?? [],
         vendors: parsed.vendors ?? vendors,
-        purchaseOrders: parsed.purchaseOrders ?? [],
         chartOfAccounts: parsed.chartOfAccounts ?? chartOfAccounts,
         journalEntries: parsed.journalEntries ?? [],
         ledgerEntries: parsed.ledgerEntries ?? [],
         bankAccounts: parsed.bankAccounts ?? bankAccounts,
         cashAccounts: parsed.cashAccounts ?? cashAccounts,
         cashierShifts: parsed.cashierShifts ?? [],
-        budgets: parsed.budgets ?? [],
         salaryStructures: parsed.salaryStructures ?? [],
         payrollRuns: parsed.payrollRuns ?? [],
         payslips: parsed.payslips ?? [],

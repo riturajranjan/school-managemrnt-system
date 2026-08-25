@@ -11,14 +11,26 @@ import type {
   AccountingAccountTypeDto,
   AccountingDashboardDto,
   AccountLedgerDto,
+  BudgetDetailDto,
+  BudgetListItemDto,
+  CancelPurchaseOrderRequest,
   CreateAccountingAccountRequest,
+  CreateBudgetRequest,
   CreateJournalEntryRequest,
+  CreatePurchaseOrderRequest,
+  CreateVendorRequest,
   IncomeExpenseReportDto,
   JournalEntryDetailDto,
   JournalEntryListItemDto,
+  PurchaseOrderDetailDto,
+  PurchaseOrderListItemDto,
+  PurchaseOrderStatusDto,
   ReverseJournalEntryRequest,
   TrialBalanceDto,
   UpdateAccountingAccountRequest,
+  UpdateVendorRequest,
+  VendorDto,
+  VendorStatusDto,
 } from "@/lib/api/contracts";
 
 // --- Chart of Accounts ---
@@ -54,3 +66,34 @@ export function useIncomeExpenseReport(params: { from?: string; to?: string } = 
 export function useAccountingDashboard() {
   return useApiResource<AccountingDashboardDto>("/api/accounting/dashboard");
 }
+
+// --- Vendors ---
+export function useVendors(params: { status?: VendorStatusDto; search?: string; pageSize?: number } = {}) {
+  return useApiList<VendorDto>(`/api/accounting/vendors${buildQuery(params)}`);
+}
+export function useVendor(id: string | null) {
+  return useApiResource<VendorDto>(id ? `/api/accounting/vendors/${id}` : null);
+}
+export const createVendorRequest = (body: CreateVendorRequest): Promise<ApiResult<VendorDto>> => apiPost<VendorDto>("/api/accounting/vendors", body);
+export const updateVendorRequest = (id: string, body: UpdateVendorRequest): Promise<ApiResult<VendorDto>> => apiPatch<VendorDto>(`/api/accounting/vendors/${id}`, body);
+
+// --- Purchase Orders ---
+export function usePurchaseOrders(params: { status?: PurchaseOrderStatusDto; vendorId?: string; pageSize?: number } = {}) {
+  return useApiList<PurchaseOrderListItemDto>(`/api/accounting/purchase-orders${buildQuery(params)}`);
+}
+export function usePurchaseOrder(id: string | null) {
+  return useApiResource<PurchaseOrderDetailDto>(id ? `/api/accounting/purchase-orders/${id}` : null);
+}
+export const createPurchaseOrderRequest = (body: CreatePurchaseOrderRequest): Promise<ApiResult<PurchaseOrderDetailDto>> => apiPost<PurchaseOrderDetailDto>("/api/accounting/purchase-orders", body);
+export const approvePurchaseOrderRequest = (id: string): Promise<ApiResult<PurchaseOrderDetailDto>> => apiPost<PurchaseOrderDetailDto>(`/api/accounting/purchase-orders/${id}/approve`, {});
+export const cancelPurchaseOrderRequest = (id: string, body: CancelPurchaseOrderRequest): Promise<ApiResult<PurchaseOrderDetailDto>> => apiPost<PurchaseOrderDetailDto>(`/api/accounting/purchase-orders/${id}/cancel`, body);
+
+// --- Budgets ---
+export function useBudgets(params: { status?: "draft" | "approved"; pageSize?: number } = {}) {
+  return useApiList<BudgetListItemDto>(`/api/accounting/budgets${buildQuery(params)}`);
+}
+export function useBudget(id: string | null) {
+  return useApiResource<BudgetDetailDto>(id ? `/api/accounting/budgets/${id}` : null);
+}
+export const createBudgetRequest = (body: CreateBudgetRequest): Promise<ApiResult<BudgetDetailDto>> => apiPost<BudgetDetailDto>("/api/accounting/budgets", body);
+export const approveBudgetRequest = (id: string): Promise<ApiResult<BudgetDetailDto>> => apiPost<BudgetDetailDto>(`/api/accounting/budgets/${id}/approve`, {});
