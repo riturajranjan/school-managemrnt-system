@@ -1,0 +1,17 @@
+// POST /api/payroll/advances/[advanceId]/approve — PENDING -> APPROVED. payroll.finalize.
+import type { NextRequest } from "next/server";
+import { handle, requirePermission } from "@/lib/server/api/guard";
+import { readJson } from "@/lib/server/api/request";
+import { ok } from "@/lib/server/api/response";
+import { requireOrgScope } from "@/lib/server/api/scope";
+import { approveStaffFinancialAdvance } from "@/lib/server/payroll/loans-advances";
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ advanceId: string }> }) {
+  return handle(async () => {
+    const ctx = await requirePermission("payroll.finalize");
+    const scope = await requireOrgScope(ctx);
+    const { advanceId } = await params;
+    const data = await approveStaffFinancialAdvance(scope, "ADVANCE", advanceId, await readJson(request));
+    return ok(data);
+  });
+}

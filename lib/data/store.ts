@@ -56,7 +56,7 @@ import type {
   LedgerEntry,
   Vendor,
 } from "@/lib/types/accounting";
-import type { EmployeeAdvance, EmployeeLoan, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
+import type { PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
 import type { FinancialAuditEvent } from "@/lib/types/finance-audit";
 import type {
   Attendant,
@@ -245,7 +245,6 @@ import { buildLedgerFromJournal } from "@/lib/selectors/ledger";
 import {
   bankAccounts,
   buildFeeStructures,
-  buildLoansAndAdvances,
   buildPayrollForJuly,
   buildSalaryStructures,
   cashAccounts,
@@ -390,8 +389,6 @@ export type Db = {
   salaryStructures: SalaryStructure[];
   payrollRuns: PayrollRun[];
   payslips: Payslip[];
-  employeeLoans: EmployeeLoan[];
-  employeeAdvances: EmployeeAdvance[];
   financialAuditLog: FinancialAuditEvent[];
   // Phase 6 — transport and fleet operations
   transportShiftPolicies: TransportShiftPolicy[];
@@ -596,7 +593,6 @@ function buildSeedDb(): Db {
   const financeData = generateFinanceData(students, feeStructures);
   const salaryStructures = buildSalaryStructures(teachers);
   const julyPayroll = buildPayrollForJuly(salaryStructures, teachers);
-  const { loans: employeeLoans, advances: employeeAdvances } = buildLoansAndAdvances(teachers);
   const allJournalEntries = [...financeData.journalEntries, ...expenseJournals(), julyPayroll.journal];
   const transportData = generateTransportData(students, teachers);
   const libraryData = buildLibraryData(students, teachers);
@@ -684,8 +680,6 @@ function buildSeedDb(): Db {
     salaryStructures,
     payrollRuns: [julyPayroll.run],
     payslips: julyPayroll.payslips,
-    employeeLoans,
-    employeeAdvances,
     financialAuditLog: [],
     transportShiftPolicies: structuredClone(DEFAULT_SHIFT_POLICIES),
     transportStops: structuredClone(transportStops),
@@ -961,8 +955,6 @@ export function hydrateFromStorage() {
         salaryStructures: parsed.salaryStructures ?? [],
         payrollRuns: parsed.payrollRuns ?? [],
         payslips: parsed.payslips ?? [],
-        employeeLoans: parsed.employeeLoans ?? [],
-        employeeAdvances: parsed.employeeAdvances ?? [],
         financialAuditLog: parsed.financialAuditLog ?? [],
         // Older cached snapshots predate the whole Phase 6 transport domain —
         // same fallback convention as Phase 5 above.

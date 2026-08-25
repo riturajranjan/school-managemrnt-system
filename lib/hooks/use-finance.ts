@@ -15,7 +15,8 @@
 // but never consumed these hooks directly from this file's exports beyond
 // their own now-removed usages.
 //
-// Payroll hooks below remain mock — Payroll is not migrated yet.
+// Payroll hooks below remain mock (zero real consumers, unlike Loans/
+// Advances which are now real — see hooks/api/use-payroll-api.ts).
 import { useMemo } from "react";
 import { useSisStore } from "./use-store";
 
@@ -32,14 +33,4 @@ export function usePayrollRuns() {
 export function usePayslips(employeeId?: string) {
   const db = useSisStore();
   return useMemo(() => (employeeId ? db.payslips.filter((p) => p.employeeId === employeeId) : db.payslips), [db.payslips, employeeId]);
-}
-
-export function useEmployeeLoans(employeeId?: string) {
-  const db = useSisStore();
-  return useMemo(() => (employeeId ? db.employeeLoans.filter((l) => l.employeeId === employeeId) : db.employeeLoans), [db.employeeLoans, employeeId]);
-}
-
-export function useEmployeeAdvances(employeeId?: string) {
-  const db = useSisStore();
-  return useMemo(() => (employeeId ? db.employeeAdvances.filter((a) => a.employeeId === employeeId) : db.employeeAdvances), [db.employeeAdvances, employeeId]);
 }

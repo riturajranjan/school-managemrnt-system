@@ -16,7 +16,7 @@ import type { LedgerEntryDto } from "@/lib/api/contracts";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const typeLabels: Record<string, string> = { asset: "Asset", liability: "Liability", equity: "Equity", income: "Income", expense: "Expense" };
-const sourceLabels: Record<string, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund" };
+const sourceLabels: Record<string, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund", payroll_payment: "Payroll payment", staff_advance_disbursement: "Loan/advance disbursement", staff_advance_repayment: "Loan/advance repayment" };
 
 export default function LedgerPage() {
   const { data: accounts } = useAccountingAccounts();

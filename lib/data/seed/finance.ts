@@ -24,7 +24,7 @@ import type {
   JournalEntry,
   Vendor,
 } from "@/lib/types/accounting";
-import type { EmployeeAdvance, EmployeeLoan, PayrollEmployeeLine, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
+import type { PayrollEmployeeLine, PayrollRun, Payslip, SalaryStructure } from "@/lib/types/payroll";
 import { addMoney, moneyFromMajor, multiplyMoney, splitEvenly, subtractMoney, sumMoney, zeroMoney, type Money } from "@/lib/finance/money";
 import { generateId } from "@/lib/utils";
 import { CURRENT_SESSION } from "./reference";
@@ -673,44 +673,6 @@ export function buildPayrollForJuly(structures: SalaryStructure[], teachers: Tea
   };
 
   return { run, payslips, journal };
-}
-
-export function buildLoansAndAdvances(teachers: Teacher[]): { loans: EmployeeLoan[]; advances: EmployeeAdvance[] } {
-  const loanEmployee = teachers[0];
-  const advanceEmployee = teachers[1];
-  const loans: EmployeeLoan[] = loanEmployee
-    ? [
-        {
-          id: "loan-1",
-          employeeId: loanEmployee.id,
-          amount: moneyFromMajor(120000, "INR"),
-          interestPercent: 0,
-          installments: 12,
-          startMonth: "2026-06",
-          monthlyDeduction: moneyFromMajor(10000, "INR"),
-          outstandingBalance: moneyFromMajor(100000, "INR"),
-          status: "active",
-          approvedBy: "Finance Administrator",
-          createdAt: "2026-05-20T00:00:00.000Z",
-        },
-      ]
-    : [];
-  const advances: EmployeeAdvance[] = advanceEmployee
-    ? [
-        {
-          id: "advance-1",
-          employeeId: advanceEmployee.id,
-          type: "salary-advance",
-          amount: moneyFromMajor(15000, "INR"),
-          deductionAmount: moneyFromMajor(5000, "INR"),
-          outstandingBalance: moneyFromMajor(10000, "INR"),
-          status: "active",
-          approvedBy: "Finance Administrator",
-          createdAt: "2026-07-15T00:00:00.000Z",
-        },
-      ]
-    : [];
-  return { loans, advances };
 }
 
 // ---------------------------------------------------------------------------

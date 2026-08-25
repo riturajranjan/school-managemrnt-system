@@ -30,7 +30,10 @@ import { isBroadAccountingManager, resolveAccountingBranch } from "./access";
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 const parseDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
 const dateToUi = (d: Date) => d.toISOString().slice(0, 10);
-const SOURCE_TO_UI: Record<string, JournalSourceTypeDto> = { MANUAL: "manual", FEE_PAYMENT: "fee_payment", FEE_REFUND: "fee_refund", PAYROLL_PAYMENT: "payroll_payment" };
+const SOURCE_TO_UI: Record<string, JournalSourceTypeDto> = {
+  MANUAL: "manual", FEE_PAYMENT: "fee_payment", FEE_REFUND: "fee_refund", PAYROLL_PAYMENT: "payroll_payment",
+  STAFF_ADVANCE_DISBURSEMENT: "staff_advance_disbursement", STAFF_ADVANCE_REPAYMENT: "staff_advance_repayment",
+};
 
 const lineSchema = z
   .object({ accountId: z.string().min(1), debit: z.number().min(0).max(100_000_000).optional(), credit: z.number().min(0).max(100_000_000).optional(), description: z.string().trim().max(200).optional() })
@@ -56,9 +59,15 @@ function listDto(e: EntryRow): JournalEntryListItemDto {
   };
 }
 
-export const listJournalEntriesSchema = z.object({ sourceType: z.enum(["manual", "fee_payment", "fee_refund", "payroll_payment"]).optional(), status: z.enum(["draft", "posted", "reversed"]).optional(), from: dateStr.optional(), to: dateStr.optional(), page: z.number().int().min(1).default(1), pageSize: z.number().int().min(1).max(100).default(20) });
+export const listJournalEntriesSchema = z.object({
+  sourceType: z.enum(["manual", "fee_payment", "fee_refund", "payroll_payment", "staff_advance_disbursement", "staff_advance_repayment"]).optional(),
+  status: z.enum(["draft", "posted", "reversed"]).optional(), from: dateStr.optional(), to: dateStr.optional(), page: z.number().int().min(1).default(1), pageSize: z.number().int().min(1).max(100).default(20),
+});
 
-const SOURCE_TO_DB: Record<string, string> = { manual: "MANUAL", fee_payment: "FEE_PAYMENT", fee_refund: "FEE_REFUND", payroll_payment: "PAYROLL_PAYMENT" };
+const SOURCE_TO_DB: Record<string, string> = {
+  manual: "MANUAL", fee_payment: "FEE_PAYMENT", fee_refund: "FEE_REFUND", payroll_payment: "PAYROLL_PAYMENT",
+  staff_advance_disbursement: "STAFF_ADVANCE_DISBURSEMENT", staff_advance_repayment: "STAFF_ADVANCE_REPAYMENT",
+};
 
 export async function listJournalEntries(scope: OrgScope, raw: unknown): Promise<{ data: JournalEntryListItemDto[]; meta: ListMeta }> {
   const input = parseInput(listJournalEntriesSchema, raw);

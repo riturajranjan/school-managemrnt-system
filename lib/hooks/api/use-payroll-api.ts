@@ -7,9 +7,12 @@ import { apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
   AddManualPayrollAdjustmentRequest,
+  ApproveStaffFinancialAdvanceRequest,
   CreatePayrollRunRequest,
   CreateSalaryStructureRequest,
+  CreateStaffFinancialAdvanceRequest,
   CreateStaffSalaryAssignmentRequest,
+  DisburseStaffFinancialAdvanceRequest,
   PayrollDashboardDto,
   PayrollEarningsDeductionsReportDto,
   PayrollPaymentDto,
@@ -18,15 +21,21 @@ import type {
   PayrollRunStatusDto,
   PayslipDto,
   RecordPayrollPaymentRequest,
+  RecordStaffFinancialAdvanceRepaymentRequest,
+  RejectStaffFinancialAdvanceRequest,
   SalaryComponentDto,
   SalaryComponentStatusDto,
   SalaryStructureDetailDto,
   SalaryStructureListItemDto,
   SalaryStructureStatusDto,
   SetSalaryStructureStatusRequest,
+  StaffFinancialAdvanceDetailDto,
+  StaffFinancialAdvanceListItemDto,
+  StaffFinancialAdvanceStatusDto,
   StaffSalaryAssignmentDto,
   UpdateSalaryComponentRequest,
   UpdateSalaryStructureRequest,
+  UpdateStaffFinancialAdvanceRequest,
 } from "@/lib/api/contracts";
 
 // --- Salary Components ---
@@ -82,3 +91,34 @@ export function usePayrollReport(year?: number) {
 export function usePayrollDashboard() {
   return useApiResource<PayrollDashboardDto>("/api/payroll/dashboard");
 }
+
+// --- Loans --- one shared real domain (StaffFinancialAdvance, type
+// LOAN|ADVANCE) behind two route prefixes — see the schema doc comment.
+export function useLoans(params: { status?: StaffFinancialAdvanceStatusDto; staffId?: string; pageSize?: number } = {}) {
+  return useApiList<StaffFinancialAdvanceListItemDto>(`/api/payroll/loans${buildQuery(params)}`);
+}
+export function useLoan(id: string | null) {
+  return useApiResource<StaffFinancialAdvanceDetailDto>(id ? `/api/payroll/loans/${id}` : null);
+}
+export const createLoanRequest = (body: CreateStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>("/api/payroll/loans", body);
+export const updateLoanRequest = (id: string, body: UpdateStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPatch<StaffFinancialAdvanceDetailDto>(`/api/payroll/loans/${id}`, body);
+export const approveLoanRequest = (id: string, body: ApproveStaffFinancialAdvanceRequest = {}): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/loans/${id}/approve`, body);
+export const rejectLoanRequest = (id: string, body: RejectStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/loans/${id}/reject`, body);
+export const cancelLoanRequest = (id: string): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/loans/${id}/cancel`, {});
+export const disburseLoanRequest = (id: string, body: DisburseStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/loans/${id}/disburse`, body);
+export const repayLoanRequest = (id: string, body: RecordStaffFinancialAdvanceRepaymentRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/loans/${id}/repay`, body);
+
+// --- Advances ---
+export function useAdvances(params: { status?: StaffFinancialAdvanceStatusDto; staffId?: string; pageSize?: number } = {}) {
+  return useApiList<StaffFinancialAdvanceListItemDto>(`/api/payroll/advances${buildQuery(params)}`);
+}
+export function useAdvance(id: string | null) {
+  return useApiResource<StaffFinancialAdvanceDetailDto>(id ? `/api/payroll/advances/${id}` : null);
+}
+export const createAdvanceRequest = (body: CreateStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>("/api/payroll/advances", body);
+export const updateAdvanceRequest = (id: string, body: UpdateStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPatch<StaffFinancialAdvanceDetailDto>(`/api/payroll/advances/${id}`, body);
+export const approveAdvanceRequest = (id: string, body: ApproveStaffFinancialAdvanceRequest = {}): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/advances/${id}/approve`, body);
+export const rejectAdvanceRequest = (id: string, body: RejectStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/advances/${id}/reject`, body);
+export const cancelAdvanceRequest = (id: string): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/advances/${id}/cancel`, {});
+export const disburseAdvanceRequest = (id: string, body: DisburseStaffFinancialAdvanceRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/advances/${id}/disburse`, body);
+export const repayAdvanceRequest = (id: string, body: RecordStaffFinancialAdvanceRepaymentRequest): Promise<ApiResult<StaffFinancialAdvanceDetailDto>> => apiPost<StaffFinancialAdvanceDetailDto>(`/api/payroll/advances/${id}/repay`, body);

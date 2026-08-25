@@ -2148,6 +2148,7 @@ model Staff {
   cafeteriaMealRecordsAsConsumer     CafeteriaMealRecord[]            @relation("CafeteriaMealStaffConsumer") // Phase 9T
   activityStaffAssignments           ActivityStaffAssignment[] // Phase 9U — coordinator/coach/mentor assignments
   generatedDocuments                 GeneratedDocument[] // Phase 9V — Document Studio generated-document history
+  financialAdvances                  StaffFinancialAdvance[] // Production Payroll checkpoint — loans/advances
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -3984,6 +3985,8 @@ enum JournalSourceType {
   FEE_PAYMENT
   FEE_REFUND
   PAYROLL_PAYMENT
+  STAFF_ADVANCE_DISBURSEMENT
+  STAFF_ADVANCE_REPAYMENT
 }
 
 /**
@@ -7082,4 +7085,166 @@ model BudgetAllocation {
   @@unique([budgetId, accountingAccountId])
   @@index([accountingAccountId])
   @@map("budget_allocations")
+}
+
+// ===========================================================================
+// Production Payroll checkpoint — Loans + Advances. Uses the REAL Phase 6A
+// Staff model as the sole employee identity (never a parallel Employee/Loan-
+// identity model). One shared model with a `type` discriminator (LOAN vs
+// ADVANCE) rather than two near-identical parallel models — the two named
+// target routes (/payroll/loans, /payroll/advances) are just filtered views
+// over the same real domain, matching how Vendor/PurchaseOrder stayed
+// separate only because their lifecycles genuinely differ; here they don't.
+//
+// V1 POLICY (deliberately minimal):
+//   - NO interest engine, NO EMI/installment-schedule engine, NO automatic
+//     eligibility/credit-limit scoring, NO bank disbursement integration —
+//     none of that policy exists anywhere in this product, so none is
+//     invented. `principalAmount` is requested; `approvedAmount` is what
+//     actually gets disbursed (normally equal, but a manager may adjust it
+//     down at approval time — never up, enforced in service code).
+//   - Lifecycle: PENDING -> APPROVED -> DISBURSED -> PARTIALLY_REPAID ->
+//     REPAID. Side branches: PENDING -> REJECTED, APPROVED -> CANCELLED
+//     (only before disbursement — once DISBURSED it is real money out the
+//     door and immutable going forward except via repayment).
+//   - Disbursement and repayment are RECORDING only (manual, by an
+//     authorized payroll manager) — never a real bank transfer, matching
+//     PayrollPayment's own "recording only" precedent exactly. Repayment
+//     method deliberately reuses PayrollPaymentMethod's exact vocabulary
+//     (cash/upi/card/bank_transfer/cheque/other) — no PAYROLL_RECOVERY
+//     option exists because automatic payroll-deduction recovery is
+//     explicitly NOT implemented in this checkpoint (no installment-
+//     amount/frequency/insufficient-net-pay policy exists to build it on).
+//     A payslip never shows a fabricated Loan/Advance deduction line.
+//   - Outstanding balance is NEVER a stored column — always derived as
+//     `approvedAmount - SUM(repayments.amount)` (see
+//     lib/server/payroll/loans-advances.ts), floored at 0, computed in
+//     Prisma.Decimal. Repayment recording is guarded by a
+//     `SELECT ... FOR UPDATE` lock on the advance row (same pattern as
+//     Phase 9H's PayrollRun finalize/pay and Phase 9E's leave-overlap
+//     check) so two concurrent repayments can never combine to overpay.
+//   - Accounting: mirrors Fees/Payroll's CASH-basis recognition exactly —
+//     creating or approving a record posts NOTHING. Only DISBURSED posts
+//     (Debit STAFF_LOANS_RECEIVABLE or STAFF_ADVANCES_RECEIVABLE, Credit
+//     BANK) and only a repayment posts (Debit BANK, Credit the same
+//     receivable account) — via lib/server/payroll/loans-advances-posting.ts,
+//     reusing the exact ensureSystemAccount/sourceEventId-idempotency
+//     mechanism Payroll's own postPayrollPaymentToAccounting uses. No
+//     second journal engine.
+//   - `staffName`/`employeeCode` are snapshotted at creation (mirrors
+//     PayrollRunItem exactly) so a later Staff rename never rewrites a
+//     historical Loan/Advance's display meaning — the real `staffId` FK
+//     remains the relationship/identity authority throughout.
+// ===========================================================================
+
+enum StaffFinancialAdvanceType {
+  LOAN
+  ADVANCE
+}
+
+enum StaffFinancialAdvanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISBURSED
+  PARTIALLY_REPAID
+  REPAID
+  CANCELLED
+}
+
+model StaffFinancialAdvance {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  type   StaffFinancialAdvanceType
+  number String
+
+  staffId      String
+  staffName    String
+  employeeCode String
+
+  principalAmount Decimal  @db.Decimal(12, 2)
+  approvedAmount  Decimal? @db.Decimal(12, 2)
+  purpose         String?
+  notes           String?
+
+  status StaffFinancialAdvanceStatus @default(PENDING)
+
+  requestedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  approvedAt       DateTime? @db.Timestamptz(6)
+  approvedByUserId String?
+  approvedByName   String?
+
+  rejectedAt       DateTime? @db.Timestamptz(6)
+  rejectedByUserId String?
+  rejectedByName   String?
+  rejectionReason  String?
+
+  cancelledAt       DateTime? @db.Timestamptz(6)
+  cancelledByUserId String?
+  cancelledByName   String?
+
+  disbursedAt           DateTime?             @db.Timestamptz(6)
+  disbursedByUserId     String?
+  disbursedByName       String?
+  disbursementMethod    PayrollPaymentMethod?
+  disbursementReference String?
+
+  closedAt DateTime? @db.Timestamptz(6)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff      Staff                            @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  repayments StaffFinancialAdvanceRepayment[]
+
+  @@unique([schoolId, number])
+  @@index([tenantId])
+  @@index([schoolId, staffId, status])
+  @@index([schoolId, type, status])
+  @@map("staff_financial_advances")
+}
+
+/**
+ * Immutable repayment ledger row — never edited or deleted once created.
+ * Outstanding balance is always `approvedAmount - SUM(these rows)`, never a
+ * second stored authority.
+ */
+model StaffFinancialAdvanceRepayment {
+  id        String @id @default(cuid())
+  advanceId String
+
+  amount      Decimal              @db.Decimal(12, 2)
+  paymentDate DateTime             @db.Date
+  method      PayrollPaymentMethod
+  reference   String?
+
+  recordedByUserId String
+  recordedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  advance StaffFinancialAdvance @relation(fields: [advanceId], references: [id], onDelete: Restrict)
+
+  @@index([advanceId])
+  @@map("staff_financial_advance_repayments")
+}
+
+/**
+ * Race-safe, school+type-scoped numbering — same atomic `UPDATE ... RETURNING`
+ * strategy as every other counter in this schema (AccountingEntryCounter etc).
+ */
+model StaffFinancialAdvanceCounter {
+  schoolId String
+  type     StaffFinancialAdvanceType
+  counter  Int                       @default(0)
+
+  @@id([schoolId, type])
+  @@map("staff_financial_advance_counters")
 }

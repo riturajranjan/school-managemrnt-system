@@ -225,6 +225,21 @@ const MIGRATED_FILES = [
   "app/payroll/history/page.tsx",
   "app/payroll/payslips/page.tsx",
   "app/payroll/payslips/[payslipId]/page.tsx",
+  // Production Payroll checkpoint — Loans / Advances. Real
+  // StaffFinancialAdvance (one shared model, type LOAN|ADVANCE — the two
+  // routes are just filtered views) via /api/payroll/{loans,advances}*
+  // (PostgreSQL), posting to the REAL Phase 9G ledger only on disbursement/
+  // repayment recording (never on create/approve). No interest/EMI engine,
+  // no automatic eligibility scoring, no automatic payroll-deduction
+  // recovery — manual repayment recording only. Must never reintroduce
+  // lib/hooks/use-finance's deleted useEmployeeLoans/useEmployeeAdvances or
+  // the deleted mock EmployeeLoan/EmployeeAdvance types (fake interest/EMI
+  // engine) — real surfaces use hooks/api/use-payroll-api's
+  // useLoan(s)/useAdvance(s). Tax stays an honest deferred stub (no
+  // statutory tax policy exists), unguarded, out of this checkpoint's scope.
+  "app/payroll/loans/page.tsx",
+  "app/payroll/advances/page.tsx",
+  "components/payroll/loan-advance-detail.tsx",
   // Phase 9I — Visitor Management. Real Visitor/VisitorVisit via
   // /api/visitors/* (PostgreSQL); host resolved through the real Staff
   // model (Phase 6A) — never mock db.employees/hostName strings. Must never
@@ -902,6 +917,10 @@ const FORBIDDEN: { marker: string; why: string }[] = [
   { marker: "services/purchase-order-service", why: "mock PO lifecycle service (deleted — zero remaining consumers, dead import; real surfaces use createPurchaseOrderRequest/approvePurchaseOrderRequest/cancelPurchaseOrderRequest)" },
   { marker: "services/budget-service", why: "mock budget create/approve/revise service (deleted — zero remaining consumers, dead import; real surfaces use createBudgetRequest/approveBudgetRequest)" },
   { marker: "selectors/budget-insights", why: "mock budget actual-spend selector reading db.expenses (deleted — zero remaining consumers, dead import; real actual/variance is server-derived from POSTED JournalLines)" },
+  // Production Payroll checkpoint — Loans/Advances mock authority (real surfaces must use hooks/api/use-payroll-api).
+  { marker: "useEmployeeLoans", why: "mock employee-loan hook reading db.employeeLoans (deleted — zero remaining consumers, dead import; real surfaces use useLoan/useLoans)" },
+  { marker: "useEmployeeAdvances", why: "mock employee-advance hook reading db.employeeAdvances (deleted — zero remaining consumers, dead import; real surfaces use useAdvance/useAdvances)" },
+  { marker: "buildLoansAndAdvances", why: "mock loan/advance seed generator with a fabricated interest/EMI schedule (deleted — zero remaining consumers, dead import)" },
 ];
 
 function collectSources(dir: string): string[] {

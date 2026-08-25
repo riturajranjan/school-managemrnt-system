@@ -2098,7 +2098,7 @@ export type CreateAccountingAccountRequest = { code: string; name: string; type:
 export type UpdateAccountingAccountRequest = { name?: string; description?: string; parentId?: string | null; status?: AccountingAccountStatusDto };
 
 export type JournalEntryStatusDto = "draft" | "posted" | "reversed";
-export type JournalSourceTypeDto = "manual" | "fee_payment" | "fee_refund" | "payroll_payment";
+export type JournalSourceTypeDto = "manual" | "fee_payment" | "fee_refund" | "payroll_payment" | "staff_advance_disbursement" | "staff_advance_repayment";
 export type JournalLineDto = { id: string; accountId: string; accountCode: string; accountName: string; debit: number; credit: number; description: string | null };
 export type JournalEntryListItemDto = {
   id: string;
@@ -2401,6 +2401,66 @@ export type PayrollDashboardDto = {
   staffWithoutAssignment: number;
   recentRuns: PayrollRunListItemDto[];
 };
+
+// --- Production Payroll checkpoint: Loans / Advances. One shared domain with
+// a `type` discriminator — see the schema doc comment on
+// StaffFinancialAdvance for the full policy. `outstanding` is always
+// server-derived (approvedAmount - SUM(repayments)), never persisted. No
+// interest/EMI, no automatic payroll deduction. ---
+
+export type StaffFinancialAdvanceTypeDto = "loan" | "advance";
+export type StaffFinancialAdvanceStatusDto = "pending" | "approved" | "rejected" | "disbursed" | "partially_repaid" | "repaid" | "cancelled";
+
+export type StaffFinancialAdvanceRepaymentDto = {
+  id: string;
+  amount: number;
+  paymentDate: string;
+  method: PayrollPaymentMethodDto;
+  reference: string | null;
+  recordedByName: string | null;
+  createdAt: string;
+};
+
+export type StaffFinancialAdvanceListItemDto = {
+  id: string;
+  type: StaffFinancialAdvanceTypeDto;
+  number: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  principalAmount: number;
+  approvedAmount: number | null;
+  status: StaffFinancialAdvanceStatusDto;
+  outstanding: number;
+  requestedAt: string;
+  createdAt: string;
+};
+
+export type StaffFinancialAdvanceDetailDto = StaffFinancialAdvanceListItemDto & {
+  purpose: string | null;
+  notes: string | null;
+  approvedAt: string | null;
+  approvedByName: string | null;
+  rejectedAt: string | null;
+  rejectedByName: string | null;
+  rejectionReason: string | null;
+  cancelledAt: string | null;
+  cancelledByName: string | null;
+  disbursedAt: string | null;
+  disbursedByName: string | null;
+  disbursementMethod: PayrollPaymentMethodDto | null;
+  disbursementReference: string | null;
+  closedAt: string | null;
+  createdByName: string | null;
+  repayments: StaffFinancialAdvanceRepaymentDto[];
+};
+
+export type CreateStaffFinancialAdvanceRequest = { staffId: string; principalAmount: number; purpose?: string; notes?: string };
+export type UpdateStaffFinancialAdvanceRequest = { principalAmount?: number; purpose?: string | null; notes?: string | null };
+export type ApproveStaffFinancialAdvanceRequest = { approvedAmount?: number };
+export type RejectStaffFinancialAdvanceRequest = { reason: string };
+export type DisburseStaffFinancialAdvanceRequest = { disbursementDate: string; method: PayrollPaymentMethodDto; reference?: string };
+export type RecordStaffFinancialAdvanceRepaymentRequest = { amount: number; paymentDate: string; method: PayrollPaymentMethodDto; reference?: string };
 
 // --- Phase 9I: Visitor Management ---
 

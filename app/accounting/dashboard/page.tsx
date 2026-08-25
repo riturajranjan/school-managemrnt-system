@@ -12,7 +12,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { useAccountingDashboard } from "@/lib/hooks/api/use-accounting-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-const sourceLabels: Record<string, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund" };
+const sourceLabels: Record<string, string> = { manual: "Manual", fee_payment: "Fee payment", fee_refund: "Fee refund", payroll_payment: "Payroll payment", staff_advance_disbursement: "Loan/advance disbursement", staff_advance_repayment: "Loan/advance repayment" };
 
 export default function AccountingDashboardPage() {
   const { data, loading, error } = useAccountingDashboard();

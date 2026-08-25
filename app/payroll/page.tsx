@@ -1,8 +1,8 @@
 "use client";
 
-// Real PostgreSQL/API cutover (Phase 9H). Loans/Advances/Tax quick links
-// stay (nav shape preserved) but their pages are now honest deferred stubs —
-// no real lending or statutory-tax policy exists in this repo.
+// Real PostgreSQL/API cutover (Phase 9H, extended by the Production Payroll
+// checkpoint). Loans/Advances are now real (StaffFinancialAdvance) — Tax
+// stays an honest deferred stub, no statutory tax policy exists in this repo.
 import Link from "next/link";
 import { Banknote, CalendarClock, FileText, Gauge, HandCoins, History, Percent, Receipt, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,8 @@ const quickLinks = [
   { href: "/payroll/history", label: "Payroll history", description: "Every past run with its status", icon: History },
   { href: "/payroll/payslips", label: "Payslips", description: "Generated payslips, one per staff member per period", icon: FileText },
   { href: "/payroll/tax", label: "Tax summary", description: "Not available — no statutory tax policy configured", icon: Percent },
-  { href: "/payroll/loans", label: "Loans", description: "Not available — no lending policy configured", icon: Banknote },
-  { href: "/payroll/advances", label: "Advances", description: "Not available — no advance policy configured", icon: Receipt },
+  { href: "/payroll/loans", label: "Loans", description: "Request, approve, disburse and recover staff loans", icon: Banknote },
+  { href: "/payroll/advances", label: "Advances", description: "Single-amount staff salary advances", icon: Receipt },
 ];
 
 export default function PayrollHubPage() {
