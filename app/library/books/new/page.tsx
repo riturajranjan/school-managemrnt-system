@@ -34,33 +34,59 @@ export default function NewBookPage() {
   const form = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   if (!capabilitiesLoading && !hasServerPermission("library.manage")) {
-    return <PermissionDenied action="add books to the catalogue" role={roleLabels[role]} backHref="/library/books" />;
+    return (
+      <PermissionDenied
+        action="add books to the catalogue"
+        role={roleLabels[role]}
+        backHref="/library/books"
+      />
+    );
   }
 
   async function onSubmit(values: FormValues) {
     const res = await createLibraryBookRequest({
-      title: values.title, subtitle: values.subtitle || undefined, author: values.author, isbn: values.isbn || undefined,
-      publisher: values.publisher || undefined, publicationYear: values.publicationYear, category: values.category || undefined,
-      language: values.language || undefined, description: values.description || undefined,
+      title: values.title,
+      subtitle: values.subtitle || undefined,
+      author: values.author,
+      isbn: values.isbn || undefined,
+      publisher: values.publisher || undefined,
+      publicationYear: values.publicationYear,
+      category: values.category || undefined,
+      language: values.language || undefined,
+      description: values.description || undefined,
     });
-    if (!res.success) { form.setError("root", { message: res.error.message }); return; }
+    if (!res.success) {
+      form.setError("root", { message: res.error.message });
+      return;
+    }
     router.push(`/library/books/${res.data.id}`);
   }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
-      <Link href="/library/books" className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <Link
+        href="/library/books"
+        className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-3.5" />
         Back to catalogue
       </Link>
 
       <div>
         <h1 className="text-lg font-semibold text-foreground">Add book</h1>
-        <p className="text-xs text-muted-foreground">Title-level catalogue record — physical copies are added on the book&apos;s page</p>
+        <p className="text-xs text-muted-foreground">
+          Title-level catalogue record — physical copies are added on the
+          book&apos;s page
+        </p>
       </div>
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex max-w-xl flex-col gap-sm">
-        {form.formState.errors.root && <p className="text-xs text-error">{form.formState.errors.root.message}</p>}
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex  flex-col gap-sm">
+        {form.formState.errors.root && (
+          <p className="text-xs text-error">
+            {form.formState.errors.root.message}
+          </p>
+        )}
         <div>
           <Label htmlFor="title">Title</Label>
           <Input id="title" {...form.register("title")} />
@@ -86,7 +112,11 @@ export default function NewBookPage() {
           </div>
           <div>
             <Label htmlFor="publicationYear">Publication year</Label>
-            <Input id="publicationYear" type="number" {...form.register("publicationYear", { valueAsNumber: true })} />
+            <Input
+              id="publicationYear"
+              type="number"
+              {...form.register("publicationYear", { valueAsNumber: true })}
+            />
           </div>
           <div>
             <Label htmlFor="category">Category</Label>
@@ -101,7 +131,9 @@ export default function NewBookPage() {
           <Label htmlFor="description">Description</Label>
           <Input id="description" {...form.register("description")} />
         </div>
-        <Button type="submit" disabled={form.formState.isSubmitting}>Add book</Button>
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          Add book
+        </Button>
       </form>
     </div>
   );
