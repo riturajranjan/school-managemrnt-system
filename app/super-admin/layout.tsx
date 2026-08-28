@@ -9,6 +9,7 @@ import { GlobalSearch } from "@/components/super-admin/global-search";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { roleLabels } from "@/lib/permissions/roles";
+import { resolvePlatformAdminGate } from "@/lib/permissions/auth-gate";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_NAME = "Novyra Campus OS";
@@ -18,10 +19,12 @@ export default function SuperAdminLayout({ children }: { children: ReactNode }) 
   const { role, isPlatformAdmin, capabilitiesLoading } = usePermissions();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Super Admin workspace is gated to real platform admins (server also enforces
-  // this in the root layout). Wait for capabilities so we don't flash "denied".
-  if (capabilitiesLoading) return null;
-  if (!isPlatformAdmin) return <div className="p-md"><PermissionDenied action="access the SaaS control center" role={roleLabels[role]} backHref="/" /></div>;
+  // Super Admin workspace is gated to real platform admins (server also
+  // enforces this in the root layout). LOADING must never render as DENIED —
+  // see lib/permissions/auth-gate.ts for why that distinction matters here.
+  const gate = resolvePlatformAdminGate({ capabilitiesLoading, isPlatformAdmin });
+  if (gate === "LOADING") return null;
+  if (gate === "DENIED") return <div className="p-md"><PermissionDenied action="access the SaaS control center" role={roleLabels[role]} backHref="/" /></div>;
 
   const isActive = (href: string) => pathname === href || (href !== "/super-admin" && pathname.startsWith(`${href}/`));
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordField } from "./password-field";
 import { AuthStatus, AuthLink, DemoAccess, SecurityNotice } from "./misc";
+import { usePermissions } from "@/components/providers/permissions-provider";
 import type { DemoAccount } from "@/lib/types/auth";
 import type { UserRole } from "@/lib/permissions/roles";
 import { loginAction, type LoginActionResult } from "@/app/(auth)/actions";
@@ -47,6 +48,7 @@ const ERROR_MESSAGE: Record<Exclude<LoginActionResult, { success: true }>["error
  * only the submit behaviour is real now (no mock accounts, no localStorage). */
 export function LoginForm({ variant, returnTo }: { variant: Variant; returnTo?: string | null }) {
   const router = useRouter();
+  const { refreshCapabilities } = usePermissions();
   const cfg = CONFIG[variant];
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +64,14 @@ export function LoginForm({ variant, returnTo }: { variant: Variant; returnTo?: 
     try {
       const result = await loginAction({ email: identifier.trim(), password, returnTo });
       if (result.success) {
+        // PermissionsProvider lives in the root layout, which persists across
+        // client-side navigation — its one-time mount effect already ran (as
+        // an unauthenticated visitor) before this login, and router.push()
+        // alone would never re-trigger it. Without this, the redirected
+        // destination renders with the pre-login (anonymous/wrong-role)
+        // capabilities until a full page reload remounts the provider.
+        // Await the real, now-authenticated capabilities before navigating.
+        await refreshCapabilities();
         setStatus("done");
         router.push(result.redirectTo);
         router.refresh();

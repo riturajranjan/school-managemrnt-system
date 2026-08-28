@@ -29,11 +29,25 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 // dials out. Scoped to GET only; mutations must never be deduped this way.
 const inFlightGets = new Map<string, Promise<ApiResult<unknown>>>();
 
-export function apiGet<T>(url: string): Promise<ApiResult<T>> {
-  const existing = inFlightGets.get(url);
-  if (existing) return existing as Promise<ApiResult<T>>;
+/**
+ * `force: true` bypasses the dedup lookup and always issues (and re-registers)
+ * a fresh request — needed for auth-sensitive endpoints right after identity
+ * changes server-side (login, role switch, stop impersonation). Without it, a
+ * caller that refreshes immediately after such a change can be handed the
+ * result of an EARLIER in-flight request for the same URL that was already
+ * outstanding under the old identity (e.g. the anonymous /login page's own
+ * mount-time capabilities fetch, still pending when login completes moments
+ * later) — silently re-applying stale, pre-change data instead of the fresh
+ * result the caller just asked for. Every other caller keeps the normal dedup
+ * behavior; this never removes it globally.
+ */
+export function apiGet<T>(url: string, options?: { force?: boolean }): Promise<ApiResult<T>> {
+  if (!options?.force) {
+    const existing = inFlightGets.get(url);
+    if (existing) return existing as Promise<ApiResult<T>>;
+  }
   const promise = request<T>("GET", url).finally(() => {
-    inFlightGets.delete(url);
+    if (inFlightGets.get(url) === promise) inFlightGets.delete(url);
   });
   inFlightGets.set(url, promise as Promise<ApiResult<unknown>>);
   return promise;

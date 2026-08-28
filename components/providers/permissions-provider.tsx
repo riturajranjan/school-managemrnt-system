@@ -35,6 +35,18 @@ type PermissionsContextValue = {
   isReadOnlyInspection: boolean;
   /** Stop impersonation server-side, then reload capabilities + refresh routes. */
   stopImpersonation: () => Promise<void>;
+  /**
+   * Re-fetch and apply real capabilities from the server right now, awaiting
+   * completion. PermissionsProvider lives in the root layout, so its mount
+   * effect only ever fires once per full page load — a client-side
+   * navigation (router.push) after login does NOT remount it, so without an
+   * explicit refresh the provider would keep serving whatever it resolved
+   * BEFORE login (unauthenticated: role="teacher" fallback, isPlatformAdmin
+   * false) straight through to the newly-redirected protected page. Callers
+   * that just changed server-side identity/permission state (login, role
+   * switch, stopping impersonation) must await this before navigating.
+   */
+  refreshCapabilities: () => Promise<void>;
 };
 
 type Capabilities = {
@@ -77,9 +89,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   // access before this component ever rendered). Retry a few times with
   // backoff before giving up; stop immediately on a genuine UNAUTHENTICATED
   // response (no session — retrying can't fix that).
-  const load = useCallback(async (): Promise<Capabilities | null> => {
+  const load = useCallback(async (force = false): Promise<Capabilities | null> => {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await apiGet<Capabilities>("/api/auth/capabilities");
+      const res = await apiGet<Capabilities>("/api/auth/capabilities", { force });
       if (res.success) return res.data;
       if (res.error.code === "UNAUTHENTICATED") return null;
       if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
@@ -109,6 +121,13 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     };
   }, [load, apply]);
 
+  const refreshCapabilities = useCallback(async () => {
+    // force:true — never let this be satisfied by an earlier in-flight
+    // request for the same URL that started under a different identity (see
+    // apiGet's `force` option).
+    apply(await load(true));
+  }, [apply, load]);
+
   // Switch the active role — only if it's genuinely assigned. Persists via the
   // real context API and re-resolves capabilities; server validates independently.
   const setRole = useCallback(
@@ -117,10 +136,10 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       if (!match) return; // ignore attempts to select an unassigned role
       const res = await apiPost("/api/auth/context/role", { roleId: match.id });
       if (!res.success) return;
-      apply(await load());
+      await refreshCapabilities();
       router.refresh();
     },
-    [assignedRoles, load, apply, router],
+    [assignedRoles, refreshCapabilities, router],
   );
 
   // For a permission key the DB catalog manages, the REAL server permission set
@@ -138,9 +157,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const stopImpersonation = useCallback(async () => {
     const res = await apiPost("/api/super-admin/impersonation/stop", {});
     if (!res.success) return;
-    apply(await load());
+    await refreshCapabilities();
     router.refresh();
-  }, [apply, load, router]);
+  }, [refreshCapabilities, router]);
 
   const value = useMemo<PermissionsContextValue>(
     () => ({
@@ -156,8 +175,20 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       impersonation,
       isReadOnlyInspection: impersonation.active === true,
       stopImpersonation,
+      refreshCapabilities,
     }),
-    [role, setRole, can, serverPermissions, isPlatformAdmin, assignedRoles, capabilitiesLoading, impersonation, stopImpersonation],
+    [
+      role,
+      setRole,
+      can,
+      serverPermissions,
+      isPlatformAdmin,
+      assignedRoles,
+      capabilitiesLoading,
+      impersonation,
+      stopImpersonation,
+      refreshCapabilities,
+    ],
   );
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>;
