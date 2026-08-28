@@ -162,9 +162,9 @@ export default function SchoolDetailPage({ params }: { params: Promise<{ schoolI
           {currentSession ? (
             <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
               <dt className="text-muted-foreground">Name</dt>
-              <dd className="text-foreground">{currentSession.name}</dd>
+              <dd className="text-foreground">{school.name}</dd>
               <dt className="text-muted-foreground">Code</dt>
-              <dd className="text-foreground">{currentSession.code}</dd>
+              <dd className="text-foreground">{school.code}</dd>
               <dt className="text-muted-foreground">Starts</dt>
               <dd className="text-foreground">{currentSession.startDate}</dd>
               <dt className="text-muted-foreground">Ends</dt>
