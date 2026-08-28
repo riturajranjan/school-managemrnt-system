@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, ShieldCheck } from "lucide-react";
-import { DEMO_ACCOUNTS, type DemoAccount } from "@/lib/types/auth";
+import { DEMO_ACCOUNTS, isDemoAccessEnabled, type DemoAccount } from "@/lib/types/auth";
 
 /** Small notice explaining that authentication is simulated. */
 export function SecurityNotice({ children }: { children?: React.ReactNode }) {
@@ -22,6 +22,7 @@ export function AuthStatus({ tone, children }: { tone: "error" | "success" | "in
 /** Subtle "Demo Access" panel — only surfaced in demo/development mode. Lets a
  * reviewer jump into any role without typing credentials. */
 export function DemoAccess({ onPick, filter }: { onPick: (a: DemoAccount) => void; filter?: (a: DemoAccount) => boolean }) {
+  if (!isDemoAccessEnabled()) return null;
   const accounts = filter ? DEMO_ACCOUNTS.filter(filter) : DEMO_ACCOUNTS;
   return (
     <details className="mt-md rounded-md border border-dashed border-border bg-surface-secondary/30 p-2">

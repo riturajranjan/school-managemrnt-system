@@ -66,9 +66,25 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [impersonation, setImpersonation] = useState<ImpersonationState>({ active: false });
 
-  const load = useCallback(async () => {
-    const res = await apiGet<Capabilities>("/api/auth/capabilities");
-    return res.success ? res.data : null;
+  // A transient failure here (cold serverless/DB start, brief network blip)
+  // must never be indistinguishable from a confirmed "not a platform admin" /
+  // wrong-role result — the UI-only fallback role below ("teacher") would
+  // otherwise render as the user's real identity for anyone who isn't a
+  // teacher (most visibly a Platform Super Admin: a fresh production login
+  // hitting a cold database connection could see themselves gated out with
+  // "Your role (Teacher)" even though the server-side session and RBAC
+  // resolution — the authoritative check — already confirmed platform admin
+  // access before this component ever rendered). Retry a few times with
+  // backoff before giving up; stop immediately on a genuine UNAUTHENTICATED
+  // response (no session — retrying can't fix that).
+  const load = useCallback(async (): Promise<Capabilities | null> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await apiGet<Capabilities>("/api/auth/capabilities");
+      if (res.success) return res.data;
+      if (res.error.code === "UNAUTHENTICATED") return null;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+    }
+    return null;
   }, []);
 
   const apply = useCallback((data: Capabilities | null) => {

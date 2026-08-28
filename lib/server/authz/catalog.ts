@@ -595,3 +595,21 @@ export const DB_ROLE_TO_UI: Record<string, string> = {
 };
 export const PLATFORM_UI_ROLE = "super-admin";
 
+/**
+ * Effective UI-facing role for capability rendering (`GET /api/auth/capabilities`).
+ * Platform admin ALWAYS wins — it is resolved from the real PlatformAdmin
+ * relation and is never derived from, overridden by, or mixed with a tenant
+ * role, including a leftover/stale one from before an account was made a
+ * platform admin. A pure function so this priority is covered by a plain unit
+ * test (see catalog.test.ts) independent of DB/session/cookie plumbing.
+ */
+export function resolveUiRole(params: {
+  isPlatformAdmin: boolean;
+  activeRoleKey: string | null;
+  assignedRoleKeys: string[];
+}): string | null {
+  if (params.isPlatformAdmin) return PLATFORM_UI_ROLE;
+  const effectiveRoleKey =
+    params.activeRoleKey ?? (params.assignedRoleKeys.length === 1 ? params.assignedRoleKeys[0] : null);
+  return effectiveRoleKey ? (DB_ROLE_TO_UI[effectiveRoleKey] ?? null) : null;
+}

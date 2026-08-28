@@ -122,6 +122,15 @@ export const MOCK_SCHOOLS: MockSchoolAccess[] = [
   { id: "sch-heritage", name: "Heritage Valley School", code: "HVS-118", city: "Pune", board: "ICSE", branchCount: 1, status: "inactive", logoColor: "#7c3aed" },
 ];
 
+// Demo Access must never be offered in production — it prefills real seeded
+// dev-only emails (which don't exist outside `prisma/seed.ts`'s target DB) and
+// has no place being shown/discoverable to real production users. Pure
+// function (env in, boolean out) so it's covered by a plain unit test without
+// needing a component-rendering harness.
+export function isDemoAccessEnabled(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
+  return nodeEnv !== "production";
+}
+
 export type DemoAccount = { key: string; name: string; role: UserRole; label: string; email: string; avatarColor: string; multiRole?: MockRoleAccess[]; children?: MockChild[] };
 
 export const DEMO_ACCOUNTS: DemoAccount[] = [

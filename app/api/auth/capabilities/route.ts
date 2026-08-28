@@ -1,6 +1,6 @@
 import { getAuthzContext } from "@/lib/server/authz/permissions";
 import { getAssignedRoles } from "@/lib/server/context/service";
-import { DB_ROLE_TO_UI, PERMISSION_KEYS, PLATFORM_UI_ROLE } from "@/lib/server/authz/catalog";
+import { DB_ROLE_TO_UI, PERMISSION_KEYS, resolveUiRole } from "@/lib/server/authz/catalog";
 import { getActiveImpersonation } from "@/lib/server/platform/impersonation-service";
 import { fail, ok } from "@/lib/server/api/response";
 
@@ -17,14 +17,11 @@ export async function GET() {
   const impersonation = await getActiveImpersonation(ctx.sessionId);
 
   const assigned = await getAssignedRoles(ctx.user.id);
-  // Effective role for display: the selected active role, else the sole assigned
-  // role (the resolver auto-selects a single role at login anyway).
-  const effectiveRoleKey = ctx.activeRoleKey ?? (assigned.length === 1 ? assigned[0].key : null);
-  const uiRole = ctx.isPlatformAdmin
-    ? PLATFORM_UI_ROLE
-    : effectiveRoleKey
-      ? DB_ROLE_TO_UI[effectiveRoleKey] ?? null
-      : null;
+  const uiRole = resolveUiRole({
+    isPlatformAdmin: ctx.isPlatformAdmin,
+    activeRoleKey: ctx.activeRoleKey,
+    assignedRoleKeys: assigned.map((r) => r.key),
+  });
 
   return ok({
     permissions: [...ctx.permissions].sort(),

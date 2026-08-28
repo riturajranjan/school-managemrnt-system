@@ -12,6 +12,7 @@ import {
   landingForLogin,
   resolveSessionUser,
 } from "@/lib/server/auth/service";
+import { DEMO_ACCOUNTS } from "@/lib/types/auth";
 
 const DEV_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Novyra@Dev123";
 const TEST_PASSWORD = "TestPass@123";
@@ -181,6 +182,18 @@ describe.skipIf(!dbReady)("password login + session (DB)", () => {
     // destroySession is a safe no-op when called again / with junk.
     await destroySession(login.token);
     await destroySession(undefined);
+  });
+
+  it("has no development-only auth bypass for the login-page Demo Access identities — they authenticate through the exact same real DB lookup as everyone else and fail like any other non-existent account", async () => {
+    // The client-side Demo Access panel only prefills the email field (see
+    // components/auth/misc.tsx / login-form.tsx) — it must never reach a
+    // special-cased server code path. None of these fictional demo emails
+    // exist in this DB, in any environment, including production (they are
+    // never created by prisma/bootstrap-production.ts).
+    for (const account of DEMO_ACCOUNTS) {
+      const result = await authenticateWithPassword({ email: account.email, password: "whatever-someone-types" });
+      expect(result).toEqual({ ok: false, errorCode: "INVALID_CREDENTIALS" });
+    }
   });
 
   it("rejects a deleted session and a session whose user is gone", async () => {

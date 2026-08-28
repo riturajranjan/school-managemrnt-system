@@ -8,6 +8,7 @@ import {
   ROLE_PERMISSIONS,
   buildPlatformPermissionMatrix,
   platformPermissionsForRole,
+  resolveUiRole,
 } from "@/lib/server/authz/catalog";
 
 describe("RBAC catalog", () => {
@@ -122,5 +123,39 @@ describe("RBAC catalog", () => {
     expect(m.matrix.AUDITOR["platform.settings"]).toBe("view");
     expect(m.matrix.SUPPORT["platform.settings"]).toBeNull();
     expect(m.matrix.SUPER_ADMIN["platform.announcements"]).toBe("manage");
+  });
+
+  // --- resolveUiRole (production login/role-resolution audit) --------------
+
+  it("platform admin ALWAYS resolves to super-admin, even with a leftover/assigned tenant role", () => {
+    // The exact production bug shape: an account that is a real PlatformAdmin
+    // must never fall through to a tenant role — not even one it happens to
+    // still carry an assignment for (e.g. from before it was made a platform
+    // admin, or a stale UserActiveContext selection).
+    expect(
+      resolveUiRole({ isPlatformAdmin: true, activeRoleKey: null, assignedRoleKeys: [] }),
+    ).toBe("super-admin");
+    expect(
+      resolveUiRole({ isPlatformAdmin: true, activeRoleKey: "TEACHER", assignedRoleKeys: ["TEACHER"] }),
+    ).toBe("super-admin");
+    expect(
+      resolveUiRole({ isPlatformAdmin: true, activeRoleKey: null, assignedRoleKeys: ["STAFF", "TEACHER"] }),
+    ).toBe("super-admin");
+  });
+
+  it("a non-platform-admin resolves to their real active/assigned tenant role", () => {
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: "TEACHER", assignedRoleKeys: ["TEACHER"] })).toBe("teacher");
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: "SCHOOL_ADMIN", assignedRoleKeys: ["SCHOOL_ADMIN"] })).toBe(
+      "administrator",
+    );
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: "STUDENT", assignedRoleKeys: ["STUDENT"] })).toBe("student");
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: "GUARDIAN", assignedRoleKeys: ["GUARDIAN"] })).toBe("parent");
+  });
+
+  it("falls back to the sole assigned role only when no active role is selected", () => {
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: null, assignedRoleKeys: ["LIBRARIAN"] })).toBe("librarian");
+    // Ambiguous (multiple assigned, none selected) → null, never a guess.
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: null, assignedRoleKeys: ["TEACHER", "STAFF"] })).toBeNull();
+    expect(resolveUiRole({ isPlatformAdmin: false, activeRoleKey: null, assignedRoleKeys: [] })).toBeNull();
   });
 });
