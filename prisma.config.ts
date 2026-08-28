@@ -1,10 +1,3 @@
-// Prisma 7 CLI configuration (schema location, migrations, datasource URL).
-//
-// Prisma does NOT auto-load .env files, so we load them here in the same
-// precedence Next.js uses: `.env` first, then `.env.local` overrides it.
-//
-// Runtime application code uses DATABASE_URL (pooled connection).
-// Prisma CLI/migrations use DIRECT_URL (direct/non-pooled connection).
 
 import { config as loadEnv } from "dotenv";
 import { defineConfig, env } from "prisma/config";
