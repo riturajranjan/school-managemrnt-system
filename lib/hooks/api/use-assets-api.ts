@@ -7,11 +7,13 @@ import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
   AssetAssignmentDto,
   AssetDashboardDto,
+  AssetDisposalDto,
   AssetDto,
   AssetHistoryEventDto,
   AssetMaintenanceDto,
   AssignAssetRequest,
   CompleteMaintenanceRequest,
+  CreateAssetDisposalRequest,
   CreateAssetRequest,
   OpenMaintenanceRequest,
   SetAssetStatusRequest,
@@ -29,6 +31,14 @@ export function useAsset(assetId: string | undefined) {
 export const createAssetRequest = (body: CreateAssetRequest): Promise<ApiResult<AssetDto>> => apiPost<AssetDto>("/api/assets", body);
 export const updateAssetRequest = (id: string, body: UpdateAssetRequest): Promise<ApiResult<AssetDto>> => apiPatch<AssetDto>(`/api/assets/${id}`, body);
 export const setAssetStatusRequest = (id: string, body: SetAssetStatusRequest): Promise<ApiResult<AssetDto>> => apiPost<AssetDto>(`/api/assets/${id}/status`, body);
+
+// ── Disposal ─────────────────────────────────────────────────────────────
+
+export function useAssetDisposals() {
+  return useApiList<AssetDisposalDto>("/api/assets/disposals");
+}
+export const disposeAssetRequest = (assetId: string, body: CreateAssetDisposalRequest): Promise<ApiResult<{ asset: AssetDto; disposal: AssetDisposalDto }>> =>
+  apiPost<{ asset: AssetDto; disposal: AssetDisposalDto }>(`/api/assets/${assetId}/dispose`, body);
 
 export function useAssetHistory(assetId: string | undefined) {
   return useApiResource<AssetHistoryEventDto[]>(assetId ? `/api/assets/${assetId}/history` : null);

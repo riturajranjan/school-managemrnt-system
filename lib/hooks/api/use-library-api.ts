@@ -2,18 +2,24 @@
 
 // Real client hooks for Library Management (Phase 9N). Reads/writes the live
 // /api/library/* endpoints — no mock store, no fake circulation/fines.
-import { apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
+import { apiDelete, apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
   CreateLibraryBookRequest,
   CreateLibraryCopyRequest,
+  CreateLibraryDigitalResourceRequest,
   IssueLoanRequest,
   LibraryBookCopyDto,
   LibraryBookDto,
   LibraryDashboardDto,
+  LibraryDigitalResourceDto,
   LibraryLoanDto,
   LibraryPolicyDto,
+  LibraryStocktakeDetailDto,
+  LibraryStocktakeDto,
   ReturnLoanRequest,
+  ScanStocktakeRequest,
+  StartStocktakeRequest,
   StudentLibraryProfileDto,
   UpdateLibraryBookRequest,
   UpdateLibraryCopyRequest,
@@ -33,7 +39,7 @@ export const updateLibraryBookRequest = (id: string, body: UpdateLibraryBookRequ
 
 // ── Copies ───────────────────────────────────────────────────────────────
 
-export function useLibraryCopies(filters: { bookId?: string; status?: string } = {}) {
+export function useLibraryCopies(filters: { bookId?: string; status?: string; search?: string } = {}) {
   return useApiList<LibraryBookCopyDto>(`/api/library/copies${buildQuery(filters)}`);
 }
 export function useLibraryCopy(copyId: string | undefined) {
@@ -72,3 +78,24 @@ export function useLibraryDashboard() {
 export function useStudentLibraryProfile(studentId: string | undefined) {
   return useApiResource<StudentLibraryProfileDto>(studentId ? `/api/students/${studentId}/library` : null);
 }
+
+// ── Digital Library (production migration, Phase A) — links only ─────────
+
+export function useLibraryDigitalResources(filters: { search?: string } = {}) {
+  return useApiList<LibraryDigitalResourceDto>(`/api/library/digital-resources${buildQuery(filters)}`);
+}
+export const createDigitalResourceRequest = (body: CreateLibraryDigitalResourceRequest): Promise<ApiResult<LibraryDigitalResourceDto>> =>
+  apiPost<LibraryDigitalResourceDto>("/api/library/digital-resources", body);
+export const deleteDigitalResourceRequest = (id: string): Promise<ApiResult<{ deleted: true }>> => apiDelete<{ deleted: true }>(`/api/library/digital-resources/${id}`);
+
+// ── Stocktake (production migration, Phase A) ─────────────────────────────
+
+export function useLibraryStocktakes() {
+  return useApiList<LibraryStocktakeDto>("/api/library/stocktakes");
+}
+export function useLibraryStocktake(stocktakeId: string | null) {
+  return useApiResource<LibraryStocktakeDetailDto>(stocktakeId ? `/api/library/stocktakes/${stocktakeId}` : null);
+}
+export const startStocktakeRequest = (body: StartStocktakeRequest): Promise<ApiResult<LibraryStocktakeDetailDto>> => apiPost<LibraryStocktakeDetailDto>("/api/library/stocktakes", body);
+export const scanStocktakeRequest = (id: string, body: ScanStocktakeRequest): Promise<ApiResult<LibraryStocktakeDetailDto>> => apiPost<LibraryStocktakeDetailDto>(`/api/library/stocktakes/${id}/scan`, body);
+export const completeStocktakeRequest = (id: string): Promise<ApiResult<LibraryStocktakeDetailDto>> => apiPost<LibraryStocktakeDetailDto>(`/api/library/stocktakes/${id}/complete`, {});

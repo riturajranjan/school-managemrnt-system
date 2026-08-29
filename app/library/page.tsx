@@ -30,7 +30,7 @@ const quickLinks = [
   { href: "/library/copies", label: "Copies", description: "Physical copy register and condition", icon: Boxes },
   { href: "/library/fines", label: "Fines", description: "Overdue, lost and damage charges", icon: Wallet },
   { href: "/library/digital", label: "Digital library", description: "E-books, notes, papers and media", icon: FileDigit },
-  { href: "/library/shelves", label: "Shelves", description: "Location hierarchy and occupancy", icon: LibraryBig },
+  { href: "/library/shelves", label: "Shelves", description: "Copies grouped by recorded shelf location", icon: LibraryBig },
   { href: "/library/stocktake", label: "Stocktake", description: "Shelf and full-library verification", icon: ScrollText },
   { href: "/library/barcode", label: "Barcode & QR", description: "Generate and print labels", icon: QrCode },
   { href: "/library/categories", label: "Categories", description: "Classification and Dewey codes", icon: Tags },

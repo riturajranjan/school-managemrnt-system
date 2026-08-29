@@ -47,10 +47,19 @@ export async function getCopy(scope: OrgScope, copyId: string): Promise<LibraryB
   return dto(await requireCopyInScope(scope, copyId));
 }
 
-export async function listCopies(scope: OrgScope, params: { bookId?: string; status?: string } = {}): Promise<LibraryBookCopyDto[]> {
+export async function listCopies(scope: OrgScope, params: { bookId?: string; status?: string; search?: string } = {}): Promise<LibraryBookCopyDto[]> {
   const where: Prisma.LibraryBookCopyWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
   if (params.bookId) where.bookId = params.bookId;
   if (params.status) where.status = params.status.toUpperCase() as never;
+  if (params.search) {
+    const q = params.search.trim();
+    where.OR = [
+      { accessionNumber: { contains: q, mode: "insensitive" } },
+      { barcode: { contains: q, mode: "insensitive" } },
+      { shelfLocation: { contains: q, mode: "insensitive" } },
+      { book: { title: { contains: q, mode: "insensitive" } } },
+    ];
+  }
   const rows = await prisma.libraryBookCopy.findMany({ where, orderBy: { accessionNumber: "asc" }, select });
   return rows.map(dto);
 }

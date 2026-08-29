@@ -21,6 +21,8 @@ import {
   renewLoan,
   returnLoan,
 } from "@/lib/server/library/loans";
+import { createDigitalResource, deleteDigitalResource, listDigitalResources } from "@/lib/server/library/digital-resources";
+import { completeStocktake, getStocktake, listStocktakes, scanStocktakeItem, startStocktake } from "@/lib/server/library/stocktake";
 import { HttpError } from "@/lib/server/api/guard";
 import type { OrgScope } from "@/lib/server/api/scope";
 import { ROLE_PERMISSIONS } from "@/lib/server/authz/catalog";
@@ -97,6 +99,8 @@ afterAll(async () => {
   if (!dbReady || !tenantId) return;
   await prisma.auditEvent.deleteMany({ where: { tenantId: { in: [tenantId, foreignTenantId] } } });
   await prisma.libraryLoan.deleteMany({ where: { tenantId: { in: [tenantId, foreignTenantId] } } });
+  await prisma.libraryStocktake.deleteMany({ where: { tenantId: { in: [tenantId, foreignTenantId] } } });
+  await prisma.libraryDigitalResource.deleteMany({ where: { tenantId: { in: [tenantId, foreignTenantId] } } });
   await prisma.libraryBookCopy.deleteMany({ where: { tenantId: { in: [tenantId, foreignTenantId] } } });
   await prisma.libraryBook.deleteMany({ where: { tenantId: { in: [tenantId, foreignTenantId] } } });
   await prisma.libraryAccessionCounter.deleteMany({ where: { schoolId: { in: [schoolId, foreignSchoolId] } } });
@@ -436,5 +440,91 @@ describe.skipIf(!dbReady)("Security / RBAC / Isolation / Audit / DTO safety (DB)
   it("listLoans filters by student/staff/copy/status correctly", async () => {
     const byStatus = await listLoans(scopeAdmin, { status: "returned" });
     expect(byStatus.every((l) => l.status === "returned")).toBe(true);
+  });
+});
+
+describe.skipIf(!dbReady)("Digital Library — real link records (DB)", () => {
+  it("creates a digital resource and lists it back", async () => {
+    const r = await createDigitalResource(scopeLibrarian, { title: `Physics Notes ${stamp}`, type: "notes", url: "https://example.test/notes.pdf" });
+    expect(r.url).toBe("https://example.test/notes.pdf");
+    expect(r.accessLevel).toBe("all");
+    const list = await listDigitalResources(scopeAdmin);
+    expect(list.some((x) => x.id === r.id)).toBe(true);
+  });
+
+  it("rejects a non-URL link", async () => {
+    await expect(createDigitalResource(scopeLibrarian, { title: "Bad", type: "notes", url: "not-a-url" })).rejects.toThrow();
+  });
+
+  it("empty search returns no results without erroring", async () => {
+    const list = await listDigitalResources(scopeAdmin, { search: `no-such-resource-${stamp}` });
+    expect(list).toEqual([]);
+  });
+
+  it("deleting a resource removes it; deleting a foreign-school resource fails (tenant isolation)", async () => {
+    const r = await createDigitalResource(scopeLibrarian, { title: "To delete", type: "other", url: "https://example.test/x" });
+    const foreign = await createDigitalResource(scopeForeignAdmin, { title: "Foreign", type: "other", url: "https://example.test/y" });
+    await expect(deleteDigitalResource(scopeAdmin, foreign.id)).rejects.toThrow(HttpError);
+    await deleteDigitalResource(scopeAdmin, r.id);
+    expect((await listDigitalResources(scopeAdmin)).some((x) => x.id === r.id)).toBe(false);
+  });
+});
+
+describe.skipIf(!dbReady)("Stocktake — real session over the real copy register (DB)", () => {
+  it("starting a stocktake computes a real expected count from AVAILABLE copies", async () => {
+    const book = await createBook(scopeLibrarian, { title: `Stocktake Book ${stamp}`, author: "A" });
+    await createCopy(scopeLibrarian, book.id, { shelfLocation: `SHELF-${stamp}` });
+    await createCopy(scopeLibrarian, book.id, { shelfLocation: `SHELF-${stamp}` });
+
+    const st = await startStocktake(scopeLibrarian, { scope: "shelf", shelfLocation: `SHELF-${stamp}` });
+    expect(st.expectedCount).toBeGreaterThanOrEqual(2);
+    expect(st.scannedCount).toBe(0);
+    expect(st.status).toBe("in_progress");
+    await completeStocktake(scopeLibrarian, st.id);
+  });
+
+  it("only one stocktake can be in progress per school at a time", async () => {
+    const active = await listStocktakes(scopeAdmin);
+    const existing = active.find((s) => s.status === "in_progress");
+    if (existing) await completeStocktake(scopeAdmin, existing.id);
+
+    const st = await startStocktake(scopeLibrarian, { scope: "full" });
+    await expect(startStocktake(scopeLibrarian, { scope: "full" })).rejects.toThrow(HttpError);
+    await completeStocktake(scopeLibrarian, st.id);
+  });
+
+  it("scanning a real barcode/accession marks it found; scanning twice is not a duplicate; unknown code fails", async () => {
+    const book = await createBook(scopeLibrarian, { title: `Scan Book ${stamp}`, author: "A" });
+    const copy = await createCopy(scopeLibrarian, book.id, { barcode: `SCANBC-${stamp}` });
+    const st = await startStocktake(scopeLibrarian, { scope: "full" });
+
+    await scanStocktakeItem(scopeLibrarian, st.id, { code: `SCANBC-${stamp}` });
+    const after1 = await getStocktake(scopeLibrarian, st.id);
+    expect(after1.scannedCopies.some((c) => c.id === copy.id)).toBe(true);
+
+    await scanStocktakeItem(scopeLibrarian, st.id, { code: `SCANBC-${stamp}` });
+    const after2 = await getStocktake(scopeLibrarian, st.id);
+    expect(after2.scannedCopies.filter((c) => c.id === copy.id).length).toBe(1);
+
+    await expect(scanStocktakeItem(scopeLibrarian, st.id, { code: "no-such-code" })).rejects.toThrow(HttpError);
+    await completeStocktake(scopeLibrarian, st.id);
+  });
+
+  it("cannot scan or complete an already-completed stocktake", async () => {
+    const st = await startStocktake(scopeLibrarian, { scope: "full" });
+    await completeStocktake(scopeLibrarian, st.id);
+    await expect(scanStocktakeItem(scopeLibrarian, st.id, { code: "anything" })).rejects.toThrow(HttpError);
+    await expect(completeStocktake(scopeLibrarian, st.id)).rejects.toThrow(HttpError);
+  });
+
+  it("tenant isolation: a school's stocktakes and copies never leak into another school's stocktake", async () => {
+    const active = await listStocktakes(scopeAdmin);
+    for (const s of active.filter((x) => x.status === "in_progress")) await completeStocktake(scopeAdmin, s.id);
+
+    const st = await startStocktake(scopeLibrarian, { scope: "full" });
+    const foreignList = await listStocktakes(scopeForeignAdmin);
+    expect(foreignList.some((s) => s.id === st.id)).toBe(false);
+    await expect(getStocktake(scopeForeignAdmin, st.id)).rejects.toThrow(HttpError);
+    await completeStocktake(scopeLibrarian, st.id);
   });
 });

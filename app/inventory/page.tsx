@@ -1,10 +1,9 @@
 "use client";
 
-// Inventory hub (Phase 9O) — headline stats are real (PostgreSQL/API); the
-// quickLinks below still legitimately point at Purchases/Vendors, which stay
-// fully mock (procurement/vendor systems are explicitly out of scope for
-// this phase) — matching the Library/Transport hub precedent, so this page
-// is a hybrid and is not itself in the migrated-route mock guard.
+// Inventory hub (Phase 9O) — headline stats are real (PostgreSQL/API).
+// Purchases/Vendors link straight at the real Accounting Vendor/PurchaseOrder
+// UI (production dynamic data migration) rather than a second, parallel
+// procurement system under /inventory.
 import Link from "next/link";
 import { AlertTriangle, ArrowLeftRight, Boxes, ClipboardList, PackageSearch, Tags, TrendingDown, Truck, Undo2, Warehouse } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -19,8 +18,8 @@ const quickLinks = [
   { href: "/inventory/returns", label: "Returns", description: "Receive returned issued stock", icon: Undo2 },
   { href: "/inventory/transfers", label: "Transfers", description: "Move stock between locations", icon: ArrowLeftRight },
   { href: "/inventory/low-stock", label: "Low stock", description: "Reorder alerts and thresholds", icon: TrendingDown },
-  { href: "/inventory/purchases", label: "Purchases", description: "Requests and procurement", icon: Truck },
-  { href: "/inventory/vendors", label: "Vendors", description: "Supplier directory", icon: Warehouse },
+  { href: "/accounting/purchase-orders", label: "Purchases", description: "Requests and procurement", icon: Truck },
+  { href: "/accounting/vendors", label: "Vendors", description: "Supplier directory", icon: Warehouse },
   { href: "/inventory/stocktake", label: "Stocktake", description: "Physical count and variance", icon: PackageSearch },
   { href: "/inventory/categories", label: "Categories", description: "Item classification", icon: Tags },
   { href: "/inventory/reports", label: "Reports", description: "Stock-on-hand, low-stock and movement history", icon: ClipboardList },

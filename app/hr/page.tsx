@@ -1,13 +1,14 @@
 "use client";
 
-// HR hub (Phase 9P) — headline stats are real (PostgreSQL/API); the
-// quickLinks below still legitimately point at Recruitment/Onboarding/
-// Offboarding/Contracts/Documents/Performance/Training/Self-service/Letters/
-// Analytics/Policies/Announcements/Shifts/Org-chart, which stay fully mock —
-// none of those have a real backing policy/infrastructure in this phase
-// (see the phase's own non-negotiable rules against fabricating HR policy).
-// Matches the Inventory/Assets hub precedent: a hybrid hub is not itself in
-// the migrated-route mock guard.
+// HR hub (Phase 9P) — headline stats are real (PostgreSQL/API). Attendance
+// and Leave link straight at the real staff-attendance/leave UI (production
+// dynamic data migration) rather than the old mock /hr/attendance,/hr/leave
+// duplicates. The remaining quickLinks below still legitimately point at
+// Recruitment/Onboarding/Offboarding/Contracts/Documents/Performance/
+// Training/Self-service/Letters/Analytics/Policies/Announcements/Shifts/
+// Org-chart, which stay fully mock — none of those have a real backing
+// policy/infrastructure yet (see the phase's own non-negotiable rules
+// against fabricating HR policy).
 import Link from "next/link";
 import {
   Award,
@@ -44,9 +45,9 @@ const quickLinks = [
   { href: "/hr/recruitment", label: "Recruitment", description: "Jobs, candidates and interviews", icon: BriefcaseBusiness },
   { href: "/hr/onboarding", label: "Onboarding", description: "New-joiner journeys", icon: UserPlus },
   { href: "/hr/offboarding", label: "Offboarding", description: "Controlled exits and clearance", icon: UserRound },
-  { href: "/hr/attendance", label: "Attendance", description: "Daily staff attendance", icon: ClipboardCheck },
+  { href: "/attendance/staff", label: "Attendance", description: "Daily staff attendance", icon: ClipboardCheck },
   { href: "/hr/shifts", label: "Shifts", description: "Shift definitions and assignment", icon: CalendarClock },
-  { href: "/hr/leave", label: "Leave", description: "Requests, balances and approvals", icon: CalendarDays },
+  { href: "/attendance/leave", label: "Leave", description: "Requests, balances and approvals", icon: CalendarDays },
   { href: "/hr/contracts", label: "Contracts", description: "Employment contracts and expiry", icon: FileText },
   { href: "/hr/documents", label: "Documents", description: "Staff document verification", icon: ScrollText },
   { href: "/hr/performance", label: "Performance", description: "Appraisals, goals and feedback", icon: Award },

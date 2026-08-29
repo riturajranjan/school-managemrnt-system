@@ -2992,6 +2992,50 @@ export type LibraryBookCopyDto = {
 export type CreateLibraryCopyRequest = { barcode?: string; shelfLocation?: string; notes?: string; acquiredAt?: string };
 export type UpdateLibraryCopyRequest = { barcode?: string; shelfLocation?: string; notes?: string };
 
+// Production migration (Phase A) — Digital Library. `url` is always an
+// external link: no file/object storage integration exists in this system.
+export type LibraryDigitalResourceTypeDto = "ebook" | "notes" | "question_paper" | "audio" | "video" | "other";
+export type LibraryDigitalAccessLevelDto = "all" | "students" | "staff";
+export type LibraryDigitalResourceDto = {
+  id: string;
+  title: string;
+  subject: string | null;
+  type: LibraryDigitalResourceTypeDto;
+  url: string;
+  accessLevel: LibraryDigitalAccessLevelDto;
+  uploadedByName: string;
+  createdAt: string;
+};
+export type CreateLibraryDigitalResourceRequest = {
+  title: string; subject?: string; type: LibraryDigitalResourceTypeDto; url: string; accessLevel?: LibraryDigitalAccessLevelDto;
+};
+
+// Production migration (Phase A) — Stocktake. expected/scanned/missing are
+// always DERIVED live from real LibraryBookCopy + LibraryStocktakeScan rows
+// — never stored counts.
+export type LibraryStocktakeScopeDto = "shelf" | "full";
+export type LibraryStocktakeStatusDto = "in_progress" | "completed";
+export type LibraryStocktakeDto = {
+  id: string;
+  reference: string;
+  scope: LibraryStocktakeScopeDto;
+  shelfLocation: string | null;
+  status: LibraryStocktakeStatusDto;
+  startedByName: string;
+  startedAt: string;
+  completedAt: string | null;
+  expectedCount: number;
+  scannedCount: number;
+  missingCount: number;
+};
+export type LibraryStocktakeCopyDto = { id: string; accessionNumber: string; bookTitle: string; scannedAt: string | null };
+export type LibraryStocktakeDetailDto = LibraryStocktakeDto & {
+  scannedCopies: LibraryStocktakeCopyDto[];
+  missingCopies: LibraryStocktakeCopyDto[];
+};
+export type StartStocktakeRequest = { scope: LibraryStocktakeScopeDto; shelfLocation?: string };
+export type ScanStocktakeRequest = { code: string };
+
 export type LibraryLoanStatusDto = "issued" | "returned" | "lost" | "cancelled";
 export type LibraryBorrowerTypeDto = "student" | "staff";
 
@@ -3154,6 +3198,25 @@ export type InventoryDashboardDto = {
 
 export type AssetStatusDto = "available" | "assigned" | "maintenance" | "lost" | "damaged" | "retired";
 export type AssetConditionDto = "good" | "fair" | "poor" | "damaged";
+// Production migration (Phase A) — book value is always DERIVED live from
+// these inputs (lib/server/assets/depreciation.ts), never stored/posted.
+export type AssetDepreciationMethodDto = "none" | "straight_line" | "declining_balance";
+export type AssetDisposalReasonDto = "end_of_life" | "damaged" | "sold" | "donated" | "lost" | "stolen" | "replaced" | "other";
+
+export type AssetDisposalDto = {
+  id: string;
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  reason: AssetDisposalReasonDto;
+  value: number | null;
+  recipient: string | null;
+  notes: string | null;
+  disposedAt: string;
+  approvedByName: string | null;
+  createdByName: string;
+  createdAt: string;
+};
 
 export type AssetDto = {
   id: string;
@@ -3164,7 +3227,7 @@ export type AssetDto = {
   manufacturer: string | null;
   model: string | null;
   purchaseDate: string | null;
-  cost: number | null; // admin-entered acquisition price, shown as-is — never depreciated
+  cost: number | null; // admin-entered acquisition price, shown as-is
   warrantyUntil: string | null;
   notes: string | null;
   locationId: string | null;
@@ -3173,15 +3236,26 @@ export type AssetDto = {
   condition: AssetConditionDto;
   assignedToStaffId: string | null;
   assignedToName: string | null;
+  depreciationMethod: AssetDepreciationMethodDto;
+  depreciationRatePercent: number | null;
+  salvageValue: number | null;
+  /** Both derived live as-of today — never stored, never posted to Accounting. */
+  accumulatedDepreciation: number;
+  bookValue: number | null;
+  disposal: AssetDisposalDto | null;
   createdAt: string;
   updatedAt: string;
 };
 export type CreateAssetRequest = {
   name: string; category?: string; serialNumber?: string; manufacturer?: string; model?: string;
   purchaseDate?: string; cost?: number; warrantyUntil?: string; notes?: string; locationId?: string; condition?: AssetConditionDto;
+  depreciationMethod?: AssetDepreciationMethodDto; depreciationRatePercent?: number; salvageValue?: number;
 };
 export type UpdateAssetRequest = Partial<CreateAssetRequest>;
 export type SetAssetStatusRequest = { status: "lost" | "damaged" | "retired" | "available" };
+export type CreateAssetDisposalRequest = {
+  reason: AssetDisposalReasonDto; value?: number; recipient?: string; notes?: string; disposedAt: string; approvedByUserId?: string;
+};
 
 export type AssetAssignmentDto = {
   id: string;

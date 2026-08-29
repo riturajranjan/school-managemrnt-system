@@ -277,6 +277,10 @@ model User {
   notificationRecipients     NotificationRecipient[] // Phase 9D.2 — in-app notifications
   conversationParticipations ConversationParticipant[] // Phase 9K — communication/messaging
   sentMessages               Message[] // Phase 9K — communication/messaging
+  assetDisposalsApproved     AssetDisposal[]           @relation("AssetDisposalApprovedBy") // production migration Phase A
+  assetDisposalsRecorded     AssetDisposal[]           @relation("AssetDisposalCreatedBy") // production migration Phase A
+  digitalResourcesUploaded   LibraryDigitalResource[] // production migration Phase A
+  stocktakesStarted          LibraryStocktake[] // production migration Phase A
 
   @@index([status])
   @@map("users")
@@ -5252,8 +5256,9 @@ model LibraryBookCopy {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  book  LibraryBook   @relation(fields: [bookId], references: [id], onDelete: Restrict)
-  loans LibraryLoan[]
+  book           LibraryBook            @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  loans          LibraryLoan[]
+  stocktakeScans LibraryStocktakeScan[] // production migration Phase A
 
   @@unique([schoolId, accessionNumber])
   @@index([bookId])
@@ -5338,6 +5343,102 @@ model LibraryLoan {
   @@index([studentId])
   @@index([staffId])
   @@map("library_loans")
+}
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase A) — Digital Library and Stocktake. Digital
+// resources are LINKS, never uploaded files: no file/object storage
+// integration exists anywhere in this system, so `url` is always an
+// external link, never a claim of hosted content. Stocktake is a real
+// session over the real LibraryBookCopy register — expected/scanned/missing
+// are always derived from real scan events, never simulated.
+// ---------------------------------------------------------------------------
+
+enum LibraryDigitalResourceType {
+  EBOOK
+  NOTES
+  QUESTION_PAPER
+  AUDIO
+  VIDEO
+  OTHER
+}
+
+enum LibraryDigitalAccessLevel {
+  ALL
+  STUDENTS
+  STAFF
+}
+
+model LibraryDigitalResource {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  title       String
+  subject     String?
+  type        LibraryDigitalResourceType
+  url         String // external link only — no file storage exists in this system
+  accessLevel LibraryDigitalAccessLevel  @default(ALL)
+
+  uploadedByUserId String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  uploadedByUser User @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId])
+  @@map("library_digital_resources")
+}
+
+enum LibraryStocktakeScope {
+  SHELF
+  FULL
+}
+
+enum LibraryStocktakeStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model LibraryStocktake {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  reference     String // server-generated, unique per school
+  scope         LibraryStocktakeScope
+  shelfLocation String? // set when scope = SHELF; null = whole library
+  status        LibraryStocktakeStatus @default(IN_PROGRESS)
+
+  startedByUserId String
+  startedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  completedAt     DateTime? @db.Timestamptz(6)
+
+  startedByUser User                   @relation(fields: [startedByUserId], references: [id], onDelete: Restrict)
+  scans         LibraryStocktakeScan[]
+
+  @@unique([schoolId, reference])
+  @@index([schoolId, status])
+  @@map("library_stocktakes")
+}
+
+/**
+ * One real scan event per copy per stocktake — a copy can only be scanned once (re-scanning is a no-op, not a duplicate row).
+ */
+model LibraryStocktakeScan {
+  id          String   @id @default(cuid())
+  stocktakeId String
+  copyId      String
+  scannedAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  stocktake LibraryStocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
+  copy      LibraryBookCopy  @relation(fields: [copyId], references: [id], onDelete: Restrict)
+
+  @@unique([stocktakeId, copyId])
+  @@map("library_stocktake_scans")
 }
 
 // ---------------------------------------------------------------------------
@@ -5552,9 +5653,18 @@ model InventoryIssue {
 
 // ---------------------------------------------------------------------------
 // Phase 9O — Asset Management. Individually tracked durable assets — never
-// "10 laptops" as one row. No depreciation/disposal/procurement/vendor
-// system: cost is the admin-entered acquisition price, shown as-is, never
-// depreciated or posted to Accounting.
+// "10 laptops" as one row. No procurement/vendor system here — that's
+// Accounting's Vendor/PurchaseOrder (see /accounting/vendors,
+// /accounting/purchase-orders); Assets never duplicates it.
+//
+// Production migration (Phase A) — depreciation and disposal are now real:
+// book value is ALWAYS derived live from cost/method/rate/purchaseDate
+// (lib/server/assets/depreciation.ts), never stored/posted — there is still
+// no "run depreciation" period-close step and this still never posts to the
+// Accounting Ledger (that remains a deliberately separate integration this
+// checkpoint does not build). AssetDisposal is a real terminal audit record,
+// not a multi-stage approval workflow — matches the actual UI (request a
+// richer workflow explicitly if ever needed, don't build it speculatively).
 // ---------------------------------------------------------------------------
 
 enum AssetStatus {
@@ -5571,6 +5681,23 @@ enum AssetCondition {
   FAIR
   POOR
   DAMAGED
+}
+
+enum AssetDepreciationMethod {
+  NONE
+  STRAIGHT_LINE
+  DECLINING_BALANCE
+}
+
+enum AssetDisposalReason {
+  END_OF_LIFE
+  DAMAGED
+  SOLD
+  DONATED
+  LOST
+  STOLEN
+  REPLACED
+  OTHER
 }
 
 /**
@@ -5598,9 +5725,17 @@ model Asset {
   manufacturer  String?
   model         String?
   purchaseDate  DateTime? @db.Date
-  cost          Decimal?  @db.Decimal(12, 2) // admin-entered acquisition price — informational only, never depreciated/posted
+  cost          Decimal?  @db.Decimal(12, 2) // admin-entered acquisition price
   warrantyUntil DateTime? @db.Date
   notes         String?
+
+  // Depreciation inputs (admin-entered) — book value is always DERIVED live
+  // from these + purchaseDate/cost, never stored/posted. depreciationMethod
+  // defaults to NONE so no existing asset is retroactively depreciated just
+  // by this migration landing.
+  depreciationMethod      AssetDepreciationMethod @default(NONE)
+  depreciationRatePercent Decimal?                @db.Decimal(5, 2) // annual rate, e.g. 20.00 = 20%/year
+  salvageValue            Decimal?                @db.Decimal(12, 2)
 
   locationId String?
 
@@ -5613,11 +5748,45 @@ model Asset {
   location    InventoryLocation?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
   assignments AssetAssignment[]
   maintenance AssetMaintenanceRecord[]
+  disposal    AssetDisposal?
 
   @@unique([schoolId, assetTag])
   @@index([schoolId, status])
   @@index([schoolId, category])
   @@map("assets")
+}
+
+/**
+ * Terminal disposal audit record — at most one per asset (mirrors the
+ * one-way AVAILABLE/DAMAGED/LOST → RETIRED transition). Recording a disposal
+ * always sets the Asset's status to RETIRED in the same transaction
+ * (lib/server/assets/disposal.ts) — never a separate, driftable flag.
+ */
+model AssetDisposal {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  assetId String @unique
+
+  reason     AssetDisposalReason
+  value      Decimal?            @db.Decimal(12, 2) // sale/salvage value received, if any
+  recipient  String? // buyer/donee/scrap vendor — free text, no separate registry
+  notes      String?
+  disposedAt DateTime            @db.Date
+
+  approvedByUserId String?
+  createdByUserId  String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  asset          Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  approvedByUser User? @relation("AssetDisposalApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  createdByUser  User  @relation("AssetDisposalCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId])
+  @@map("asset_disposals")
 }
 
 /**

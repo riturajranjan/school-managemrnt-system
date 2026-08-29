@@ -13,6 +13,7 @@ import { setAssetStatus } from "@/lib/server/assets/status";
 import { completeMaintenance, listMaintenance, openMaintenance } from "@/lib/server/assets/maintenance";
 import { getAssetDashboard } from "@/lib/server/assets/dashboard";
 import { getAssetHistory } from "@/lib/server/assets/history";
+import { disposeAsset, listAssetDisposals } from "@/lib/server/assets/disposal";
 import { HttpError } from "@/lib/server/api/guard";
 import type { OrgScope } from "@/lib/server/api/scope";
 
@@ -228,5 +229,76 @@ describe.skipIf(!dbReady)("Dashboard + DTO safety + audit (DB)", () => {
     expect(events.some((e) => e.action === "ASSET_CREATED")).toBe(true);
     const assignEvents = await prisma.auditEvent.findMany({ where: { tenantId, action: "ASSET_ASSIGNED" } });
     expect(assignEvents.length).toBeGreaterThan(0);
+  });
+});
+
+describe.skipIf(!dbReady)("Depreciation — live-derived, never stored (DB)", () => {
+  it("with no method set, book value is exactly cost and accumulated is zero", async () => {
+    const a = await createAsset(scopeAdmin, { name: "Undepreciated Asset", cost: 50000 });
+    expect(a.depreciationMethod).toBe("none");
+    expect(a.bookValue).toBe(50000);
+    expect(a.accumulatedDepreciation).toBe(0);
+  });
+
+  it("straight-line depreciation is computed live from cost/rate/purchaseDate", async () => {
+    const a = await createAsset(scopeAdmin, {
+      name: "Depreciating Asset", cost: 100000, purchaseDate: "2024-08-29",
+      depreciationMethod: "straight_line", depreciationRatePercent: 20, salvageValue: 10000,
+    });
+    expect(a.bookValue).toBeLessThan(100000);
+    expect(a.bookValue).toBeGreaterThanOrEqual(10000);
+    expect(a.accumulatedDepreciation).toBeGreaterThan(0);
+    expect(Math.round((a.cost! - a.accumulatedDepreciation) * 100) / 100).toBe(a.bookValue);
+  });
+
+  it("book value never drops below salvage value", async () => {
+    const a = await createAsset(scopeAdmin, {
+      name: "Old Asset", cost: 100000, purchaseDate: "2000-01-01",
+      depreciationMethod: "straight_line", depreciationRatePercent: 20, salvageValue: 15000,
+    });
+    expect(a.bookValue).toBe(15000);
+  });
+});
+
+describe.skipIf(!dbReady)("Disposal — real terminal audit record (DB)", () => {
+  it("disposing an asset sets it RETIRED and creates a disposal record", async () => {
+    const a = await createAsset(scopeAdmin, { name: "To Dispose" });
+    const { asset, disposal } = await disposeAsset(scopeAdmin, a.id, { reason: "end_of_life", disposedAt: "2026-08-29", value: 500, notes: "Broken screen" });
+    expect(asset.status).toBe("retired");
+    expect(disposal.reason).toBe("end_of_life");
+    expect(disposal.value).toBe(500);
+    expect(disposal.createdByName).toBeTruthy();
+
+    const fetched = await getAsset(scopeAdmin, a.id);
+    expect(fetched.disposal?.id).toBe(disposal.id);
+  });
+
+  it("disposing an assigned asset auto-closes the active assignment", async () => {
+    const a = await createAsset(scopeAdmin, { name: "Assigned Then Disposed" });
+    await assignAsset(scopeAdmin, { assetId: a.id, staffId: staff1 });
+    await disposeAsset(scopeAdmin, a.id, { reason: "damaged", disposedAt: "2026-08-29" });
+    const assignments = await listAssignments(scopeAdmin, { assetId: a.id, status: "active" });
+    expect(assignments.length).toBe(0);
+  });
+
+  it("cannot dispose an already-disposed asset", async () => {
+    const a = await createAsset(scopeAdmin, { name: "Double Dispose" });
+    await disposeAsset(scopeAdmin, a.id, { reason: "sold", disposedAt: "2026-08-29" });
+    await expect(disposeAsset(scopeAdmin, a.id, { reason: "sold", disposedAt: "2026-08-29" })).rejects.toThrow(HttpError);
+  });
+
+  it("cannot dispose an asset that does not exist in this school (invalid id / cross-tenant)", async () => {
+    const foreign = await createAsset(scopeForeignAdmin, { name: "Foreign Asset" });
+    await expect(disposeAsset(scopeAdmin, foreign.id, { reason: "other", disposedAt: "2026-08-29" })).rejects.toThrow(HttpError);
+    await expect(disposeAsset(scopeAdmin, "not-a-real-id", { reason: "other", disposedAt: "2026-08-29" })).rejects.toThrow(HttpError);
+  });
+
+  it("tenant isolation: disposal list never includes another tenant's disposals", async () => {
+    const a = await createAsset(scopeAdmin, { name: "Isolation Asset" });
+    await disposeAsset(scopeAdmin, a.id, { reason: "other", disposedAt: "2026-08-29" });
+    const list = await listAssetDisposals(scopeAdmin);
+    const foreignList = await listAssetDisposals(scopeForeignAdmin);
+    expect(list.some((d) => d.assetId === a.id)).toBe(true);
+    expect(foreignList.some((d) => d.assetId === a.id)).toBe(false);
   });
 });

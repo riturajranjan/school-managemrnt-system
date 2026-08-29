@@ -10,7 +10,8 @@ import { recordAudit } from "@/lib/server/api/audit";
 import { parseInput } from "@/lib/server/validation";
 import { z } from "zod";
 import type { OrgScope } from "@/lib/server/api/scope";
-import type { AssetDto } from "@/lib/api/contracts";
+import type { AssetDepreciationMethodDto, AssetDisposalDto, AssetDto } from "@/lib/api/contracts";
+import { computeDepreciation, type DepreciationMethod } from "./depreciation";
 import { resolveAssetBranch } from "./access";
 import { nextAssetTag } from "./asset-tag";
 
@@ -18,34 +19,72 @@ type Row = {
   id: string; assetTag: string; name: string; category: string | null; serialNumber: string | null;
   manufacturer: string | null; model: string | null; purchaseDate: Date | null; cost: Prisma.Decimal | null;
   warrantyUntil: Date | null; notes: string | null; status: string; condition: string;
+  depreciationMethod: string; depreciationRatePercent: Prisma.Decimal | null; salvageValue: Prisma.Decimal | null;
   locationId: string | null; createdAt: Date; updatedAt: Date;
   location: { name: string } | null;
   assignments: { staffId: string; assignedAt: Date; staff: { firstName: string; lastName: string | null; displayName: string | null } }[];
+  disposal: {
+    id: string; assetId: string; reason: string; value: Prisma.Decimal | null; recipient: string | null; notes: string | null;
+    disposedAt: Date; createdAt: Date;
+    approvedByUser: { name: string | null; email: string } | null;
+    createdByUser: { name: string | null; email: string };
+  } | null;
 };
 
 const select = {
   id: true, assetTag: true, name: true, category: true, serialNumber: true, manufacturer: true, model: true,
   purchaseDate: true, cost: true, warrantyUntil: true, notes: true, status: true, condition: true,
+  depreciationMethod: true, depreciationRatePercent: true, salvageValue: true,
   locationId: true, createdAt: true, updatedAt: true,
   location: { select: { name: true } },
   assignments: { where: { returnedAt: null }, select: { staffId: true, assignedAt: true, staff: { select: { firstName: true, lastName: true, displayName: true } } } },
+  disposal: {
+    select: {
+      id: true, assetId: true, reason: true, value: true, recipient: true, notes: true, disposedAt: true, createdAt: true,
+      approvedByUser: { select: { name: true, email: true } },
+      createdByUser: { select: { name: true, email: true } },
+    },
+  },
 } satisfies Prisma.AssetSelect;
 
 function staffName(s: { firstName: string; lastName: string | null; displayName: string | null }): string {
   return s.displayName?.trim() || `${s.firstName} ${s.lastName ?? ""}`.trim();
 }
 
+function disposalDto(d: NonNullable<Row["disposal"]>, assetName: string, assetTag: string): AssetDisposalDto {
+  return {
+    id: d.id, assetId: d.assetId, assetName, assetTag,
+    reason: d.reason.toLowerCase() as AssetDisposalDto["reason"],
+    value: d.value ? Number(d.value) : null, recipient: d.recipient, notes: d.notes,
+    disposedAt: d.disposedAt.toISOString().slice(0, 10),
+    approvedByName: d.approvedByUser ? (d.approvedByUser.name ?? d.approvedByUser.email) : null,
+    createdByName: d.createdByUser.name ?? d.createdByUser.email,
+    createdAt: d.createdAt.toISOString(),
+  };
+}
+
 function dto(a: Row): AssetDto {
   const active = a.assignments[0] ?? null;
+  const cost = a.cost ? Number(a.cost) : null;
+  const method = a.depreciationMethod.toLowerCase() as AssetDepreciationMethodDto;
+  const { accumulatedDepreciation, bookValue } = computeDepreciation({
+    cost, purchaseDate: a.purchaseDate ? a.purchaseDate.toISOString().slice(0, 10) : null,
+    method: method as DepreciationMethod, ratePercent: a.depreciationRatePercent ? Number(a.depreciationRatePercent) : null,
+    salvageValue: a.salvageValue ? Number(a.salvageValue) : null,
+  });
   return {
     id: a.id, assetTag: a.assetTag, name: a.name, category: a.category, serialNumber: a.serialNumber,
     manufacturer: a.manufacturer, model: a.model,
     purchaseDate: a.purchaseDate ? a.purchaseDate.toISOString().slice(0, 10) : null,
-    cost: a.cost ? Number(a.cost) : null,
+    cost,
     warrantyUntil: a.warrantyUntil ? a.warrantyUntil.toISOString().slice(0, 10) : null,
     notes: a.notes, status: a.status.toLowerCase() as AssetDto["status"], condition: a.condition.toLowerCase() as AssetDto["condition"],
     locationId: a.locationId, locationName: a.location?.name ?? null,
     assignedToStaffId: active?.staffId ?? null, assignedToName: active ? staffName(active.staff) : null,
+    depreciationMethod: method, depreciationRatePercent: a.depreciationRatePercent ? Number(a.depreciationRatePercent) : null,
+    salvageValue: a.salvageValue ? Number(a.salvageValue) : null,
+    accumulatedDepreciation, bookValue,
+    disposal: a.disposal ? disposalDto(a.disposal, a.name, a.assetTag) : null,
     createdAt: a.createdAt.toISOString(), updatedAt: a.updatedAt.toISOString(),
   };
 }
@@ -81,6 +120,9 @@ export const createAssetSchema = z.object({
   notes: z.string().trim().max(500).optional(),
   locationId: z.string().min(1).optional(),
   condition: z.enum(["good", "fair", "poor", "damaged"]).optional(),
+  depreciationMethod: z.enum(["none", "straight_line", "declining_balance"]).optional(),
+  depreciationRatePercent: z.number().min(0).max(100).optional(),
+  salvageValue: z.number().nonnegative().optional(),
 });
 
 export async function createAsset(scope: OrgScope, raw: unknown): Promise<AssetDto> {
@@ -101,6 +143,8 @@ export async function createAsset(scope: OrgScope, raw: unknown): Promise<AssetD
         purchaseDate: input.purchaseDate ? new Date(input.purchaseDate) : undefined,
         cost: input.cost, warrantyUntil: input.warrantyUntil ? new Date(input.warrantyUntil) : undefined,
         notes: input.notes, locationId: input.locationId, condition: input.condition ? (input.condition.toUpperCase() as never) : undefined,
+        depreciationMethod: input.depreciationMethod ? (input.depreciationMethod.toUpperCase() as never) : undefined,
+        depreciationRatePercent: input.depreciationRatePercent, salvageValue: input.salvageValue,
       },
       select: { id: true, assetTag: true },
     });
@@ -123,6 +167,9 @@ export const updateAssetSchema = z.object({
   notes: z.string().trim().max(500).nullable().optional(),
   locationId: z.string().nullable().optional(),
   condition: z.enum(["good", "fair", "poor", "damaged"]).optional(),
+  depreciationMethod: z.enum(["none", "straight_line", "declining_balance"]).optional(),
+  depreciationRatePercent: z.number().min(0).max(100).nullable().optional(),
+  salvageValue: z.number().nonnegative().nullable().optional(),
 });
 
 export async function updateAsset(scope: OrgScope, assetId: string, raw: unknown): Promise<AssetDto> {
@@ -139,6 +186,8 @@ export async function updateAsset(scope: OrgScope, assetId: string, raw: unknown
       purchaseDate: input.purchaseDate === undefined ? undefined : input.purchaseDate ? new Date(input.purchaseDate) : null,
       cost: input.cost, warrantyUntil: input.warrantyUntil === undefined ? undefined : input.warrantyUntil ? new Date(input.warrantyUntil) : null,
       notes: input.notes, locationId: input.locationId, condition: input.condition ? (input.condition.toUpperCase() as never) : undefined,
+      depreciationMethod: input.depreciationMethod ? (input.depreciationMethod.toUpperCase() as never) : undefined,
+      depreciationRatePercent: input.depreciationRatePercent, salvageValue: input.salvageValue,
     },
   });
   await recordAudit(prisma, scope, "ASSET_UPDATED", "Asset", assetId, input);

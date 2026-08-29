@@ -1,4 +1,6 @@
-// GET /api/library/copies?status=&bookId= — all copies, real. library.view.
+// GET /api/library/copies?status=&bookId=&search= — all copies, real. library.view.
+// search matches accession number / barcode / shelf location / book title —
+// added for the real Barcode and Shelves views (Phase A production migration).
 import type { NextRequest } from "next/server";
 import { handle, requirePermission } from "@/lib/server/api/guard";
 import { singleParam } from "@/lib/server/api/request";
@@ -13,6 +15,6 @@ export async function GET(request: NextRequest) {
     const scope = await requireOrgScope(ctx);
     await requireFeature(scope.schoolId, "library");
     const sp = request.nextUrl.searchParams;
-    return ok(await listCopies(scope, { bookId: singleParam(sp, "bookId"), status: singleParam(sp, "status") }));
+    return ok(await listCopies(scope, { bookId: singleParam(sp, "bookId"), status: singleParam(sp, "status"), search: singleParam(sp, "search") }));
   });
 }
