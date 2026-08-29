@@ -47,8 +47,8 @@ export default function ReceiptsPage() {
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Receipts</h1>
-        <p className="text-xs text-muted-foreground">Every fee payment recorded</p>
+        <h1 className="text-lg font-semibold text-foreground">Payment Receipts</h1>
+        <p className="text-xs text-muted-foreground">Find or download a receipt for any fee payment.</p>
       </div>
 
       {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}

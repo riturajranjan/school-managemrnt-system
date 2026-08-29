@@ -498,7 +498,7 @@ function FeesSection({ studentId }: { studentId: string }) {
         </div>
         <div className="rounded-lg border border-border p-sm">
           <Link href={`/fees/collection/new?studentId=${studentId}`} className="flex h-full items-center justify-center text-sm font-medium text-primary hover:underline">
-            Record payment
+            Collect Fee
           </Link>
         </div>
       </div>

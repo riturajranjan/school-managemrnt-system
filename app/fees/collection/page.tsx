@@ -46,8 +46,8 @@ export default function FeeCollectionSearchPage() {
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Fee collection</h1>
-        <p className="text-xs text-muted-foreground">Search a student to record a payment</p>
+        <h1 className="text-lg font-semibold text-foreground">Collect Fee</h1>
+        <p className="text-xs text-muted-foreground">Search for a student to record their payment.</p>
       </div>
 
       <div className="relative">

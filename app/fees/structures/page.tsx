@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, FileStack, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { setFeeStructureStatusRequest, useFeeStructures } from "@/lib/hooks/api/use-fees-api";
@@ -25,16 +26,18 @@ export default function FeeStructuresPage() {
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Fee Structure" }]} />
+
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Fee structures</h1>
-          <p className="text-xs text-muted-foreground">Fee items and applicable classes per session</p>
+          <h1 className="text-lg font-semibold text-foreground">Fee Structure</h1>
+          <p className="text-xs text-muted-foreground">Set fees for each class and academic session.</p>
         </div>
         {canManage && (
           <Button asChild size="sm">
             <Link href="/fees/structures/new">
               <Plus className="size-3.5" />
-              New structure
+              New Fee Structure
             </Link>
           </Button>
         )}
@@ -48,7 +51,7 @@ export default function FeeStructuresPage() {
           <span className="flex size-11 items-center justify-center rounded-full bg-surface-secondary text-muted-foreground">
             <FileStack className="size-5" />
           </span>
-          <p className="text-sm text-muted-foreground">No fee structures yet. Create one to start billing students.</p>
+          <p className="text-sm text-muted-foreground">No fee structure yet. Create your first one before assigning fees to students.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-sm lg:grid-cols-2">

@@ -10,6 +10,7 @@ import { AlertTriangle, CheckCircle2, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useClasses, useSections } from "@/lib/hooks/api/use-academics-foundation";
@@ -60,9 +61,11 @@ function AssignmentsContent() {
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Assign Fees to Students" }]} />
+
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Fee assignments</h1>
-        <p className="text-xs text-muted-foreground">Bill a class or section against a fee structure</p>
+        <h1 className="text-lg font-semibold text-foreground">Assign Fees to Students</h1>
+        <p className="text-xs text-muted-foreground">Choose which students should receive this fee.</p>
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-md">
@@ -141,7 +144,7 @@ function AssignmentsContent() {
         )}
 
         <Button className="mt-sm" disabled={saving} onClick={handleAssign}>
-          Assign fee structure
+          Assign Fees
         </Button>
       </div>
 

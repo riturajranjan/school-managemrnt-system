@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
@@ -71,9 +72,11 @@ export default function NewFeeStructurePage() {
 
   return (
     <div className="flex flex-col gap-md pb-28 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Fee Structure", href: "/fees/structures" }, { label: "Create Fee Structure" }]} />
+
       <div>
-        <h1 className="text-lg font-semibold text-foreground">New fee structure</h1>
-        <p className="text-xs text-muted-foreground">Define fee items and the classes they apply to</p>
+        <h1 className="text-lg font-semibold text-foreground">Create Fee Structure</h1>
+        <p className="text-xs text-muted-foreground">Define fee items and the classes they apply to.</p>
       </div>
 
       {errors.length > 0 && (
@@ -154,7 +157,7 @@ export default function NewFeeStructurePage() {
           Cancel
         </Button>
         <Button disabled={saving} onClick={handleSave}>
-          Save structure
+          Save Fee Structure
         </Button>
       </div>
     </div>

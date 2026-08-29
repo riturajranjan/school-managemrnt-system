@@ -6,11 +6,12 @@
 // automated match-suggestion — a school marks a payment reconciled/mismatch
 // against its own external records.
 import { useState } from "react";
-import { Banknote } from "lucide-react";
+import { Banknote, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { reconcilePaymentRequest, useFeePayments, useFeeReconciliationReport } from "@/lib/hooks/api/use-fees-api";
@@ -29,8 +30,16 @@ export default function ReconciliationPage() {
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Reconciliation</h1>
-        <p className="text-xs text-muted-foreground">Match recorded payments against your bank or gateway statement manually</p>
+        <h1 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
+          Payment Matching
+          <Tooltip>
+            <TooltipTrigger aria-label="What is payment matching?">
+              <Info className="size-3.5 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent>Compare received payments with your bank or gateway statement.</TooltipContent>
+          </Tooltip>
+        </h1>
+        <p className="text-xs text-muted-foreground">Check and match payment records — no bank feed is connected, so this is done by hand.</p>
       </div>
 
       {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}

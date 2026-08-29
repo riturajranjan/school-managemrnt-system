@@ -24,8 +24,8 @@ export default function RemindersPage() {
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Reminders</h1>
-        <p className="text-xs text-muted-foreground">Students with overdue fees</p>
+        <h1 className="text-lg font-semibold text-foreground">Fee Reminders</h1>
+        <p className="text-xs text-muted-foreground">Students with overdue fees who may need a follow-up call.</p>
       </div>
 
       <p className="flex items-start gap-1.5 rounded-lg border border-info/30 bg-info/8 p-sm text-sm text-info">

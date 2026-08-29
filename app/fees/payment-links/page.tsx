@@ -17,8 +17,8 @@ export default function PaymentLinksPage() {
       <span className="flex size-11 items-center justify-center rounded-full bg-surface-secondary text-muted-foreground">
         <Link2 className="size-5" />
       </span>
-      <p className="text-sm font-medium text-foreground">Payment links aren&apos;t available yet</p>
-      <p className="max-w-sm text-xs text-muted-foreground">This requires a real online payment gateway integration, which isn&apos;t configured for this school yet. Fees can be collected and recorded manually from the Collection page.</p>
+      <p className="text-sm font-medium text-foreground">Online payments aren&apos;t set up yet</p>
+      <p className="max-w-sm text-xs text-muted-foreground">This school hasn&apos;t connected an online payment provider. Fees can still be collected and recorded from the Collect Fee page.</p>
     </div>
   );
 }

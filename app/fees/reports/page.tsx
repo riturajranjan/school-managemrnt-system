@@ -33,8 +33,8 @@ export default function FeeReportsPage() {
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Fee reports</h1>
-          <p className="text-xs text-muted-foreground">Collection, dues, adjustments and refunds — all DB-derived</p>
+          <h1 className="text-lg font-semibold text-foreground">Fee Reports</h1>
+          <p className="text-xs text-muted-foreground">Collection, pending fees, discounts and refunds at a glance.</p>
         </div>
         <Button size="sm" variant="outline" onClick={exportCollectionCsv} disabled={!collection}>
           <Download className="size-3.5" />

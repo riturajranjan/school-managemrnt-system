@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStudentList } from "@/lib/hooks/api/use-students";
@@ -42,7 +43,7 @@ export default function LateFeesPage() {
     return (
       <div className="flex flex-col items-center gap-sm py-2xl text-center">
         <Scale className="size-6 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage late fees.</p>
+        <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage late fee rules.</p>
       </div>
     );
   }
@@ -72,9 +73,11 @@ export default function LateFeesPage() {
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Late Fee Rules" }]} />
+
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Late fees</h1>
-        <p className="text-xs text-muted-foreground">Apply a late fee to a student&apos;s overdue fee items</p>
+        <h1 className="text-lg font-semibold text-foreground">Late Fee Rules</h1>
+        <p className="text-xs text-muted-foreground">Set extra charges for a student&apos;s overdue fees.</p>
       </div>
 
       {report && (

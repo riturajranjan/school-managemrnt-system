@@ -57,7 +57,7 @@ function CollectionContent() {
     return (
       <div className="flex flex-col gap-md pb-20 sm:pb-0">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Record payment</h1>
+          <h1 className="text-lg font-semibold text-foreground">Collect Fee</h1>
           <p className="text-xs text-muted-foreground">Search for a student to begin</p>
         </div>
         <div className="relative">
@@ -145,21 +145,21 @@ function CollectionContent() {
           <CheckCircle2 className="size-7" />
         </span>
         <div>
-          <p className="text-lg font-semibold text-foreground">Payment recorded</p>
+          <p className="text-lg font-semibold text-foreground">Payment Successful</p>
           <p className="text-sm text-muted-foreground">
             {success.amount} · Receipt {success.receiptNumber}
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-sm">
           <Button asChild size="sm">
-            <Link href={`/fees/receipts/${success.paymentId}`}>View receipt</Link>
+            <Link href={`/fees/receipts/${success.paymentId}`}>View Receipt</Link>
           </Button>
           <Button size="sm" variant="outline" onClick={() => window.print()}>
             <Printer className="size-3.5" />
-            Print
+            Print Receipt
           </Button>
           <Button size="sm" variant="outline" onClick={() => { resetForm(); setSuccess(null); }}>
-            New payment
+            Collect Another Fee
           </Button>
           <Button asChild size="sm" variant="ghost">
             <Link href={`/students/${studentId}/fees`}>Back to student</Link>
@@ -174,7 +174,7 @@ function CollectionContent() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">
-            Record payment — {student.firstName} {student.lastName}
+            Collect Fee — {student.firstName} {student.lastName}
           </h1>
           <p className="text-xs text-muted-foreground">
             {student.admissionNumber} · {student.classLabel ?? "—"}
@@ -305,7 +305,7 @@ function CollectionContent() {
             Cancel
           </Button>
           <Button disabled={saving || charges.length === 0} onClick={handleRecord}>
-            Record payment
+            {amount > 0 ? `Collect ${formatCurrency(amount)}` : "Collect payment"}
           </Button>
         </div>
       )}

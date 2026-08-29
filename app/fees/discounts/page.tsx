@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useStudentList } from "@/lib/hooks/api/use-students";
@@ -72,9 +73,11 @@ export default function DiscountsPage() {
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Discounts" }]} />
+
       <div>
         <h1 className="text-lg font-semibold text-foreground">Discounts</h1>
-        <p className="text-xs text-muted-foreground">Apply a fixed or percentage discount to a student&apos;s fee items</p>
+        <p className="text-xs text-muted-foreground">Give a student a discount on their fees.</p>
       </div>
 
       {report && (

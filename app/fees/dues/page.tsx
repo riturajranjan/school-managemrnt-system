@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { useClasses } from "@/lib/hooks/api/use-academics-foundation";
@@ -33,12 +34,17 @@ export default function DuesPage() {
 
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
+  const [tab, setTab] = useState<"all" | "due-soon" | "overdue">("all");
   const { data: summary } = useDuesSummary();
   const { data: rows, loading, error } = useStudentDues({ search: search.trim() || undefined, classId: classFilter === "all" ? undefined : classFilter });
 
   if (!capabilitiesLoading && !hasServerPermission("fees.view")) return <PermissionDenied action="view the fees module" role={roleLabels[role]} backHref="/fees" />;
 
   const allRows = rows ?? [];
+  // "Due Soon" = pending but not yet overdue; "Overdue" = past the due date.
+  // Both derived from the same real outstanding/overdue figures the table
+  // already shows — no new calculation, just a client-side filter.
+  const tabRows = tab === "overdue" ? allRows.filter((r) => r.overdue > 0) : tab === "due-soon" ? allRows.filter((r) => r.overdue === 0) : allRows;
   const totalAgingAmount = summary?.aging.reduce((sum, b) => sum + b.amount, 0) || 1;
 
   function exportCsv() {
@@ -70,8 +76,8 @@ export default function DuesPage() {
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Dues &amp; overdue</h1>
-          <p className="text-xs text-muted-foreground">Real-time outstanding balances derived from every charge, adjustment and payment</p>
+          <h1 className="text-lg font-semibold text-foreground">Pending Fees</h1>
+          <p className="text-xs text-muted-foreground">Students who still need to pay, kept up to date automatically.</p>
         </div>
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="size-3.5" />
@@ -110,6 +116,14 @@ export default function DuesPage() {
         </div>
       )}
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList>
+          <TabsTrigger value="all">All Pending ({allRows.length})</TabsTrigger>
+          <TabsTrigger value="due-soon">Due Soon ({allRows.filter((r) => r.overdue === 0).length})</TabsTrigger>
+          <TabsTrigger value="overdue">Overdue ({allRows.filter((r) => r.overdue > 0).length})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="flex flex-wrap items-center gap-xs">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search student" className="w-48" />
         <Select value={classFilter} onValueChange={setClassFilter}>
@@ -129,7 +143,7 @@ export default function DuesPage() {
           <Button size="sm" variant="outline" asChild>
             <Link href="/fees/reminders">
               <Bell className="size-3.5" />
-              Reminders
+              Fee Reminders
             </Link>
           </Button>
         )}
@@ -137,9 +151,9 @@ export default function DuesPage() {
 
       <DataTable
         columns={columns}
-        rows={allRows}
+        rows={tabRows}
         getRowId={(r) => r.studentId}
-        caption="Students with dues"
+        caption="Students with pending fees"
         renderMobileCard={(r) => (
           <Link href={`/students/${r.studentId}/fees`} className="surface-3d flex items-center justify-between gap-sm rounded-lg border border-border bg-surface p-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <div className="min-w-0">
@@ -152,8 +166,8 @@ export default function DuesPage() {
           </Link>
         )}
         emptyIcon={AlertTriangle}
-        emptyTitle={loading ? "Loading…" : "No students with dues"}
-        emptyDescription="Everyone is fully paid up, or no filters match."
+        emptyTitle={loading ? "Loading…" : tab === "overdue" ? "No overdue students" : tab === "due-soon" ? "No fees due soon" : "No pending fees"}
+        emptyDescription="All assigned student fees are currently paid, or no filters match."
       />
     </div>
   );

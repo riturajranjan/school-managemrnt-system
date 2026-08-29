@@ -5,6 +5,7 @@ import Link from "next/link";
 import { use } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { setFeeStructureStatusRequest, useFeeStructure } from "@/lib/hooks/api/use-fees-api";
@@ -33,6 +34,8 @@ export default function FeeStructureDetailPage({ params }: { params: Promise<{ s
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Fee Structure", href: "/fees/structures" }, { label: structure.name }]} />
+
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">{structure.name}</h1>
@@ -42,7 +45,7 @@ export default function FeeStructureDetailPage({ params }: { params: Promise<{ s
           <Badge tone={structure.status === "active" ? "success" : structure.status === "draft" ? "neutral" : "warning"}>{structure.status}</Badge>
           {canManage && structure.status !== "archived" && (
             <Button size="sm" asChild>
-              <Link href={`/fees/assignments?structureId=${structure.id}`}>Assign to students</Link>
+              <Link href={`/fees/assignments?structureId=${structure.id}`}>Assign Fees to Students</Link>
             </Button>
           )}
         </div>

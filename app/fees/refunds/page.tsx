@@ -45,7 +45,7 @@ export default function RefundsPage() {
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
       <div>
         <h1 className="text-lg font-semibold text-foreground">Refunds</h1>
-        <p className="text-xs text-muted-foreground">Every refund issued against a real payment</p>
+        <p className="text-xs text-muted-foreground">Money returned to students. Raise a new refund from the student&apos;s receipt.</p>
       </div>
 
       {error && <p className="rounded-md border border-error/30 bg-error/8 p-sm text-sm text-error">{error}</p>}

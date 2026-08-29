@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FeeTrail } from "@/components/fees/fee-trail";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { createFeeCategoryRequest, updateFeeCategoryRequest, useFeeCategories } from "@/lib/hooks/api/use-fees-api";
@@ -35,7 +36,7 @@ export default function FeeCategoriesPage() {
   const columns: ColumnDef<FeeCategoryDto>[] = [
     {
       id: "name",
-      header: "Category",
+      header: "Fee Type",
       alwaysVisible: true,
       sortValue: (c) => c.name,
       cell: (c) => (
@@ -58,15 +59,17 @@ export default function FeeCategoriesPage() {
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
+      <FeeTrail items={[{ label: "Fees", href: "/fees" }, { label: "Fee Setup", href: "/fees/setup" }, { label: "Fee Types" }]} />
+
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Fee categories</h1>
-          <p className="text-xs text-muted-foreground">The category registry every fee structure is built from</p>
+          <h1 className="text-lg font-semibold text-foreground">Fee Types</h1>
+          <p className="text-xs text-muted-foreground">The list of fee types every fee structure is built from — tuition, transport, exam fee, etc.</p>
         </div>
         {canManage && (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="size-3.5" />
-            Add category
+            Add Fee Type
           </Button>
         )}
       </div>
@@ -78,7 +81,7 @@ export default function FeeCategoriesPage() {
         columns={columns}
         rows={categories}
         getRowId={(c) => c.id}
-        caption="Fee categories"
+        caption="Fee types"
         rowActions={rowActions}
         renderMobileCard={(c) => (
           <div className="surface-3d flex flex-col gap-1 rounded-lg border border-border bg-surface p-sm">
@@ -89,13 +92,14 @@ export default function FeeCategoriesPage() {
             <p className="text-xs text-muted-foreground">Code: {c.code}</p>
           </div>
         )}
-        emptyTitle="No fee categories"
+        emptyTitle="No fee types yet"
+        emptyDescription="Add a fee type (like Tuition or Transport) before setting up a fee structure."
       />
 
-      <DetailDrawer open={createOpen} onOpenChange={setCreateOpen} title="Add fee category" description="Create a category to build fee structures from">
+      <DetailDrawer open={createOpen} onOpenChange={setCreateOpen} title="Add fee type" description="Create a fee type to build fee structures from">
         <div className="flex flex-col gap-sm">
           <div>
-            <Label htmlFor="cat-name">Category name</Label>
+            <Label htmlFor="cat-name">Fee type name</Label>
             <Input id="cat-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tuition fee" />
           </div>
           <div>
@@ -123,7 +127,7 @@ export default function FeeCategoriesPage() {
               reload();
             }}
           >
-            Create category
+            Create fee type
           </Button>
         </div>
       </DetailDrawer>
