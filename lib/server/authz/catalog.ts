@@ -368,6 +368,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "calendar.view", "calendar.manage",
     "staffAttendance.view", "staffAttendance.manage",
     "leave.submit", "leave.approve",
+    "hr.viewOwn", // production migration Phase B — own HR self-service only; hr.view (whole directory) stays SCHOOL_ADMIN/HR_ADMIN-tier by design
     "fees.view",
     "accounting.view",
     "payroll.view",
@@ -409,6 +410,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "calendar.view", "calendar.manage",
     "staffAttendance.view", "staffAttendance.manage",
     "leave.submit", "leave.approve",
+    "hr.viewOwn", // production migration Phase B — own HR self-service only
     "communication.view", "communication.send",
     "documents.view",
     // Phase 9W.2 — may provision Teacher accounts and Student login
@@ -431,13 +433,14 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "lessonPlans.view", "lessonPlans.manage",
     "calendar.view",
     "leave.submit",
+    "hr.viewOwn", // production migration Phase B — own HR self-service only
     "communication.send",
     "documents.view",
     "counseling.refer",
   ],
-  LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage"],
+  LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage", "hr.viewOwn"],
   TRANSPORT_MANAGER: [
-    "dashboard.view", "transport.view", "transport.manage",
+    "dashboard.view", "transport.view", "transport.manage", "hr.viewOwn",
     // Phase 9W.2 — may provision a bare operational login for real Staff in
     // transport scope (drivers/attendants); see ROLE_CREATION_POLICY.
     "users.manage",
@@ -468,16 +471,16 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   // junior tier exists, so ownership (assignedCounselorStaffId == own Staff.id)
   // is enforced uniformly at the service layer for every COUNSELOR, never
   // bypassed by holding this role — see lib/server/counseling/access.ts.
-  COUNSELOR: ["dashboard.view", "students.view", "counseling.view", "counseling.manage", "counseling.viewConfidential", "counseling.refer"],
+  COUNSELOR: ["dashboard.view", "students.view", "counseling.view", "counseling.manage", "counseling.viewConfidential", "counseling.refer", "hr.viewOwn"],
   // Phase 9T — mirrors the LIBRARIAN/TRANSPORT_MANAGER/COUNSELOR precedent:
   // SCHOOL_ADMIN gets view only, the dedicated specialist role gets manage.
-  CAFETERIA_MANAGER: ["dashboard.view", "students.view", "cafeteria.view", "cafeteria.manage", "cafeteria.serve"],
+  CAFETERIA_MANAGER: ["dashboard.view", "students.view", "cafeteria.view", "cafeteria.manage", "cafeteria.serve", "hr.viewOwn"],
   // Phase 9U — same precedent: SCHOOL_ADMIN/PRINCIPAL get view only, the
   // dedicated specialist role gets manage. No ownership-restriction tier
   // (unlike COUNSELOR) — activities data isn't confidential, so any
   // activities.manage holder may manage any activity, matching the Hostel/
   // Library/Cafeteria "broad specialist access" pattern.
-  ACTIVITY_COORDINATOR: ["dashboard.view", "students.view", "activities.view", "activities.manage"],
+  ACTIVITY_COORDINATOR: ["dashboard.view", "students.view", "activities.view", "activities.manage", "hr.viewOwn"],
 };
 
 // ---------------------------------------------------------------------------

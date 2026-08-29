@@ -6,12 +6,17 @@
 import { apiGet, apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
+  HrSelfServiceDto,
   StaffDetailDto,
   StaffListItemDto,
   StaffTeachingAssignmentDto,
   TeacherDetailDto,
   TeachingLoadSummaryDto,
 } from "@/lib/api/contracts";
+
+export function useHrSelfService() {
+  return useApiResource<HrSelfServiceDto>("/api/hr/self-service");
+}
 
 export type StaffListFilters = {
   search?: string;
@@ -65,7 +70,7 @@ export type CreateStaffInput = {
   joiningDate?: string;
   userId?: string;
 };
-export type UpdateStaffInput = Partial<Omit<CreateStaffInput, "userId">>;
+export type UpdateStaffInput = Partial<Omit<CreateStaffInput, "userId">> & { reportsToStaffId?: string | null };
 
 export const createStaffRequest = (body: CreateStaffInput): Promise<ApiResult<StaffDetailDto>> => apiPost<StaffDetailDto>("/api/staff", body);
 export const updateStaffRequest = (staffId: string, body: UpdateStaffInput): Promise<ApiResult<StaffDetailDto>> => apiPatch<StaffDetailDto>(`/api/staff/${staffId}`, body);

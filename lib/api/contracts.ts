@@ -883,6 +883,9 @@ export type StaffListItemDto = {
   branchId: string;
   email: string | null;
   hasUser: boolean; // whether a login account is linked (id never exposed in list)
+  /** Real reporting-line relationship (production migration, Phase B) — the org chart derives its hierarchy from this. */
+  reportsToStaffId: string | null;
+  reportsToName: string | null;
 };
 
 export type StaffDetailDto = StaffListItemDto & {
@@ -4236,3 +4239,18 @@ export type MySessionDto = {
 };
 
 export type ResultsDashboardDto = { rows: ResultsPipelineRowDto[] };
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase B) — HR Employee Self Service. Pure aggregation
+// over already-real domains for the CALLER'S OWN Staff record — no new
+// authorization model, identity-scoped exactly like the account self-service
+// endpoints. Contract/document/training/announcement sections are added as
+// their own real models land in later Phase B sub-batches.
+// ---------------------------------------------------------------------------
+
+export type HrSelfServiceDto = {
+  staff: StaffDetailDto;
+  todayAttendance: StaffAttendanceHistoryEntryDto | null;
+  attendancePercent: StaffAttendancePercentDto;
+  recentLeaveRequests: LeaveRequestDto[];
+};

@@ -9,7 +9,9 @@ import { prisma } from "@/lib/db/prisma";
 import { createDepartment, getDepartment, listDepartments, setDepartmentStatus, updateDepartment } from "@/lib/server/hr/departments";
 import { createDesignation, getDesignation, listDesignations, setDesignationStatus } from "@/lib/server/hr/designations";
 import { getHrDashboard } from "@/lib/server/hr/dashboard";
-import { createStaff } from "@/lib/server/staff/service";
+import { createStaff, listStaff, updateStaff } from "@/lib/server/staff/service";
+import { getMySelfService } from "@/lib/server/hr/self-service";
+import { createLeaveType, createLeaveRequest } from "@/lib/server/leave/service";
 import { HttpError } from "@/lib/server/api/guard";
 import type { OrgScope } from "@/lib/server/api/scope";
 
@@ -198,5 +200,57 @@ describe.skipIf(!dbReady)("RBAC + DTO safety + audit (DB)", () => {
     const events = await prisma.auditEvent.findMany({ where: { tenantId, action: { in: ["HR_DEPARTMENT_CREATED", "HR_DESIGNATION_CREATED"] } } });
     expect(events.some((e) => e.entityId === dept.id)).toBe(true);
     expect(events.some((e) => e.entityId === desig.id)).toBe(true);
+  });
+});
+
+describe.skipIf(!dbReady)("Org Chart — real Staff.reportsToStaffId (DB)", () => {
+  it("sets a manager and rejects self-reporting and a direct 2-node cycle", async () => {
+    const manager = await createStaff(scopeAdmin, { employeeCode: `ORG-M-${stamp}`, firstName: "Manager" });
+    const report = await createStaff(scopeAdmin, { employeeCode: `ORG-R-${stamp}`, firstName: "Report" });
+
+    const updated = await updateStaff(scopeAdmin, report.id, { reportsToStaffId: manager.id });
+    expect(updated.reportsToStaffId).toBe(manager.id);
+    expect(updated.reportsToName).toContain("Manager");
+
+    await expect(updateStaff(scopeAdmin, report.id, { reportsToStaffId: report.id })).rejects.toThrow(HttpError);
+    await expect(updateStaff(scopeAdmin, manager.id, { reportsToStaffId: report.id })).rejects.toThrow(HttpError);
+  });
+
+  it("real Staff rows carry the reportsToStaffId needed to derive the chart client-side", async () => {
+    const manager = await createStaff(scopeAdmin, { employeeCode: `ORG-M2-${stamp}`, firstName: "Manager2" });
+    const report = await updateStaff(scopeAdmin, (await createStaff(scopeAdmin, { employeeCode: `ORG-R2-${stamp}`, firstName: "Report2" })).id, { reportsToStaffId: manager.id });
+    const list = await listStaff(scopeAdmin, {});
+    const found = list.find((s) => s.id === report.id);
+    expect(found?.reportsToStaffId).toBe(manager.id);
+  });
+});
+
+describe.skipIf(!dbReady)("Employee Self Service — identity-scoped, own record only (DB)", () => {
+  it("resolves the caller's OWN real staff record, never another employee's", async () => {
+    const staff = await createStaff(scopeAdmin, { employeeCode: `SS-${stamp}`, firstName: "Self", lastName: "Service", userId: teacherUser });
+    const summary = await getMySelfService(scopeTeacher);
+    expect(summary.staff.id).toBe(staff.id);
+    expect(summary.todayAttendance).toBeNull(); // nothing marked yet — honest null, not fabricated
+    expect(summary.attendancePercent.percentage).toBeNull(); // no counted days yet
+    expect(summary.recentLeaveRequests).toEqual([]);
+  });
+
+  it("a caller with no linked Staff record gets a clear NOT_FOUND, never someone else's data", async () => {
+    await expect(getMySelfService(scopePrincipal)).rejects.toThrow(HttpError);
+  });
+
+  it("shows the caller's own real leave requests via the same self-scoping listLeaveRequests already uses", async () => {
+    const leaveType = await createLeaveType(scopeAdmin, { name: `Casual ${stamp}`, code: `CL-${stamp}` });
+    await createLeaveRequest(scopeTeacher, { leaveTypeId: leaveType.id, startDate: "2026-09-01", endDate: "2026-09-01", reason: "Self-service test" });
+    const summary = await getMySelfService(scopeTeacher);
+    expect(summary.recentLeaveRequests.length).toBeGreaterThan(0);
+    expect(summary.recentLeaveRequests.every((r) => r.staffId === summary.staff.id)).toBe(true);
+  });
+
+  it("self-service DTO never leaks tenantId/schoolId", async () => {
+    const summary = await getMySelfService(scopeTeacher);
+    const raw = JSON.stringify(summary);
+    expect(raw).not.toContain(tenantId);
+    expect(raw).not.toContain(schoolId);
   });
 });

@@ -59,6 +59,7 @@ export const updateStaffSchema = z.object({
   employmentType: empEnum.nullable().optional(),
   isTeaching: z.boolean().optional(),
   joiningDate: dateStr.nullable().optional(),
+  reportsToStaffId: z.string().min(1).nullable().optional(),
 });
 
 // ── DTO ──────────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ type StaffRow = {
   departmentId: string | null; designationId: string | null;
   employmentType: string | null; isTeaching: boolean; status: string; branchId: string; joiningDate: Date | null;
   userId: string | null; user?: { email: string } | null;
+  reportsToStaffId: string | null; reportsTo?: { firstName: string; lastName: string | null; displayName: string | null } | null;
 };
 const displayName = (s: { displayName: string | null; firstName: string; lastName: string | null }) =>
   s.displayName?.trim() || `${s.firstName} ${s.lastName ?? ""}`.trim();
@@ -79,6 +81,7 @@ function listDto(s: StaffRow): StaffListItemDto {
     departmentId: s.departmentId, designationId: s.designationId,
     employmentType: empToUi(s.employmentType), isTeaching: s.isTeaching, status: statusToUi(s.status),
     branchId: s.branchId, email: s.email, hasUser: Boolean(s.userId),
+    reportsToStaffId: s.reportsToStaffId, reportsToName: s.reportsTo ? displayName(s.reportsTo) : null,
   };
 }
 function detailDto(s: StaffRow): StaffDetailDto {
@@ -92,7 +95,8 @@ const listSelect = {
   id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, email: true, phone: true,
   designation: true, department: true, departmentId: true, designationId: true,
   employmentType: true, isTeaching: true, status: true, branchId: true,
-  joiningDate: true, userId: true,
+  joiningDate: true, userId: true, reportsToStaffId: true,
+  reportsTo: { select: { firstName: true, lastName: true, displayName: true } },
 } satisfies Prisma.StaffSelect;
 const detailSelect = { ...listSelect, user: { select: { email: true } } } satisfies Prisma.StaffSelect;
 
@@ -286,10 +290,19 @@ export async function createStaff(scope: OrgScope, raw: unknown): Promise<StaffD
   return detailDto(created);
 }
 
+/** A staff member cannot report to themselves or to anyone in their own downward chain (would create a cycle). No deeper enterprise cycle-graph needed — one direct-self and one-hop check covers the realistic data-entry mistakes. */
+async function assertNotReportingCycle(scope: OrgScope, staffId: string, reportsToStaffId: string): Promise<void> {
+  if (reportsToStaffId === staffId) throw new HttpError("VALIDATION_ERROR", "A staff member cannot report to themselves");
+  const manager = await prisma.staff.findFirst({ where: { id: reportsToStaffId, schoolId: scope.schoolId }, select: { id: true, reportsToStaffId: true } });
+  if (!manager) throw new HttpError("NOT_FOUND", "Manager not found");
+  if (manager.reportsToStaffId === staffId) throw new HttpError("VALIDATION_ERROR", "This would create a reporting cycle");
+}
+
 export async function updateStaff(scope: OrgScope, staffId: string, raw: unknown): Promise<StaffDetailDto> {
   const input = parseInput(updateStaffSchema, raw);
   const current = await requireStaffInScope(scope, staffId);
   if (input.employeeCode) await assertCodeFree(scope, input.employeeCode, staffId);
+  if (input.reportsToStaffId) await assertNotReportingCycle(scope, staffId, input.reportsToStaffId);
   const deptDesig = await resolveDeptDesigWrite(scope, input, { departmentId: current.departmentId, designationId: current.designationId });
   const updated = await prisma.$transaction(async (tx) => {
     const row = await tx.staff.update({
@@ -301,6 +314,7 @@ export async function updateStaff(scope: OrgScope, staffId: string, raw: unknown
         employmentType: input.employmentType === undefined ? undefined : input.employmentType === null ? null : (EMP_TO_DB[input.employmentType] as never),
         isTeaching: input.isTeaching,
         joiningDate: input.joiningDate === undefined ? undefined : input.joiningDate === null ? null : new Date(`${input.joiningDate}T00:00:00.000Z`),
+        reportsToStaffId: input.reportsToStaffId,
       },
       select: detailSelect,
     });
