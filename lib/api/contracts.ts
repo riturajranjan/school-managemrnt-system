@@ -4125,4 +4125,40 @@ export type ResultsPipelineRowDto = {
   primaryAction: { label: string; href: string };
 };
 
+// ---------------------------------------------------------------------------
+// Account — the logged-in user's own identity/profile and personal account
+// settings (avatar dropdown, /profile, /settings). Identity-scoped (this
+// user's own row), never permission-scoped — every authenticated user can
+// read/manage their own account regardless of role. No school-administration
+// config lives here.
+// ---------------------------------------------------------------------------
+
+export type MyProfileDto = {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  phone: string | null;
+  /** e.g. "Employee ID" / "Admission No." — null when nothing applies (e.g. a Guardian or a User with no linked Staff/Student). */
+  idLabel: string | null;
+  idValue: string | null;
+  designation: string | null;
+  department: string | null;
+  schoolName: string | null;
+  branchName: string | null;
+  /** School-level locale defaults (read-only here — set by the school, not per-user). */
+  schoolTimezone: string | null;
+  schoolLocale: string | null;
+  schoolCurrency: string | null;
+};
+
+export type ChangePasswordRequest = { currentPassword: string; newPassword: string };
+
+export type MySessionDto = {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+};
+
 export type ResultsDashboardDto = { rows: ResultsPipelineRowDto[] };

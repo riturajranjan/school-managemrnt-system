@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { Check, LogOut, MoreVertical, Settings, ShieldUser, User } from "lucide-react";
 import {
   DropdownMenu,
@@ -10,17 +12,47 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { useMyProfile, initialsFrom } from "@/lib/hooks/api/use-account";
 import { roleLabels } from "@/lib/permissions/roles";
 import { logout } from "@/app/(auth)/actions";
 
-// Identity display is still a static placeholder (real user-display binding is a
-// later batch). Role comes from the live RBAC context so the "Viewing as"
-// switcher below and this label never disagree.
-const CURRENT_USER = { name: "Alex Rivera", initials: "AR" };
-
-// One real logout implementation shared by every "Sign out" control here.
 function signOut() {
   void logout();
+}
+
+/** Real avatar — the user's photo when set, else their initials. Never a hardcoded placeholder. */
+function Avatar({
+  name,
+  email,
+  image,
+  className,
+  fallbackClassName = "bg-primary text-primary-foreground",
+}: {
+  name: string | null;
+  email: string;
+  image: string | null;
+  className: string;
+  fallbackClassName?: string;
+}) {
+  if (image) {
+    // eslint-disable-next-line @next/next/no-img-element -- small fixed-size avatar, not worth next/image's overhead here
+    return <img src={image} alt="" className={`${className} object-cover`} />;
+  }
+  return <span className={`${className} ${fallbackClassName} flex items-center justify-center font-semibold`}>{initialsFrom(name, email)}</span>;
+}
+
+function MenuLink({ href, icon, label, hint }: { href: string; icon: ReactNode; label: string; hint: string }) {
+  return (
+    <DropdownMenuItem asChild>
+      <Link href={href}>
+        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate font-medium text-foreground">{label}</span>
+          <span className="truncate text-xs text-muted-foreground">{hint}</span>
+        </span>
+      </Link>
+    </DropdownMenuItem>
+  );
 }
 
 export function UserMenu({
@@ -32,12 +64,14 @@ export function UserMenu({
   collapsed?: boolean;
 }) {
   const { role, setRole, assignedRoles } = usePermissions();
+  const { data: profile } = useMyProfile();
 
-  const avatar = (
-    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-      {CURRENT_USER.initials}
-    </span>
-  );
+  const name = profile?.name ?? null;
+  const email = profile?.email ?? "";
+  const image = profile?.image ?? null;
+  const displayName = name ?? email ?? "…";
+
+  const avatar = <Avatar name={name} email={email} image={image} className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm" />;
 
   // Switch among the roles the user is ACTUALLY assigned (from real capabilities).
   // Selecting one persists via the context API and re-resolves permissions
@@ -59,6 +93,34 @@ export function UserMenu({
       </>
     ) : null;
 
+  const identityHeader = (
+    <DropdownMenuLabel className="normal-case tracking-normal">
+      <span className="flex items-center gap-sm">
+        <Avatar name={name} email={email} image={image} className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm" />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-foreground">{displayName}</span>
+          <span className="block truncate text-xs text-muted-foreground">{roleLabels[role]}</span>
+          {email && <span className="block truncate text-xs text-muted-foreground">{email}</span>}
+        </span>
+      </span>
+    </DropdownMenuLabel>
+  );
+
+  const menuBody = (
+    <>
+      {identityHeader}
+      <DropdownMenuSeparator />
+      <MenuLink href="/profile" icon={<User className="size-4" />} label="My Profile" hint="Personal information" />
+      <MenuLink href="/account" icon={<Settings className="size-4" />} label="Account Settings" hint="Security & preferences" />
+      {roleSwitchSection}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem className="text-error focus:text-error" onSelect={signOut}>
+        <LogOut className="size-4 shrink-0" aria-hidden="true" />
+        <span>Sign Out</span>
+      </DropdownMenuItem>
+    </>
+  );
+
   if (variant === "sidebar") {
     return (
       <DropdownMenu>
@@ -68,37 +130,23 @@ export function UserMenu({
           }`}
           aria-label="Account menu"
         >
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sidebar-surface-elevated text-sm font-semibold text-sidebar-text ring-1 ring-sidebar-active-border shadow-[0_0_10px_-4px_var(--sidebar-active-glow)]">
-            {CURRENT_USER.initials}
-          </span>
+          <Avatar
+            name={name}
+            email={email}
+            image={image}
+            className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm ring-1 ring-sidebar-active-border shadow-[0_0_10px_-4px_var(--sidebar-active-glow)]"
+            fallbackClassName="bg-sidebar-surface-elevated text-sidebar-text"
+          />
           <span className={`flex min-w-0 flex-1 items-center gap-xs text-left ${collapsed ? "hidden" : "hidden lg:flex"}`}>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-sidebar-text">{CURRENT_USER.name}</span>
+              <span className="block truncate text-sm font-semibold text-sidebar-text">{displayName}</span>
               <span className="block truncate text-xs text-sidebar-text-muted">{roleLabels[role]}</span>
             </span>
             <MoreVertical className="size-4 shrink-0 text-sidebar-text-faint" aria-hidden="true" />
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top">
-          <DropdownMenuLabel className="normal-case tracking-normal">
-            <span className="block text-sm font-medium text-foreground">{CURRENT_USER.name}</span>
-            <span className="block text-xs text-muted-foreground">{roleLabels[role]}</span>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <User className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>Profile</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Settings className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>Settings</span>
-          </DropdownMenuItem>
-          {roleSwitchSection}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-error" onSelect={signOut}>
-            <LogOut className="size-4 shrink-0" aria-hidden="true" />
-            <span>Sign out</span>
-          </DropdownMenuItem>
+          {menuBody}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -116,27 +164,7 @@ export function UserMenu({
       >
         {avatar}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel className="normal-case tracking-normal">
-          <span className="block text-sm font-medium text-foreground">{CURRENT_USER.name}</span>
-          <span className="block text-xs text-muted-foreground">{roleLabels[role]}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <User className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span>Profile</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span>Settings</span>
-        </DropdownMenuItem>
-        {roleSwitchSection}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-error">
-          <LogOut className="size-4 shrink-0" aria-hidden="true" />
-          <span>Sign out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+      <DropdownMenuContent align="end">{menuBody}</DropdownMenuContent>
     </DropdownMenu>
   );
 }

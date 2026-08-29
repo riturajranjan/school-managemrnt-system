@@ -237,6 +237,8 @@ export type ApiErrorCode =
   | "INVALID_APPROVED_AMOUNT"
   | "REPAYMENT_EXCEEDS_OUTSTANDING"
   | "INVALID_REPAYMENT_AMOUNT"
+  // Account self-service — change password / active sessions.
+  | "INVALID_CURRENT_PASSWORD"
   | "SERVER_ERROR";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -469,6 +471,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   INVALID_APPROVED_AMOUNT: 400,
   REPAYMENT_EXCEEDS_OUTSTANDING: 409,
   INVALID_REPAYMENT_AMOUNT: 400,
+  INVALID_CURRENT_PASSWORD: 400,
   SERVER_ERROR: 500,
 };
 
