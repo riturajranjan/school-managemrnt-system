@@ -3447,6 +3447,126 @@ export type UploadStaffDocumentRequest = {
   notes?: string;
 };
 
+// ── Production migration (Phase B, HR Sub-batch 3) — Performance Reviews.
+// Deliberately simple: one review record per (staff, period), no
+// PerformanceCycle/PerformanceGoal/Feedback multi-stage workflow (those stay
+// mock — app/hr/appraisals /goals /feedback). visibleToEmployee is an
+// explicit opt-in HR sets — self-service only ever returns a review when
+// BOTH status is "completed" AND visibleToEmployee is true. ────────────────
+
+export type PerformanceReviewStatusDto = "draft" | "in-review" | "completed" | "archived";
+
+export type PerformanceReviewDto = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  reviewerId: string;
+  reviewerName: string;
+  reviewPeriodStart: string;
+  reviewPeriodEnd: string;
+  reviewDate: string | null;
+  status: PerformanceReviewStatusDto;
+  overallRating: number | null;
+  summary: string | null;
+  comments: string | null;
+  goals: string | null;
+  visibleToEmployee: boolean;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreatePerformanceReviewRequest = {
+  staffId: string;
+  reviewerId: string;
+  reviewPeriodStart: string;
+  reviewPeriodEnd: string;
+  reviewDate?: string;
+  overallRating?: number;
+  summary?: string;
+  comments?: string;
+  goals?: string;
+  visibleToEmployee?: boolean;
+};
+export type UpdatePerformanceReviewRequest = Partial<Omit<CreatePerformanceReviewRequest, "staffId" | "reviewerId">> & { reviewerId?: string };
+
+/** The employee's own read of a completed, explicitly-visible review — never
+ * exposes reviewerId/internal-only fields beyond what self-service needs. */
+export type MyPerformanceReviewDto = {
+  id: string;
+  reviewPeriodStart: string;
+  reviewPeriodEnd: string;
+  reviewDate: string | null;
+  overallRating: number | null;
+  summary: string | null;
+  goals: string | null;
+};
+
+// ── Production migration (Phase B, HR Sub-batch 3) — Training. Relational
+// participant records (never an array of staff ids on the program). ───────
+
+export type TrainingProgramStatusDto = "draft" | "scheduled" | "in-progress" | "completed" | "cancelled" | "archived";
+
+export type TrainingProgramDto = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  trainerName: string | null;
+  startDate: string;
+  endDate: string | null;
+  status: TrainingProgramStatusDto;
+  participantCount: number;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateTrainingProgramRequest = {
+  title: string;
+  description?: string;
+  category?: string;
+  trainerName?: string;
+  startDate: string;
+  endDate?: string;
+};
+export type UpdateTrainingProgramRequest = Partial<CreateTrainingProgramRequest>;
+
+export type TrainingParticipantStatusDto = "assigned" | "in-progress" | "completed" | "cancelled";
+
+export type TrainingParticipantDto = {
+  id: string;
+  trainingProgramId: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  status: TrainingParticipantStatusDto;
+  completedAt: string | null;
+  certificateIssued: boolean;
+  assignedByName: string | null;
+  assignedAt: string;
+};
+
+export type AssignTrainingParticipantRequest = { staffId: string };
+
+/** The employee's own assignment view, with enough program context to be
+ * useful without a second round trip. */
+export type MyTrainingAssignmentDto = {
+  id: string;
+  trainingProgramId: string;
+  title: string;
+  category: string | null;
+  startDate: string;
+  endDate: string | null;
+  programStatus: TrainingProgramStatusDto;
+  status: TrainingParticipantStatusDto;
+  completedAt: string | null;
+  certificateIssued: boolean;
+};
+
 /** HR Core dashboard — DB-derived only. Present/absent/late/on-leave/
  * not-marked reuse the canonical Phase 9E Staff Attendance summary verbatim.
  * No fabricated attrition/retention/engagement/performance/recruitment-
@@ -4358,4 +4478,9 @@ export type HrSelfServiceDto = {
   // documents where visibility is explicitly "staff-visible".
   contracts: ContractDto[];
   documents: StaffDocumentDto[];
+  // HR Sub-batch 3 — the caller's OWN completed + explicitly visible
+  // performance reviews, and OWN training assignments (read-only; hr.viewOwn
+  // never lets the caller create/assign/complete anything here).
+  performanceReviews: MyPerformanceReviewDto[];
+  trainingAssignments: MyTrainingAssignmentDto[];
 };

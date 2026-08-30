@@ -245,6 +245,11 @@ export type ApiErrorCode =
   // Production migration (Phase B, HR Sub-batch 2) — Contracts / Documents.
   | "CONTRACT_NOT_FOUND"
   | "STAFF_DOCUMENT_NOT_FOUND"
+  // Production migration (Phase B, HR Sub-batch 3) — Performance / Training.
+  | "PERFORMANCE_REVIEW_NOT_FOUND"
+  | "TRAINING_PROGRAM_NOT_FOUND"
+  | "TRAINING_PARTICIPANT_NOT_FOUND"
+  | "TRAINING_PARTICIPANT_EXISTS"
   | "SERVER_ERROR";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -483,6 +488,10 @@ const STATUS: Record<ApiErrorCode, number> = {
   INVALID_CURRENT_PASSWORD: 400,
   CONTRACT_NOT_FOUND: 404,
   STAFF_DOCUMENT_NOT_FOUND: 404,
+  PERFORMANCE_REVIEW_NOT_FOUND: 404,
+  TRAINING_PROGRAM_NOT_FOUND: 404,
+  TRAINING_PARTICIPANT_NOT_FOUND: 404,
+  TRAINING_PARTICIPANT_EXISTS: 409,
   SERVER_ERROR: 500,
 };
 

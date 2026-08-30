@@ -6,11 +6,14 @@
 // the old CURRENT_TEACHER_ID. Contracts/documents (Sub-batch 2) are real:
 // compensationNote is always redacted here regardless of role (self-service
 // never implies hr.view/hr.manage), and documents are pre-filtered server-
-// side to visibility=staff-visible only. Training/announcement sections are
-// added here as their real models land in later Phase B sub-batches — shown
-// honestly as "not available yet" until then, never backed by mock data.
+// side to visibility=staff-visible only. Performance/training (Sub-batch 3)
+// are the same pattern: only COMPLETED + explicitly visibleToEmployee
+// reviews, and read-only training assignments — no create/assign/complete
+// path exists for hr.viewOwn. Announcement sections are added here as their
+// real models land in later Phase B sub-batches — shown honestly as "not
+// available yet" until then, never backed by mock data.
 import Link from "next/link";
-import { CalendarDays, ScrollText, User, Wallet } from "lucide-react";
+import { CalendarDays, MessageSquareText, User, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -29,6 +32,9 @@ const contractStatusTone: Record<string, "success" | "warning" | "error" | "neut
 };
 const documentStatusTone: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
   uploaded: "info", verified: "success", rejected: "error", archived: "neutral",
+};
+const trainingStatusTone: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
+  assigned: "info", "in-progress": "warning", completed: "success", cancelled: "neutral",
 };
 
 export default function EmployeeSelfServicePage() {
@@ -49,7 +55,7 @@ export default function EmployeeSelfServicePage() {
   }
   if (!data) return null;
 
-  const { staff, todayAttendance, attendancePercent, recentLeaveRequests, contracts, documents } = data;
+  const { staff, todayAttendance, attendancePercent, recentLeaveRequests, contracts, documents, performanceReviews, trainingAssignments } = data;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -133,9 +139,47 @@ export default function EmployeeSelfServicePage() {
         )}
       </div>
 
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">My performance reviews</h2>
+        {performanceReviews.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No performance reviews found.</p>
+        ) : (
+          <div className="flex flex-col gap-xs">
+            {performanceReviews.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-foreground">{formatDate(r.reviewPeriodStart)} – {formatDate(r.reviewPeriodEnd)}</p>
+                  <p className="truncate text-xs text-muted-foreground">{r.summary ?? "No summary on file"}</p>
+                </div>
+                {r.overallRating !== null && <Badge tone="info">{r.overallRating}/5</Badge>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">My training</h2>
+        {trainingAssignments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No training programs found.</p>
+        ) : (
+          <div className="flex flex-col gap-xs">
+            {trainingAssignments.map((t) => (
+              <div key={t.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-foreground">{t.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{formatDate(t.startDate)}{t.endDate ? ` – ${formatDate(t.endDate)}` : ""}{t.certificateIssued ? " · Certificate issued" : ""}</p>
+                </div>
+                <Badge tone={trainingStatusTone[t.status] ?? "neutral"}>{t.status.replace("-", " ")}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border border-dashed border-border bg-surface p-md text-center">
-        <ScrollText className="mx-auto mb-1 size-5 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Training will appear here as that module goes live.</p>
+        <MessageSquareText className="mx-auto mb-1 size-5 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Announcements will appear here as that module goes live.</p>
       </div>
     </div>
   );
