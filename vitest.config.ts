@@ -10,7 +10,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", ".next/**"],
+    // .claude/worktrees/** excluded: a nested git worktree checkout under the
+    // repo root has its own copy of every *.test.ts file — without this the
+    // outer test run picks up BOTH copies and collides on conflicting
+    // implementations of the same in-progress work.
+    exclude: ["node_modules/**", ".next/**", ".claude/worktrees/**"],
     setupFiles: ["./test/setup.ts"],
     // The DB-integration suites all hit one local Postgres (max_connections 100).
     // Vitest defaults to one fork per CPU (8 here); each fork opens its own pg

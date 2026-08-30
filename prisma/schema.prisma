@@ -2164,6 +2164,10 @@ model Staff {
   performanceReviewsAsSubject        PerformanceReview[]    @relation("PerformanceReviewSubject") // Production migration Phase B — reviews about this staff member
   performanceReviewsAsReviewer       PerformanceReview[]    @relation("PerformanceReviewReviewer") // Production migration Phase B — reviews this staff member conducted
   trainingParticipations             TrainingParticipant[] // Production migration Phase B — training assignments
+  employeeOnboardings                 EmployeeOnboarding[] // Production migration Phase B — this staff member's own onboarding record(s)
+  onboardingsOwned                    EmployeeOnboarding[]          @relation("EmployeeOnboardingOwner") // Production migration Phase B — onboardings this staff member owns as the HR owner
+  policyAcknowledgements              StaffPolicyAcknowledgement[] // Production migration Phase B — HR policies this staff member has acknowledged
+  shiftAssignments                    ShiftAssignment[] // Production migration Phase B — shift assignment history
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2208,6 +2212,7 @@ model Department {
   headStaff    Staff?        @relation("DepartmentHead", fields: [headStaffId], references: [id], onDelete: SetNull)
   staff        Staff[]       @relation("StaffDepartment")
   designations Designation[]
+  jobOpenings  JobOpening[] // Production migration Phase B — recruitment job openings for this department
 
   @@unique([schoolId, code])
   @@index([schoolId, status])
@@ -2237,8 +2242,9 @@ model Designation {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  staff      Staff[]     @relation("StaffDesignation")
+  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  staff       Staff[]      @relation("StaffDesignation")
+  jobOpenings JobOpening[] // Production migration Phase B — recruitment job openings for this designation
 
   @@unique([schoolId, code])
   @@index([schoolId, status])
@@ -2523,6 +2529,324 @@ model TrainingParticipant {
   @@index([schoolId, staffId])
   @@index([trainingProgramId])
   @@map("training_participants")
+}
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase B, HR Sub-batch 4) — Recruitment. Deliberately
+// simple: Job Opening + Applicant only, no Interview/scoring/ATS pipeline
+// engine (those stay mock: app/hr/recruitment/interviews). A SELECTED
+// applicant is never auto-converted into a Staff/User — "Start Onboarding"
+// (lib/server/hr/recruitment.ts) is an explicit HR action that calls the
+// EXISTING createStaff service (lib/server/staff/service.ts) — never a
+// second employee-creation system — then opens a real EmployeeOnboarding
+// record. User/login provisioning is a separate, already-real, deliberately
+// NOT bundled here (see the Hierarchical Account Provisioning admin flow).
+// ---------------------------------------------------------------------------
+
+enum JobOpeningStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+model JobOpening {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  title          String
+  departmentId   String?
+  designationId  String?
+  employmentType EmploymentType?
+  openings       Int             @default(1)
+  description    String?
+  requirements   String?
+
+  publishDate DateTime? @db.Date
+  closingDate DateTime? @db.Date
+
+  status JobOpeningStatus @default(DRAFT)
+
+  createdByUserId String
+  createdByName   String?
+  updatedByUserId String?
+  updatedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  applicants  JobApplicant[]
+
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@index([departmentId])
+  @@map("job_openings")
+}
+
+enum JobApplicantStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  SELECTED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model JobApplicant {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  jobOpeningId String
+
+  candidateName String
+  email         String
+  phone         String?
+  source        String?
+  notes         String?
+
+  stage JobApplicantStage @default(APPLIED)
+
+  appliedDate DateTime @db.Date
+
+  createdByUserId String
+  createdByName   String?
+  updatedByUserId String?
+  updatedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  jobOpening JobOpening          @relation(fields: [jobOpeningId], references: [id], onDelete: Restrict)
+  onboarding EmployeeOnboarding?
+
+  @@index([tenantId])
+  @@index([jobOpeningId])
+  @@index([schoolId, stage])
+  @@map("job_applicants")
+}
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase B, HR Sub-batch 4) — Employee Onboarding. NOT
+// to be confused with SchoolOnboarding above (platform-side, provisioning a
+// new school) — this is a brand-new-employee's own checklist, always tied to
+// a real Staff.id. Onboarding 1→many OnboardingTask, never boolean columns.
+// The link back to recruitment (jobApplicantId) lives HERE, not on
+// JobApplicant — one place for the applicant→employee relationship, set only
+// by the explicit "Start Onboarding" action, never implied by stage alone.
+// ---------------------------------------------------------------------------
+
+enum EmployeeOnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model EmployeeOnboarding {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId        String
+  jobApplicantId String? @unique
+  hrOwnerStaffId String?
+
+  startDate              DateTime                 @db.Date
+  expectedCompletionDate DateTime?                @db.Date
+  status                 EmployeeOnboardingStatus @default(NOT_STARTED)
+
+  createdByUserId String
+  createdByName   String?
+  updatedByUserId String?
+  updatedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff         Staff              @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  jobApplicant  JobApplicant?      @relation(fields: [jobApplicantId], references: [id], onDelete: SetNull)
+  hrOwner       Staff?             @relation("EmployeeOnboardingOwner", fields: [hrOwnerStaffId], references: [id], onDelete: SetNull)
+  tasks         OnboardingTask[]
+
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@index([staffId])
+  @@map("employee_onboardings")
+}
+
+enum OnboardingTaskStatus {
+  PENDING
+  COMPLETED
+}
+
+model OnboardingTask {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  employeeOnboardingId String
+
+  label    String
+  category String?
+
+  status OnboardingTaskStatus @default(PENDING)
+
+  completedAt       DateTime? @db.Timestamptz(6)
+  completedByUserId String?
+  completedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  employeeOnboarding EmployeeOnboarding @relation(fields: [employeeOnboardingId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([employeeOnboardingId])
+  @@map("onboarding_tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase B, HR Sub-batch 4) — HR Policies. Only
+// PUBLISHED policies are ever exposed to Employee Self Service — a DRAFT
+// never leaks (lib/server/hr/policies.ts). Acknowledgement is identity-
+// scoped: an employee acknowledges ONLY their own Staff record, resolved
+// server-side, never a client-supplied staffId.
+// ---------------------------------------------------------------------------
+
+enum HrPolicyStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model HrPolicy {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  title         String
+  category      String?
+  content       String
+  version       String
+  effectiveDate DateTime? @db.Date
+
+  status HrPolicyStatus @default(DRAFT)
+
+  createdByUserId String
+  createdByName   String?
+  updatedByUserId String?
+  updatedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  acknowledgements StaffPolicyAcknowledgement[]
+
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("hr_policies")
+}
+
+model StaffPolicyAcknowledgement {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  hrPolicyId String
+  staffId    String
+
+  acknowledgedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  policy HrPolicy @relation(fields: [hrPolicyId], references: [id], onDelete: Restrict)
+  staff  Staff    @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  // One acknowledgement per staff member per policy.
+  @@unique([hrPolicyId, staffId])
+  @@index([tenantId])
+  @@index([staffId])
+  @@map("staff_policy_acknowledgements")
+}
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase B, HR Sub-batch 4) — Shifts. Relational
+// ShiftAssignment (never an array of staff ids). Overlap prevention mirrors
+// lib/server/payroll/assignments.ts's StaffSalaryAssignment exactly — a row
+// lock on Staff serializes concurrent assignment requests for the same
+// employee before the overlap check runs.
+// ---------------------------------------------------------------------------
+
+enum ShiftStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Shift {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  name         String
+  startMinutes Int // minutes from midnight, matches TimetablePeriod's convention
+  endMinutes   Int
+  breakMinutes Int?
+  workingDays  String[] @default([]) // e.g. ["MON","TUE",...] — display/scheduling only
+
+  status ShiftStatus @default(ACTIVE)
+
+  createdByUserId String
+  createdByName   String?
+  updatedByUserId String?
+  updatedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  assignments ShiftAssignment[]
+
+  // One shift name per school.
+  @@unique([schoolId, name])
+  @@index([tenantId])
+  @@index([schoolId, status])
+  @@map("shifts")
+}
+
+model ShiftAssignment {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  shiftId String
+  staffId String
+
+  effectiveFrom  DateTime  @db.Date
+  effectiveUntil DateTime? @db.Date
+
+  assignedByUserId String
+  assignedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([staffId])
+  @@index([shiftId])
+  @@map("shift_assignments")
 }
 
 // A teacher (Staff) teaching a Subject in a Section for the section's academic

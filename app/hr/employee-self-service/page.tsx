@@ -9,16 +9,23 @@
 // side to visibility=staff-visible only. Performance/training (Sub-batch 3)
 // are the same pattern: only COMPLETED + explicitly visibleToEmployee
 // reviews, and read-only training assignments — no create/assign/complete
-// path exists for hr.viewOwn. Announcement sections are added here as their
-// real models land in later Phase B sub-batches — shown honestly as "not
-// available yet" until then, never backed by mock data.
+// path exists for hr.viewOwn. Onboarding/policies/shift (Sub-batch 4)
+// continue it: onboarding is the caller's own record only, policies are
+// PUBLISHED-only with the caller's own acknowledgement state (acknowledging
+// resolves the caller's Staff server-side — no staffId is ever submitted),
+// and shift is the caller's currently-effective assignment. Announcement
+// sections are added here as their real models land in later Phase B
+// sub-batches — shown honestly as "not available yet" until then, never
+// backed by mock data.
 import Link from "next/link";
-import { CalendarDays, MessageSquareText, User, Wallet } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, Check, MessageSquareText, User, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
+import { acknowledgePolicyRequest } from "@/lib/hooks/api/use-hr-api";
 import { useHrSelfService } from "@/lib/hooks/api/use-staff-api";
 import { roleLabels } from "@/lib/permissions/roles";
 import { formatDate } from "@/lib/utils";
@@ -36,10 +43,14 @@ const documentStatusTone: Record<string, "success" | "warning" | "error" | "neut
 const trainingStatusTone: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
   assigned: "info", "in-progress": "warning", completed: "success", cancelled: "neutral",
 };
+const onboardingStatusTone: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
+  "not-started": "neutral", "in-progress": "info", completed: "success", cancelled: "error",
+};
 
 export default function EmployeeSelfServicePage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
-  const { data, loading, error } = useHrSelfService();
+  const { data, loading, error, reload } = useHrSelfService();
+  const [ackBusyId, setAckBusyId] = useState<string | null>(null);
   if (!capabilitiesLoading && !hasServerPermission("hr.viewOwn") && !hasServerPermission("hr.view") && !hasServerPermission("hr.manage")) {
     return <PermissionDenied action="access employee self service" role={roleLabels[role]} backHref="/" />;
   }
@@ -55,7 +66,14 @@ export default function EmployeeSelfServicePage() {
   }
   if (!data) return null;
 
-  const { staff, todayAttendance, attendancePercent, recentLeaveRequests, contracts, documents, performanceReviews, trainingAssignments } = data;
+  const { staff, todayAttendance, attendancePercent, recentLeaveRequests, contracts, documents, performanceReviews, trainingAssignments, onboarding, policies, shift } = data;
+
+  async function acknowledge(policyId: string) {
+    setAckBusyId(policyId);
+    await acknowledgePolicyRequest(policyId);
+    setAckBusyId(null);
+    reload();
+  }
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -171,6 +189,57 @@ export default function EmployeeSelfServicePage() {
                   <p className="truncate text-xs text-muted-foreground">{formatDate(t.startDate)}{t.endDate ? ` – ${formatDate(t.endDate)}` : ""}{t.certificateIssued ? " · Certificate issued" : ""}</p>
                 </div>
                 <Badge tone={trainingStatusTone[t.status] ?? "neutral"}>{t.status.replace("-", " ")}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {onboarding && (
+        <div className="rounded-lg border border-border bg-surface p-md">
+          <div className="mb-sm flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">My onboarding</h2>
+            <Badge tone={onboardingStatusTone[onboarding.status] ?? "neutral"}>{onboarding.status.replace("-", " ")}</Badge>
+          </div>
+          <div className="mb-sm h-1.5 w-full overflow-hidden rounded-pill bg-surface-secondary">
+            <div className="h-full rounded-pill bg-primary transition-[width]" style={{ width: `${onboarding.progressPercent}%` }} />
+          </div>
+          <p className="text-xs text-muted-foreground">{onboarding.tasks.filter((t) => t.status === "completed").length}/{onboarding.tasks.length} tasks complete ({onboarding.progressPercent}%)</p>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">My shift</h2>
+        {shift ? (
+          <div className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+            <div className="min-w-0">
+              <p className="truncate text-foreground">{shift.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{shift.startTime}–{shift.endTime}{shift.breakMinutes ? ` · ${shift.breakMinutes}m break` : ""}</p>
+            </div>
+            <Badge tone="info">{formatDate(shift.effectiveFrom)}{shift.effectiveUntil ? ` – ${formatDate(shift.effectiveUntil)}` : ""}</Badge>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No shift assigned.</p>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">HR policies</h2>
+        {policies.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No policies found.</p>
+        ) : (
+          <div className="flex flex-col gap-xs">
+            {policies.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-foreground">{p.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">v{p.version}{p.acknowledgedAt ? ` · acknowledged ${formatDate(p.acknowledgedAt.slice(0, 10))}` : ""}</p>
+                </div>
+                {p.acknowledged ? (
+                  <Badge tone="success"><Check className="size-3" /> Acknowledged</Badge>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={ackBusyId === p.id} onClick={() => acknowledge(p.id)}>Acknowledge</Button>
+                )}
               </div>
             ))}
           </div>

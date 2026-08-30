@@ -3567,6 +3567,220 @@ export type MyTrainingAssignmentDto = {
   certificateIssued: boolean;
 };
 
+// ── Production migration (Phase B, HR Sub-batch 4) — Recruitment. Simple:
+// Job Opening + Applicant only, no Interview/ATS pipeline (stays mock). A
+// SELECTED applicant is never auto-converted — "Start Onboarding" is an
+// explicit HR action that reuses the real Staff provisioning service, then
+// opens a real EmployeeOnboarding. ──────────────────────────────────────────
+
+export type JobOpeningStatusDto = "draft" | "open" | "closed" | "archived";
+
+export type JobOpeningDto = {
+  id: string;
+  title: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  designationId: string | null;
+  designationName: string | null;
+  employmentType: EmploymentType | null;
+  openings: number;
+  description: string | null;
+  requirements: string | null;
+  publishDate: string | null;
+  closingDate: string | null;
+  status: JobOpeningStatusDto;
+  applicantCount: number;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateJobOpeningRequest = {
+  title: string;
+  departmentId?: string;
+  designationId?: string;
+  employmentType?: EmploymentType;
+  openings?: number;
+  description?: string;
+  requirements?: string;
+  publishDate?: string;
+  closingDate?: string;
+};
+export type UpdateJobOpeningRequest = Partial<CreateJobOpeningRequest>;
+
+export type JobApplicantStageDto = "applied" | "screening" | "interview" | "selected" | "hired" | "rejected" | "withdrawn";
+
+export type JobApplicantDto = {
+  id: string;
+  jobOpeningId: string;
+  jobOpeningTitle: string;
+  candidateName: string;
+  email: string;
+  phone: string | null;
+  source: string | null;
+  notes: string | null;
+  stage: JobApplicantStageDto;
+  appliedDate: string;
+  hasOnboarding: boolean;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateJobApplicantRequest = {
+  jobOpeningId: string;
+  candidateName: string;
+  email: string;
+  phone?: string;
+  source?: string;
+  notes?: string;
+  appliedDate?: string;
+};
+export type UpdateJobApplicantRequest = Partial<Omit<CreateJobApplicantRequest, "jobOpeningId">>;
+
+export type StartOnboardingRequest = {
+  employeeCode: string;
+  startDate: string;
+  expectedCompletionDate?: string;
+  hrOwnerStaffId?: string;
+};
+
+// ── Production migration (Phase B, HR Sub-batch 4) — Employee Onboarding.
+// NOT SchoolOnboarding (platform-side) — a brand-new-employee's own
+// checklist, always tied to a real Staff.id. Progress is always derived from
+// real task completion, never a stored percentage. ─────────────────────────
+
+export type EmployeeOnboardingStatusDto = "not-started" | "in-progress" | "completed" | "cancelled";
+export type OnboardingTaskStatusDto = "pending" | "completed";
+
+export type OnboardingTaskDto = {
+  id: string;
+  label: string;
+  category: string | null;
+  status: OnboardingTaskStatusDto;
+  completedAt: string | null;
+  completedByName: string | null;
+};
+
+export type EmployeeOnboardingDto = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  jobApplicantId: string | null;
+  hrOwnerStaffId: string | null;
+  hrOwnerName: string | null;
+  startDate: string;
+  expectedCompletionDate: string | null;
+  status: EmployeeOnboardingStatusDto;
+  /** Derived live from tasks (completed/total) — never stored. */
+  progressPercent: number;
+  tasks: OnboardingTaskDto[];
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateEmployeeOnboardingRequest = {
+  staffId: string;
+  startDate: string;
+  expectedCompletionDate?: string;
+  hrOwnerStaffId?: string;
+};
+export type UpdateEmployeeOnboardingRequest = { expectedCompletionDate?: string | null; hrOwnerStaffId?: string | null };
+
+// ── Production migration (Phase B, HR Sub-batch 4) — HR Policies. Only
+// PUBLISHED policies ever reach Employee Self Service. Acknowledgement is
+// identity-scoped — an employee acknowledges ONLY their own Staff record,
+// resolved server-side. ─────────────────────────────────────────────────────
+
+export type HrPolicyStatusDto = "draft" | "published" | "archived";
+
+export type HrPolicyDto = {
+  id: string;
+  title: string;
+  category: string | null;
+  content: string;
+  version: string;
+  effectiveDate: string | null;
+  status: HrPolicyStatusDto;
+  acknowledgedCount: number;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateHrPolicyRequest = { title: string; category?: string; content: string; version: string; effectiveDate?: string };
+export type UpdateHrPolicyRequest = Partial<CreateHrPolicyRequest>;
+
+/** Self-service — only ever a PUBLISHED policy, with the caller's own acknowledgement state. */
+export type MyHrPolicyDto = {
+  id: string;
+  title: string;
+  category: string | null;
+  content: string;
+  version: string;
+  effectiveDate: string | null;
+  acknowledged: boolean;
+  acknowledgedAt: string | null;
+};
+
+// ── Production migration (Phase B, HR Sub-batch 4) — Shifts. Relational
+// ShiftAssignment (never an array of staff ids). Overlap prevention mirrors
+// StaffSalaryAssignment's row-locked check exactly. ─────────────────────────
+
+export type ShiftStatusDto = "active" | "inactive";
+
+export type ShiftDto = {
+  id: string;
+  name: string;
+  startTime: string; // HH:mm, derived from startMinutes
+  endTime: string; // HH:mm, derived from endMinutes
+  startMinutes: number;
+  endMinutes: number;
+  breakMinutes: number | null;
+  workingDays: string[];
+  status: ShiftStatusDto;
+  assignedCount: number;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateShiftRequest = { name: string; startMinutes: number; endMinutes: number; breakMinutes?: number; workingDays?: string[] };
+export type UpdateShiftRequest = Partial<CreateShiftRequest>;
+
+export type ShiftAssignmentDto = {
+  id: string;
+  shiftId: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  assignedByName: string | null;
+  createdAt: string;
+};
+
+export type AssignShiftRequest = { staffId: string; effectiveFrom: string; effectiveUntil?: string };
+
+/** Self-service — the caller's own currently-effective shift, if any. */
+export type MyShiftDto = {
+  shiftId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number | null;
+  workingDays: string[];
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+} | null;
+
 /** HR Core dashboard — DB-derived only. Present/absent/late/on-leave/
  * not-marked reuse the canonical Phase 9E Staff Attendance summary verbatim.
  * No fabricated attrition/retention/engagement/performance/recruitment-
@@ -3582,6 +3796,14 @@ export type HrDashboardDto = {
   onLeaveToday: number;
   notMarkedToday: number;
   newHiresThisMonth: number; // real Staff.joiningDate within the current calendar month
+  // HR Sub-batch 4 — real, school-wide, never fabricated. Open job openings
+  // and applicant-stage counts derive from JobOpening/JobApplicant; active
+  // onboardings/avg progress derive from EmployeeOnboarding+OnboardingTask.
+  openJobOpenings: number;
+  applicantsByStage: Record<JobApplicantStageDto, number>;
+  activeOnboardings: number;
+  /** null when there are zero onboardings — never a fabricated 0%. */
+  avgOnboardingProgress: number | null;
 };
 
 // ── Phase 9Q: Hostel Management. Hostel student identity always resolves to
@@ -4483,4 +4705,12 @@ export type HrSelfServiceDto = {
   // never lets the caller create/assign/complete anything here).
   performanceReviews: MyPerformanceReviewDto[];
   trainingAssignments: MyTrainingAssignmentDto[];
+  // HR Sub-batch 4 — the caller's OWN onboarding (if any), every PUBLISHED
+  // policy with the caller's own acknowledgement state (never a draft), and
+  // the caller's own currently-effective shift, if assigned. Read-only —
+  // hr.viewOwn never lets the caller manage recruitment/onboarding/policies/
+  // shifts, only acknowledge a policy for themselves.
+  onboarding: EmployeeOnboardingDto | null;
+  policies: MyHrPolicyDto[];
+  shift: MyShiftDto;
 };

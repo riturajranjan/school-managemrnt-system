@@ -13,8 +13,12 @@
 // documents, regardless of the caller's role. Performance/training sections
 // (Sub-batch 3) are the same pattern — listMyPerformanceReviews only ever
 // returns COMPLETED + visibleToEmployee reviews, listMyTrainingAssignments
-// is read-only. Announcement sections are added as their real models land
-// in later Phase B sub-batches.
+// is read-only. Onboarding/policies/shift (Sub-batch 4) continue the
+// pattern: getMyOnboarding is the caller's own record only, listMyPolicies
+// only ever returns PUBLISHED policies, getMyShift resolves the caller's
+// currently-effective assignment — all read-only, hr.viewOwn never lets the
+// caller manage any of it. Announcement sections are added as their real
+// models land in later Phase B sub-batches.
 import { HttpError } from "@/lib/server/api/guard";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { HrSelfServiceDto } from "@/lib/api/contracts";
@@ -26,6 +30,9 @@ import { listContractsForStaff } from "@/lib/server/hr/contracts";
 import { listStaffDocumentsForStaff } from "@/lib/server/hr/documents";
 import { listMyPerformanceReviews } from "@/lib/server/hr/performance";
 import { listMyTrainingAssignments } from "@/lib/server/hr/training";
+import { getMyOnboarding } from "@/lib/server/hr/onboarding";
+import { listMyPolicies } from "@/lib/server/hr/policies";
+import { getMyShift } from "@/lib/server/hr/shifts";
 
 function startOfMonth(today: string): string {
   return `${today.slice(0, 7)}-01`;
@@ -36,7 +43,7 @@ export async function getMySelfService(scope: OrgScope): Promise<HrSelfServiceDt
   if (!me) throw new HttpError("NOT_FOUND", "No staff profile is linked to your account");
 
   const today = serverToday();
-  const [staff, todayHistory, percent, leaveRequests, contracts, documents, performanceReviews, trainingAssignments] = await Promise.all([
+  const [staff, todayHistory, percent, leaveRequests, contracts, documents, performanceReviews, trainingAssignments, onboarding, policies, shift] = await Promise.all([
     getStaff(scope, me.id),
     getStaffAttendanceHistory(scope, me.id, { from: today, to: today }),
     getStaffAttendancePercent(scope, me.id, { from: startOfMonth(today), to: today }),
@@ -45,6 +52,9 @@ export async function getMySelfService(scope: OrgScope): Promise<HrSelfServiceDt
     listStaffDocumentsForStaff(scope, me.id),
     listMyPerformanceReviews(scope, me.id),
     listMyTrainingAssignments(scope, me.id),
+    getMyOnboarding(scope, me.id),
+    listMyPolicies(scope, me.id),
+    getMyShift(scope, me.id),
   ]);
 
   return {
@@ -56,5 +66,8 @@ export async function getMySelfService(scope: OrgScope): Promise<HrSelfServiceDt
     documents,
     performanceReviews,
     trainingAssignments,
+    onboarding,
+    policies,
+    shift,
   };
 }
