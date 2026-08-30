@@ -3,12 +3,14 @@
 // Real PostgreSQL/API cutover (Production migration, Phase B) — reads GET
 // /api/hr/self-service, identity-scoped to the CALLER's own real Staff
 // record (Staff.userId === caller) — never a hardcoded demo identity like
-// the old CURRENT_TEACHER_ID. Contract/document/training/announcement
-// sections are added here as their real models land in later Phase B
-// sub-batches — shown honestly as "not available yet" until then, never
-// backed by mock data in the meantime.
+// the old CURRENT_TEACHER_ID. Contracts/documents (Sub-batch 2) are real:
+// compensationNote is always redacted here regardless of role (self-service
+// never implies hr.view/hr.manage), and documents are pre-filtered server-
+// side to visibility=staff-visible only. Training/announcement sections are
+// added here as their real models land in later Phase B sub-batches — shown
+// honestly as "not available yet" until then, never backed by mock data.
 import Link from "next/link";
-import { CalendarDays, FileText, User, Wallet } from "lucide-react";
+import { CalendarDays, ScrollText, User, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -21,6 +23,12 @@ import { formatDate } from "@/lib/utils";
 const leaveStatusTone: Record<string, "success" | "warning" | "error" | "neutral"> = { approved: "success", pending: "warning", rejected: "error", cancelled: "neutral" };
 const attendanceTone: Record<string, "success" | "warning" | "error" | "info" | "neutral"> = {
   present: "success", late: "warning", absent: "error", "half-day": "warning", "on-leave": "info",
+};
+const contractStatusTone: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
+  draft: "neutral", active: "success", "renewal-pending": "warning", expired: "error", terminated: "neutral", archived: "neutral",
+};
+const documentStatusTone: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
+  uploaded: "info", verified: "success", rejected: "error", archived: "neutral",
 };
 
 export default function EmployeeSelfServicePage() {
@@ -41,7 +49,7 @@ export default function EmployeeSelfServicePage() {
   }
   if (!data) return null;
 
-  const { staff, todayAttendance, attendancePercent, recentLeaveRequests } = data;
+  const { staff, todayAttendance, attendancePercent, recentLeaveRequests, contracts, documents } = data;
 
   return (
     <div className="flex flex-col gap-md pb-20 sm:pb-0">
@@ -87,9 +95,47 @@ export default function EmployeeSelfServicePage() {
         )}
       </div>
 
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">My contract</h2>
+        {contracts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No contracts found.</p>
+        ) : (
+          <div className="flex flex-col gap-xs">
+            {contracts.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-foreground">{formatDate(c.startDate)} – {c.endDate ? formatDate(c.endDate) : "no end date"}</p>
+                  <p className="truncate text-xs text-muted-foreground">{c.terms ?? "No additional terms on file"}</p>
+                </div>
+                <Badge tone={contractStatusTone[c.status] ?? "neutral"}>{c.status.replace("-", " ")}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-md">
+        <h2 className="mb-sm text-sm font-semibold text-foreground">My documents</h2>
+        {documents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No documents found.</p>
+        ) : (
+          <div className="flex flex-col gap-xs">
+            {documents.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-sm rounded-md border border-border p-sm text-sm">
+                <div className="min-w-0">
+                  <p className="truncate text-foreground">{d.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{d.expiryDate ? `Expires ${formatDate(d.expiryDate)}` : "No expiry"}</p>
+                </div>
+                <Badge tone={documentStatusTone[d.status] ?? "neutral"}>{d.status}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border border-dashed border-border bg-surface p-md text-center">
-        <FileText className="mx-auto mb-1 size-5 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Contracts, documents and training will appear here as those modules go live.</p>
+        <ScrollText className="mx-auto mb-1 size-5 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Training will appear here as that module goes live.</p>
       </div>
     </div>
   );

@@ -3347,6 +3347,106 @@ export type DesignationDto = {
 export type CreateDesignationRequest = { code: string; name: string; description?: string; departmentId?: string; level?: number };
 export type UpdateDesignationRequest = { name?: string; description?: string | null; departmentId?: string | null; level?: number | null };
 
+// ── Production migration (Phase B, HR Sub-batch 2) — Contracts. Real Staff
+// relationship, no parallel employee model. compensationNote is confidential:
+// lib/server/hr/contracts.ts redacts it to null for a caller who holds only
+// hr.viewOwn (real compensation of record lives in Payroll's
+// SalaryStructure/StaffSalaryAssignment — this is a negotiated-terms note,
+// never a second source of truth for pay). ─────────────────────────────────
+
+export type ContractTypeDto = "permanent" | "fixed-term" | "probation" | "temporary" | "part-time" | "consultant" | "visiting-faculty";
+export type ContractStatusDto = "draft" | "active" | "renewal-pending" | "expired" | "terminated" | "archived";
+
+export type ContractDto = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  type: ContractTypeDto;
+  startDate: string; // YYYY-MM-DD
+  endDate: string | null;
+  probationMonths: number | null;
+  noticePeriodDays: number | null;
+  workHoursPerWeek: number | null;
+  /** null when redacted for the caller (hr.viewOwn without hr.view/hr.manage), or genuinely unset. */
+  compensationNote: string | null;
+  terms: string | null;
+  status: ContractStatusDto;
+  /** Derived, never stored: status is active/renewal-pending AND endDate is within 30 days. */
+  isExpiringSoon: boolean;
+  createdByName: string | null;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateContractRequest = {
+  staffId: string;
+  type: ContractTypeDto;
+  startDate: string;
+  endDate?: string;
+  probationMonths?: number;
+  noticePeriodDays?: number;
+  workHoursPerWeek?: number;
+  compensationNote?: string;
+  terms?: string;
+};
+export type UpdateContractRequest = Partial<Omit<CreateContractRequest, "staffId">>;
+
+// ── Production migration (Phase B, HR Sub-batch 2) — Staff Documents. No
+// binary/object storage exists in this codebase (same precedent as Phase 9M's
+// TransportDocument) — metadata only. `visibility` gates whether a document
+// ever appears in the owning employee's self-service view; HR_ONLY is the
+// default (explicit opt-in required for an employee to see it). ────────────
+
+export type StaffDocumentTypeDto =
+  | "id-proof"
+  | "tax-id"
+  | "qualification"
+  | "experience-certificate"
+  | "appointment-letter"
+  | "contract"
+  | "license"
+  | "background-check"
+  | "medical-fitness"
+  | "training-certificate"
+  | "custom";
+export type StaffDocumentStatusDto = "uploaded" | "verified" | "rejected" | "archived";
+export type StaffDocumentVisibilityDto = "hr-only" | "staff-visible";
+
+export type StaffDocumentDto = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  employeeCode: string;
+  type: StaffDocumentTypeDto;
+  title: string;
+  status: StaffDocumentStatusDto;
+  visibility: StaffDocumentVisibilityDto;
+  /** Manual free-text pointer only (e.g. a filing location or external link) — never a real file. No object storage is integrated. */
+  externalReference: string | null;
+  expiryDate: string | null;
+  /** Derived, never stored: expiryDate is in the past. */
+  isExpired: boolean;
+  notes: string | null;
+  uploadedByName: string | null;
+  uploadedAt: string;
+  verifiedByName: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UploadStaffDocumentRequest = {
+  staffId: string;
+  type: StaffDocumentTypeDto;
+  title: string;
+  visibility?: StaffDocumentVisibilityDto;
+  externalReference?: string;
+  expiryDate?: string;
+  notes?: string;
+};
+
 /** HR Core dashboard — DB-derived only. Present/absent/late/on-leave/
  * not-marked reuse the canonical Phase 9E Staff Attendance summary verbatim.
  * No fabricated attrition/retention/engagement/performance/recruitment-
@@ -4253,4 +4353,9 @@ export type HrSelfServiceDto = {
   todayAttendance: StaffAttendanceHistoryEntryDto | null;
   attendancePercent: StaffAttendancePercentDto;
   recentLeaveRequests: LeaveRequestDto[];
+  // HR Sub-batch 2 — the caller's OWN contracts (compensationNote always
+  // redacted here; self-service never implies hr.view/hr.manage) and OWN
+  // documents where visibility is explicitly "staff-visible".
+  contracts: ContractDto[];
+  documents: StaffDocumentDto[];
 };

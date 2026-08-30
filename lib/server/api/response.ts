@@ -242,6 +242,9 @@ export type ApiErrorCode =
   | "INVALID_REPAYMENT_AMOUNT"
   // Account self-service — change password / active sessions.
   | "INVALID_CURRENT_PASSWORD"
+  // Production migration (Phase B, HR Sub-batch 2) — Contracts / Documents.
+  | "CONTRACT_NOT_FOUND"
+  | "STAFF_DOCUMENT_NOT_FOUND"
   | "SERVER_ERROR";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -478,6 +481,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   REPAYMENT_EXCEEDS_OUTSTANDING: 409,
   INVALID_REPAYMENT_AMOUNT: 400,
   INVALID_CURRENT_PASSWORD: 400,
+  CONTRACT_NOT_FOUND: 404,
+  STAFF_DOCUMENT_NOT_FOUND: 404,
   SERVER_ERROR: 500,
 };
 

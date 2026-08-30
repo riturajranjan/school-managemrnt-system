@@ -2159,6 +2159,8 @@ model Staff {
   activityStaffAssignments           ActivityStaffAssignment[] // Phase 9U — coordinator/coach/mentor assignments
   generatedDocuments                 GeneratedDocument[] // Phase 9V — Document Studio generated-document history
   financialAdvances                  StaffFinancialAdvance[] // Production Payroll checkpoint — loans/advances
+  contracts                          Contract[] // Production migration Phase B — employment contracts
+  staffDocuments                     StaffDocument[] // Production migration Phase B — HR document records (metadata only, no file storage)
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2239,6 +2241,139 @@ model Designation {
   @@index([schoolId, status])
   @@index([departmentId])
   @@map("designations")
+}
+
+// ---------------------------------------------------------------------------
+// Production migration (Phase B, HR Sub-batch 2) — Contracts + Documents.
+// Real employee relationship via Staff.id, same precedent as Department/
+// Designation above — never a parallel employee model. No binary/object
+// storage exists anywhere in this codebase (confirmed against the Phase 9M
+// TransportDocument precedent, which is also metadata-only): StaffDocument
+// records metadata about a document, never an actual file. externalReference
+// is a free-text pointer an admin can fill in manually (a filing location, an
+// external link) — never a real upload.
+// ---------------------------------------------------------------------------
+
+enum ContractType {
+  PERMANENT
+  FIXED_TERM
+  PROBATION
+  TEMPORARY
+  PART_TIME
+  CONSULTANT
+  VISITING_FACULTY
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  RENEWAL_PENDING
+  EXPIRED
+  TERMINATED
+  ARCHIVED
+}
+
+model Contract {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId String
+
+  type             ContractType
+  startDate        DateTime  @db.Date
+  endDate          DateTime? @db.Date
+  probationMonths  Int?
+  noticePeriodDays Int?
+  workHoursPerWeek Int?
+  // Confidential — never returned to a caller holding only hr.viewOwn (see
+  // lib/server/hr/contracts.ts). Real compensation figures live in Payroll's
+  // SalaryStructure/StaffSalaryAssignment; this is a free-text negotiated-
+  // terms note, not a second source of truth for pay.
+  compensationNote String?
+  terms            String?
+
+  status ContractStatus @default(DRAFT)
+
+  createdByUserId String
+  createdByName   String?
+  updatedByUserId String?
+  updatedByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, staffId])
+  @@index([schoolId, status])
+  @@map("contracts")
+}
+
+enum StaffDocumentType {
+  ID_PROOF
+  TAX_ID
+  QUALIFICATION
+  EXPERIENCE_CERTIFICATE
+  APPOINTMENT_LETTER
+  CONTRACT
+  LICENSE
+  BACKGROUND_CHECK
+  MEDICAL_FITNESS
+  TRAINING_CERTIFICATE
+  CUSTOM
+}
+
+enum StaffDocumentStatus {
+  UPLOADED
+  VERIFIED
+  REJECTED
+  ARCHIVED
+}
+
+enum StaffDocumentVisibility {
+  HR_ONLY
+  STAFF_VISIBLE
+}
+
+model StaffDocument {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  staffId String
+
+  type       StaffDocumentType
+  title      String
+  status     StaffDocumentStatus     @default(UPLOADED)
+  visibility StaffDocumentVisibility @default(HR_ONLY)
+
+  // No binary/object storage is integrated in this codebase — see the model
+  // comment above. Manual free-text pointer only, never a real upload.
+  externalReference String?
+  expiryDate        DateTime? @db.Date
+  notes             String?
+
+  uploadedByUserId String
+  uploadedByName   String?
+  uploadedAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  verifiedByUserId String?
+  verifiedByName   String?
+  verifiedAt       DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, staffId])
+  @@index([schoolId, status])
+  @@map("staff_documents")
 }
 
 // A teacher (Staff) teaching a Subject in a Section for the section's academic

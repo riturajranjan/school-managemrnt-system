@@ -6,13 +6,20 @@
 import { apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
+  ContractDto,
+  ContractStatusDto,
+  CreateContractRequest,
   CreateDepartmentRequest,
   CreateDesignationRequest,
   DepartmentDto,
   DesignationDto,
   HrDashboardDto,
+  StaffDocumentDto,
+  StaffDocumentStatusDto,
+  UpdateContractRequest,
   UpdateDepartmentRequest,
   UpdateDesignationRequest,
+  UploadStaffDocumentRequest,
 } from "@/lib/api/contracts";
 
 // ── Departments ──────────────────────────────────────────────────────────
@@ -44,3 +51,27 @@ export const setDesignationStatusRequest = (id: string, status: "active" | "arch
 export function useHrDashboard() {
   return useApiResource<HrDashboardDto>("/api/hr/dashboard");
 }
+
+// ── Contracts (Production migration, HR Sub-batch 2) ────────────────────
+
+export function useContracts(filters: { staffId?: string; status?: ContractStatusDto } = {}) {
+  return useApiList<ContractDto>(`/api/hr/contracts${buildQuery(filters)}`);
+}
+export function useContract(contractId: string | undefined) {
+  return useApiResource<ContractDto>(contractId ? `/api/hr/contracts/${contractId}` : null);
+}
+export const createContractRequest = (body: CreateContractRequest): Promise<ApiResult<ContractDto>> => apiPost<ContractDto>("/api/hr/contracts", body);
+export const updateContractRequest = (id: string, body: UpdateContractRequest): Promise<ApiResult<ContractDto>> => apiPatch<ContractDto>(`/api/hr/contracts/${id}`, body);
+export const setContractStatusRequest = (id: string, status: ContractStatusDto): Promise<ApiResult<ContractDto>> =>
+  apiPost<ContractDto>(`/api/hr/contracts/${id}/status`, { status });
+
+// ── Staff Documents (Production migration, HR Sub-batch 2) — metadata only,
+// no file upload. See lib/server/hr/documents.ts for the storage-gap note. ─
+
+export function useStaffDocuments(filters: { staffId?: string; status?: StaffDocumentStatusDto } = {}) {
+  return useApiList<StaffDocumentDto>(`/api/hr/documents${buildQuery(filters)}`);
+}
+export const uploadStaffDocumentRequest = (body: UploadStaffDocumentRequest): Promise<ApiResult<StaffDocumentDto>> =>
+  apiPost<StaffDocumentDto>("/api/hr/documents", body);
+export const setStaffDocumentStatusRequest = (id: string, status: "verified" | "rejected" | "archived"): Promise<ApiResult<StaffDocumentDto>> =>
+  apiPost<StaffDocumentDto>(`/api/hr/documents/${id}/status`, { status });
