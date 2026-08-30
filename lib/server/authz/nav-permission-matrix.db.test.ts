@@ -77,7 +77,12 @@ describe.skipIf(!dbReady)("nav/page permission matrix (DB)", () => {
     expect(p.has("guardians.view")).toBe(true);
     expect(p.has("homework.manage")).toBe(true);
     expect(p.has("curriculum.view")).toBe(true);
-    for (const key of ["settings.view", "fees.view", "accounting.view", "payroll.view", "students.create", "users.manage"]) {
+    // users.manage IS deliberately granted (User Account Creation Foundation)
+    // — narrowly scoped by canProvisionRole + teacher-teaching-scope checks
+    // inside lib/server/users/provisioning.ts, never a broad grant. It must
+    // never imply hr.manage/students.create/guardians.update.
+    expect(p.has("users.manage")).toBe(true);
+    for (const key of ["settings.view", "fees.view", "accounting.view", "payroll.view", "students.create", "hr.manage", "guardians.update"]) {
       expect(p.has(key), `expected TEACHER to lack ${key}`).toBe(false);
     }
   });

@@ -13,7 +13,7 @@ import { roleLabels } from "@/lib/permissions/roles";
 const CATEGORIES = [
   { label: "Organization", href: "/settings/school", icon: Building2, desc: "Profile, branches, general" },
   { label: "Academics", href: "/settings/academic-sessions", icon: Globe, desc: "Sessions & structure" },
-  { label: "Users & Access", href: "/settings/users", icon: Users, desc: "Users, roles, permissions" },
+  { label: "Users & Access", href: "/users", icon: Users, desc: "Users, roles, permissions" },
   { label: "Branding", href: "/settings/branding", icon: Palette, desc: "Colours, theme, logos" },
   { label: "Communication", href: "/settings/notifications", icon: Mail, desc: "Notifications & integrations" },
   { label: "Localization", href: "/settings/localization", icon: Globe, desc: "Language, region, numbering" },

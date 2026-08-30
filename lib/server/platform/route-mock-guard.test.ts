@@ -646,7 +646,14 @@ const MIGRATED_FILES = [
   // calls the real one-time-token API. app/student + app/parent are new
   // account-foundation-only pages (no portal) — identity-scoped via
   // Student.userId/Guardian.userId, not permission-scoped.
-  "app/settings/users/page.tsx",
+  // User List UX pass — Users & Access moved to a top-level /users route
+  // (app/settings/users/page.tsx deleted, not just moved); the Create
+  // Account and View/Edit Profile pages split into their own real routes;
+  // the forced first-login password-change flow is a new real page too.
+  "app/users/page.tsx",
+  "app/users/new/page.tsx",
+  "app/users/[userId]/page.tsx",
+  "app/(auth)/change-password/page.tsx",
   "app/(auth)/setup-password/page.tsx",
   "app/student/page.tsx",
   "app/parent/page.tsx",

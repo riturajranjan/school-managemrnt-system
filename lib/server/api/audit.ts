@@ -307,6 +307,13 @@ export type AuditAction =
   | "USER_ACCOUNT_LINKED"
   | "USER_ACCOUNT_ACTIVATED"
   | "USER_ACCOUNT_SUSPENDED"
+  // User Account Creation Foundation review — admin-triggered password reset
+  // (reissues a real one-time setup link; never carries a password/token).
+  | "PASSWORD_RESET"
+  | "PASSWORD_CHANGED"
+  // Student self-service — Add/Invite My Guardian (identity-scoped, never a
+  // client-supplied studentId).
+  | "GUARDIAN_INVITED_BY_STUDENT"
   // Production Accounting checkpoint — Vendors / Purchase Orders / Budgets.
   | "VENDOR_CREATED"
   | "VENDOR_UPDATED"

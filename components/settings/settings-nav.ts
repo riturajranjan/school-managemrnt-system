@@ -24,7 +24,7 @@ export const settingsNav: SettingsNavCategory[] = [
   },
   {
     key: "access", label: "Users & Access", icon: Users, items: [
-      { label: "Users", href: "/settings/users", icon: Users, keywords: ["accounts", "access"] },
+      { label: "Users", href: "/users", icon: Users, keywords: ["accounts", "access"] },
       { label: "Roles", href: "/settings/roles", icon: ShieldCheck, keywords: ["role"] },
       { label: "Permissions", href: "/settings/permissions", icon: KeyRound, keywords: ["matrix", "rbac"] },
       { label: "Access Scopes", href: "/settings/access", icon: Lock, keywords: ["scope", "branch"] },

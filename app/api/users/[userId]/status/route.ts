@@ -14,7 +14,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const ctx = await requirePermission("users.manage");
     const scope = await requireOrgScope(ctx);
     const { userId } = await params;
-    await setAccountStatus(scope, userId, await readJson(request));
+    await setAccountStatus(ctx, scope, userId, await readJson(request));
     return ok({ success: true });
   });
 }

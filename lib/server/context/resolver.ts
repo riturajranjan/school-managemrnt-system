@@ -53,11 +53,18 @@ export async function resolvePostLogin(userId: string): Promise<string> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      passwordSetupRequired: true,
       platformAdmin: { select: { id: true } },
       memberships: { where: { status: "ACTIVE" }, select: { id: true } },
     },
   });
   if (!user) return "/login";
+  // Reaching resolvePostLogin at all means a real password was already
+  // verified (login requires passwordHash to be set) — so passwordSetupRequired
+  // here can only mean "an administrator set this password directly and asked
+  // to force a change", never the ordinary invite-link-pending state (that
+  // account has no password yet and can never reach login to begin with).
+  if (user.passwordSetupRequired) return "/change-password";
   if (user.platformAdmin) return "/super-admin/dashboard";
   if (user.memberships.length === 0) return "/access-denied";
 

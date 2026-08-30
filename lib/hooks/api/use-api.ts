@@ -11,7 +11,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, type ApiResult } from "@/lib/api/client";
 
-export type ListMeta = { page: number; pageSize: number; total: number; totalPages: number };
+// `schoolName` is optional and only ever populated by GET /api/users — kept
+// here (rather than a per-hook meta type) so useApiList's single ListMeta
+// return type stays shared across every list hook.
+export type ListMeta = { page: number; pageSize: number; total: number; totalPages: number; schoolName?: string | null };
 
 type ListState<T> = {
   data: T[];

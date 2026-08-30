@@ -42,7 +42,7 @@ export function ConfirmDialog({
             </Dialog.Overlay>
             <Dialog.Content asChild forceMount>
               <motion.div
-                className="fixed inset-x-0 bottom-0 z-50 w-full rounded-t-2xl border-t border-border bg-surface p-md shadow-floating sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-full sm: sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border"
+                className="fixed inset-x-0 bottom-0 z-50 w-full rounded-t-2xl border-t border-border bg-surface p-md shadow-floating sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto  sm:w-[min(100%,theme(spacing.96))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border"
                 initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}

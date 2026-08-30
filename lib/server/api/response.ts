@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 export type ApiErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
+  | "INVALID_CREDENTIALS"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
   | "CONFLICT"
@@ -267,6 +268,7 @@ export type ApiErrorCode =
 const STATUS: Record<ApiErrorCode, number> = {
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
+  INVALID_CREDENTIALS: 401,
   VALIDATION_ERROR: 400,
   NOT_FOUND: 404,
   CONFLICT: 409,

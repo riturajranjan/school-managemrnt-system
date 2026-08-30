@@ -93,6 +93,7 @@ export const navGroups: NavGroup[] = [
     label: "Main",
     items: [
       { key: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
+      { key: "users-access", label: "Users & Access", href: "/users", icon: Users, permission: "users.manage" },
       { key: "my-day", label: "My Day", href: "/teacher/my-day", icon: CalendarCheck },
       { key: "action-inbox", label: "Action Inbox", href: "/action-inbox", icon: Inbox, permission: "dashboard.view" },
       { key: "calendar", label: "Calendar", href: "/academics/calendar", icon: Calendar, permission: "calendar.view" },

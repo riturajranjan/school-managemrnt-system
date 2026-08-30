@@ -437,6 +437,17 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "communication.send",
     "documents.view",
     "counseling.refer",
+    // User Account Creation Foundation review — Teacher may provision
+    // Student/Guardian accounts (see role-creation-policy.ts). Deliberately
+    // NOT granted hr.manage/students.create/guardians.update: the inline
+    // Staff/Student/Guardian creation this unlocks is gated ONLY by
+    // users.manage + canProvisionRole inside lib/server/users/provisioning.ts,
+    // never by the broader HR/admissions-module permissions, so this grant
+    // cannot leak into unrelated HR/admissions capability. listAccounts/
+    // setAccountStatus/assignRoleToAccount are further scoped in the service
+    // layer to the Teacher's own teaching assignments — this permission
+    // alone does NOT expose the full tenant user directory to a Teacher.
+    "users.manage",
   ],
   LIBRARIAN: ["dashboard.view", "students.view", "library.view", "library.manage", "hr.viewOwn"],
   TRANSPORT_MANAGER: [

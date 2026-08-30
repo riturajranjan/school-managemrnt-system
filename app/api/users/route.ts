@@ -15,7 +15,14 @@ export async function GET(request: NextRequest) {
     const scope = await requireOrgScope(ctx);
     const sp = request.nextUrl.searchParams;
     const { page, pageSize } = parsePagination(sp);
-    const { data, meta } = await listAccounts(scope, { page, pageSize, search: singleParam(sp, "search") });
+    const { data, meta } = await listAccounts(ctx, scope, {
+      page,
+      pageSize,
+      search: singleParam(sp, "search"),
+      role: singleParam(sp, "role"),
+      status: singleParam(sp, "status"),
+      branchId: singleParam(sp, "branchId"),
+    });
     return ok(data, meta);
   });
 }

@@ -33,13 +33,19 @@ export async function createPasswordSetupToken(db: Prisma.TransactionClient, use
   return { token, expiresAt };
 }
 
+/** Shared strength rule — also used by direct account-creation passwords and
+ * the self-service/admin password-change flows (lib/server/auth/password-
+ * change.ts, lib/server/users/provisioning.ts) so every path that ever sets a
+ * real password enforces the identical policy. */
+export const passwordStrengthSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Za-z]/, "Password must include a letter")
+  .regex(/[0-9]/, "Password must include a number");
+
 const newPasswordSchema = z.object({
   token: z.string().min(1, "Missing token"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Za-z]/, "Password must include a letter")
-    .regex(/[0-9]/, "Password must include a number"),
+  password: passwordStrengthSchema,
 });
 
 /**
