@@ -988,10 +988,20 @@ model AuditEvent {
   schoolId    String?
   actorUserId String?
   actorName   String?
-  action      String // e.g. STUDENT_CREATED, ADMISSION_CONVERTED
-  entityType  String // e.g. Student, AdmissionApplication, Guardian
-  entityId    String
-  metaJson    Json?
+  // Historical snapshot of the actor's real system Role key AT THE MOMENT of
+  // this event (Users & Access "Created By" — production migration). Additive,
+  // nullable: legacy events predate this column and stay null forever — never
+  // backfilled/guessed. Populated from OrgScope.actor.roleKey (itself sourced
+  // from AuthzContext.activeRoleKey at requireOrgScope() time), never derived
+  // later from the actor's CURRENT RoleAssignment — a role granted/changed
+  // after this event must never rewrite what this event already recorded. Null
+  // for a Platform Super Admin actor (not a tenant Role) and for any action
+  // recorded before this column existed.
+  actorRoleKey String?
+  action       String // e.g. STUDENT_CREATED, ADMISSION_CONVERTED
+  entityType   String // e.g. Student, AdmissionApplication, Guardian
+  entityId     String
+  metaJson     Json?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 

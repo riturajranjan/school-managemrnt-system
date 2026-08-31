@@ -383,6 +383,7 @@ export async function recordAudit(
       schoolId: scope.schoolId,
       actorUserId: scope.actor.id,
       actorName: scope.actor.name,
+      actorRoleKey: scope.actor.roleKey ?? null,
       action,
       entityType,
       entityId,

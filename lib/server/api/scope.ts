@@ -12,7 +12,11 @@ export type OrgScope = {
   schoolId: string;
   branchId: string | null;
   academicSessionId: string | null;
-  actor: { id: string; name: string | null };
+  // roleKey is optional — omitted entirely by platform-side scope builders
+  // (lib/server/platform/*-service.ts), whose actor is a Super Admin, not a
+  // tenant Role. requireOrgScope always sets it from the real, server-resolved
+  // AuthzContext.activeRoleKey — never trust a role claimed by the request.
+  actor: { id: string; name: string | null; roleKey?: string | null };
 };
 
 /** Tenant ids of the user's ACTIVE memberships (the only tenants they may touch). */
@@ -47,7 +51,7 @@ export async function requireOrgScope(ctx: AuthzContext): Promise<OrgScope> {
       schoolId: targetSchoolId,
       branchId: null,
       academicSessionId: null,
-      actor: { id: ctx.user.id, name: ctx.user.name ?? null },
+      actor: { id: ctx.user.id, name: ctx.user.name ?? null, roleKey: ctx.activeRoleKey ?? null },
     };
   }
 
@@ -88,7 +92,7 @@ export async function requireOrgScope(ctx: AuthzContext): Promise<OrgScope> {
     schoolId: ctx.schoolId,
     branchId,
     academicSessionId,
-    actor: { id: ctx.user.id, name: ctx.user.name ?? null },
+    actor: { id: ctx.user.id, name: ctx.user.name ?? null, roleKey: ctx.activeRoleKey ?? null },
   };
 }
 

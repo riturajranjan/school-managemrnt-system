@@ -39,7 +39,7 @@ import {
   type AccountListItem,
 } from "@/lib/hooks/api/use-users-api";
 import { roleLabels } from "@/lib/permissions/roles";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 const ACTIVITY_LABELS: Record<string, string> = {
   USER_ACCOUNT_PROVISIONED: "Account created",
@@ -214,26 +214,65 @@ export default function UsersAccessPage() {
       sortValue: (u) => u.name ?? u.email,
       cell: (u) => (
         <Link href={`/users/${u.id}`} className="flex min-w-0 items-center gap-sm">
-          <Avatar className="size-8">
+          <Avatar className="size-8 shrink-0">
             {u.image && <AvatarImage src={u.image} alt="" />}
             <AvatarFallback>{initials(u.name, u.email)}</AvatarFallback>
           </Avatar>
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium text-foreground underline-offset-2 hover:underline">{u.name ?? u.email}</span>
-            <span className="block truncate text-xs text-muted-foreground">{u.email}{u.mobile ? ` · ${u.mobile}` : ""}</span>
+            {u.code && <span className="block truncate text-xs text-muted-foreground">{u.code}</span>}
           </span>
         </Link>
       ),
     },
     { id: "role", header: "Role", cell: (u) => <div className="flex flex-wrap gap-1">{u.roles.map((r) => <Badge key={r.key} tone="neutral">{r.name}</Badge>)}</div> },
-    { id: "status", header: "Status", cell: (u) => <Badge tone={statusTone[u.status] ?? "neutral"}>{u.status.toLowerCase()}{u.passwordSetupRequired ? " · setup pending" : ""}</Badge> },
+    { id: "mobile", header: "Mobile No.", cell: (u) => <span className="text-sm text-muted-foreground">{u.mobile ?? "—"}</span> },
+    {
+      id: "loginEmail",
+      header: "Login Email",
+      cell: (u) => (
+        <span className="block max-w-48 truncate text-sm text-muted-foreground" title={u.email}>
+          {u.email ?? "—"}
+        </span>
+      ),
+    },
     {
       id: "branch",
       header: "School / Branch",
-      cell: (u) => <span className="text-sm text-muted-foreground">{meta?.schoolName ? `${meta.schoolName} / ${u.branchName ?? "—"}` : (u.branchName ?? "—")}</span>,
+      cell: (u) => (
+        <span className="block text-sm text-muted-foreground">
+          {meta?.schoolName && <span className="block truncate">{meta.schoolName}</span>}
+          <span className="block truncate">{u.branchName ?? "—"}</span>
+        </span>
+      ),
     },
     { id: "designation", header: "Designation", cell: (u) => <span className="text-sm text-muted-foreground">{u.designation ?? "—"}</span> },
-    { id: "updated", header: "Last Updated", align: "right", sortValue: (u) => u.updatedAt, cell: (u) => <span className="text-xs text-muted-foreground">{formatDateTime(u.updatedAt)}</span> },
+    {
+      id: "createdBy",
+      header: "Created By",
+      cell: (u) =>
+        u.createdBy ? (
+          <span className="block text-sm">
+            <span className="block truncate text-foreground">{u.createdBy.name ?? "—"}</span>
+            {u.createdBy.roleName && <Badge tone="neutral" className="mt-0.5">{u.createdBy.roleName}</Badge>}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        ),
+    },
+    { id: "status", header: "Status", cell: (u) => <Badge tone={statusTone[u.status] ?? "neutral"}>{u.status.toLowerCase()}{u.passwordSetupRequired ? " · setup pending" : ""}</Badge> },
+    {
+      id: "createdAt",
+      header: "Created At",
+      align: "right",
+      sortValue: (u) => u.createdAt,
+      cell: (u) => (
+        <span className="block text-xs text-muted-foreground">
+          <span className="block">{formatDate(u.createdAt)}</span>
+          <span className="block">{new Date(u.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -253,7 +292,7 @@ export default function UsersAccessPage() {
       <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name or email…" className="pl-8" aria-label="Search users" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, email or mobile…" className="pl-8" aria-label="Search users" />
         </div>
         <div className="flex flex-wrap gap-xs">
           <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -294,23 +333,50 @@ export default function UsersAccessPage() {
         emptyDescription="Create the first account to get started."
         rowActions={rowActions}
         renderMobileCard={(u) => (
-          <div className="surface-3d flex items-center gap-sm rounded-lg border border-border bg-surface p-sm">
-            <Link href={`/users/${u.id}`} className="flex min-w-0 flex-1 items-center gap-sm">
-              <Avatar className="size-9 shrink-0">
-                {u.image && <AvatarImage src={u.image} alt="" />}
-                <AvatarFallback>{initials(u.name, u.email)}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">{u.name ?? u.email}</p>
-                <p className="truncate text-xs text-muted-foreground">{u.roles.map((r) => r.name).join(", ") || "No role"}</p>
-                <p className="truncate text-xs text-muted-foreground">{u.email}{u.mobile ? ` · ${u.mobile}` : ""}</p>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <Badge tone={statusTone[u.status] ?? "neutral"}>{u.status.toLowerCase()}</Badge>
-                  {u.branchName && <span className="truncate text-xs text-muted-foreground">{u.branchName}</span>}
+          <div className="surface-3d flex flex-col gap-xs rounded-lg border border-border bg-surface p-sm">
+            <div className="flex items-start gap-sm">
+              <Link href={`/users/${u.id}`} className="flex min-w-0 flex-1 items-center gap-sm">
+                <Avatar className="size-9 shrink-0">
+                  {u.image && <AvatarImage src={u.image} alt="" />}
+                  <AvatarFallback>{initials(u.name, u.email)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{u.name ?? u.email}</p>
+                  {u.code && <p className="truncate text-xs text-muted-foreground">{u.code}</p>}
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    {u.roles.map((r) => <Badge key={r.key} tone="neutral">{r.name}</Badge>)}
+                    <Badge tone={statusTone[u.status] ?? "neutral"}>{u.status.toLowerCase()}</Badge>
+                  </div>
                 </div>
+              </Link>
+              <RowActionsMenu row={u} actions={rowActions} />
+            </div>
+            <dl className="grid grid-cols-2 gap-x-sm gap-y-1 border-t border-border pt-xs text-xs">
+              <div className="min-w-0">
+                <dt className="text-muted-foreground">Mobile</dt>
+                <dd className="truncate text-foreground">{u.mobile ?? "—"}</dd>
               </div>
-            </Link>
-            <RowActionsMenu row={u} actions={rowActions} />
+              <div className="min-w-0">
+                <dt className="text-muted-foreground">Login Email</dt>
+                <dd className="truncate text-foreground">{u.email ?? "—"}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-muted-foreground">School / Branch</dt>
+                <dd className="truncate text-foreground">{u.branchName ?? "—"}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-muted-foreground">Designation</dt>
+                <dd className="truncate text-foreground">{u.designation ?? "—"}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-muted-foreground">Created By</dt>
+                <dd className="truncate text-foreground">{u.createdBy?.name ?? "—"}{u.createdBy?.roleName ? ` (${u.createdBy.roleName})` : ""}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-muted-foreground">Created At</dt>
+                <dd className="truncate text-foreground">{formatDate(u.createdAt)}</dd>
+              </div>
+            </dl>
           </div>
         )}
       />

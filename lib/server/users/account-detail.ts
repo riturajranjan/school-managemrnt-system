@@ -198,6 +198,7 @@ const editAccountSchema = z.object({
   phone: z.string().trim().max(32).optional(),
   email: z.string().trim().email().max(320).optional(),
   photoUrl: z.string().trim().max(2048).optional(),
+  departmentId: z.string().min(1).optional(),
   designationId: z.string().min(1).optional(),
   joiningDate: z
     .string()
@@ -205,7 +206,7 @@ const editAccountSchema = z.object({
     .optional(),
 });
 
-const STAFF_FIELDS = new Set(["firstName", "lastName", "phone", "email", "designationId", "joiningDate"]);
+const STAFF_FIELDS = new Set(["firstName", "lastName", "phone", "email", "departmentId", "designationId", "joiningDate"]);
 const STUDENT_FIELDS = new Set(["firstName", "lastName", "gender", "dateOfBirth", "phone", "email", "photoUrl"]);
 const GUARDIAN_FIELDS = new Set(["firstName", "lastName", "phone", "email", "photoUrl"]);
 
@@ -222,7 +223,7 @@ export async function updateAccountDetail(ctx: AuthzContext, scope: OrgScope, us
   }
 
   if (kind === "staff") {
-    await updateStaff(scope, staffId!, { firstName: input.firstName, lastName: input.lastName, phone: input.phone, email: input.email, designationId: input.designationId, joiningDate: input.joiningDate });
+    await updateStaff(scope, staffId!, { firstName: input.firstName, lastName: input.lastName, phone: input.phone, email: input.email, departmentId: input.departmentId, designationId: input.designationId, joiningDate: input.joiningDate });
   } else if (kind === "student") {
     await updateStudent(scope, studentId!, { firstName: input.firstName, lastName: input.lastName, gender: input.gender, dateOfBirth: input.dateOfBirth, phone: input.phone, email: input.email, photoUrl: input.photoUrl });
   } else {

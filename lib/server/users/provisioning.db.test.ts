@@ -926,6 +926,151 @@ describe.skipIf(!dbReady)("listAccounts filters — role/status/branchId", () =>
   });
 });
 
+describe.skipIf(!dbReady)("Users List redesign — self-exclusion, mobile/loginEmail/designation columns, Created By", () => {
+  it("the currently authenticated caller never appears in their own list — unfiltered, searched, or filtered — and pagination totals exclude them too", async () => {
+    // ctxSchoolAdmin himself must never appear when HE calls listAccounts.
+    const unfiltered = await listAccounts(ctxSchoolAdmin, scopeA, {});
+    expect(unfiltered.data.some((r) => r.id === ctxSchoolAdmin.user.id)).toBe(false);
+
+    const searched = await listAccounts(ctxSchoolAdmin, scopeA, { search: ctxSchoolAdmin.user.email ?? undefined });
+    expect(searched.data.some((r) => r.id === ctxSchoolAdmin.user.id)).toBe(false);
+    expect(searched.data.length).toBe(0); // the ONLY row that could ever match this search is the caller's own
+
+    // ctxSchoolAdmin himself holds SCHOOL_ADMIN — a role-filtered query for
+    // exactly that role would match him too, if not for the exclusion.
+    const filtered = await listAccounts(ctxSchoolAdmin, scopeA, { role: "SCHOOL_ADMIN" });
+    expect(filtered.data.some((r) => r.id === ctxSchoolAdmin.user.id)).toBe(false);
+
+    // Pagination total must reflect the exclusion, not just the returned page.
+    const before = await listAccounts(ctxSchoolAdmin, scopeA, { pageSize: 1 });
+    const totalBefore = before.meta.total;
+    const staffId = await makeStaff(schoolAId, branchAId, { code: `SELFEXCL-${stamp}` });
+    const res = await provisionAccount(ctxSchoolAdmin, scopeA, { targetRoleKey: "LIBRARIAN", email: `t9w2-selfexcl-${stamp}@x.test`, staffId });
+    userIds.push(res.userId);
+    const after = await listAccounts(ctxSchoolAdmin, scopeA, { pageSize: 1 });
+    // Total grew by exactly the one real new account — never by one extra for
+    // the caller (who was never counted at all).
+    expect(after.meta.total).toBe(totalBefore + 1);
+  });
+
+  it("Mobile No. and Login Email columns use the real linked-record phone and the real User.email", async () => {
+    const staffId = await makeStaff(schoolAId, branchAId, { code: `MOB-${stamp}` });
+    await prisma.staff.update({ where: { id: staffId }, data: { phone: "+91 98765 43210" } });
+    const email = `t9w2-mobcol-${stamp}@x.test`;
+    const res = await provisionAccount(ctxSchoolAdmin, scopeA, { targetRoleKey: "LIBRARIAN", email, staffId });
+    userIds.push(res.userId);
+
+    const { data } = await listAccounts(ctxSchoolAdmin, scopeA, {});
+    const row = data.find((r) => r.id === res.userId)!;
+    expect(row.mobile).toBe("+91 98765 43210");
+    expect(row.email).toBe(email);
+
+    // Search by mobile number finds the account.
+    const bySearch = await listAccounts(ctxSchoolAdmin, scopeA, { search: "98765 43210" });
+    expect(bySearch.data.some((r) => r.id === res.userId)).toBe(true);
+
+    // A staff member with no phone on file renders "—" territory: null, never
+    // "undefined"/"null"/empty-string.
+    const staffId2 = await makeStaff(schoolAId, branchAId, { code: `NOMOB-${stamp}` });
+    const res2 = await provisionAccount(ctxSchoolAdmin, scopeA, { targetRoleKey: "LIBRARIAN", email: `t9w2-nomob-${stamp}@x.test`, staffId: staffId2 });
+    userIds.push(res2.userId);
+    const row2 = (await listAccounts(ctxSchoolAdmin, scopeA, {})).data.find((r) => r.id === res2.userId)!;
+    expect(row2.mobile).toBeNull();
+  });
+
+  it("Designation reflects the real Department-scoped Designation relation, not the Role, and is — for Student/Guardian and for staff with none assigned", async () => {
+    const dept = await prisma.department.create({ data: { tenantId, schoolId: schoolAId, branchId: branchAId, code: `DEPT-${stamp}`, name: "Academics" }, select: { id: true } });
+    const desig = await prisma.designation.create({ data: { tenantId, schoolId: schoolAId, branchId: branchAId, departmentId: dept.id, code: `DESIG-${stamp}`, name: "Vice Principal" }, select: { id: true, name: true } });
+    const staffId = await makeStaff(schoolAId, branchAId, { code: `DESIG-STAFF-${stamp}` });
+    await prisma.staff.update({ where: { id: staffId }, data: { departmentId: dept.id, designationId: desig.id, designation: desig.name, department: "Academics" } });
+    // Role granted is TEACHER (or similar) — deliberately NOT "Vice Principal",
+    // to prove Designation is never inferred from Role.
+    const res = await provisionAccount(ctxSchoolAdmin, scopeA, { targetRoleKey: "LIBRARIAN", email: `t9w2-desigcol-${stamp}@x.test`, staffId });
+    userIds.push(res.userId);
+
+    const { data } = await listAccounts(ctxSchoolAdmin, scopeA, {});
+    const row = data.find((r) => r.id === res.userId)!;
+    expect(row.designation).toBe("Vice Principal");
+    expect(row.roles.some((r) => r.key === "LIBRARIAN")).toBe(true); // role ≠ designation
+
+    // A staff account with no designation assigned at all.
+    const bareStaffId = await makeStaff(schoolAId, branchAId, { code: `NODESIG-${stamp}` });
+    const bareRes = await provisionAccount(ctxSchoolAdmin, scopeA, { targetRoleKey: "LIBRARIAN", email: `t9w2-nodesig-${stamp}@x.test`, staffId: bareStaffId });
+    userIds.push(bareRes.userId);
+    const bareRow = (await listAccounts(ctxSchoolAdmin, scopeA, {})).data.find((r) => r.id === bareRes.userId)!;
+    expect(bareRow.designation).toBeNull();
+
+    // A Student account — designation does not apply, ever.
+    const studentId = await makeStudent(schoolAId, branchAId, sessionAId, `T9W2-DESIGSTU-${stamp}`);
+    const studentRes = await provisionAccount(ctxSchoolAdmin, scopeA, { targetRoleKey: "STUDENT", email: `t9w2-desigstu-${stamp}@x.test`, studentId });
+    userIds.push(studentRes.userId);
+    const studentRow = (await listAccounts(ctxSchoolAdmin, scopeA, {})).data.find((r) => r.id === studentRes.userId)!;
+    expect(studentRow.designation).toBeNull();
+  });
+
+  it("Created By returns the REAL creator's name and their HISTORICAL role at creation time — never the creator's current/later role", async () => {
+    // scopeA is a shared test fixture whose `actor` is hardcoded to
+    // ctxSchoolAdmin — real requests instead get their OrgScope (and its
+    // actor) resolved per-caller by requireOrgScope(ctx). Rebuild that same
+    // shape here so the audit trail records the actor actually acting
+    // (ctxPrincipal), matching what production does for a real request.
+    const scopeAsPrincipal: OrgScope = { ...scopeA, actor: { id: ctxPrincipal.user.id, name: ctxPrincipal.user.name, roleKey: ctxPrincipal.activeRoleKey } };
+    const staffId = await makeStaff(schoolAId, branchAId, { code: `CREATEDBY-${stamp}`, isTeaching: true });
+    const res = await provisionAccount(ctxPrincipal, scopeAsPrincipal, { targetRoleKey: "TEACHER", email: `t9w2-createdby-${stamp}@x.test`, staffId });
+    userIds.push(res.userId);
+
+    const before = (await listAccounts(ctxSchoolAdmin, scopeA, {})).data.find((r) => r.id === res.userId)!;
+    expect(before.createdBy).not.toBeNull();
+    expect(before.createdBy!.id).toBe(ctxPrincipal.user.id);
+    expect(before.createdBy!.name).toBe(ctxPrincipal.user.name);
+    expect(before.createdBy!.roleKey).toBe("PRINCIPAL");
+    expect(before.createdBy!.roleName).toBe("Principal");
+
+    // Now grant ctxPrincipal's user an ADDITIONAL, broader role (simulating a
+    // later promotion) and re-list — the historical Created By must be
+    // completely unaffected, proving it is NOT derived from the creator's
+    // current RoleAssignment.
+    await assignRoleToAccount(ctxSchoolAdmin, scopeA, ctxPrincipal.user.id, { targetRoleKey: "TRANSPORT_MANAGER" });
+    const after = (await listAccounts(ctxSchoolAdmin, scopeA, {})).data.find((r) => r.id === res.userId)!;
+    expect(after.createdBy!.roleKey).toBe("PRINCIPAL");
+    expect(after.createdBy!.roleName).toBe("Principal");
+  });
+
+  it("a legacy account with no USER_ACCOUNT_PROVISIONED audit trail shows createdBy: null — never a guessed creator", async () => {
+    const legacyUser = await prisma.user.create({ data: { email: `t9w2-legacy-${stamp}@x.test`, name: "Legacy Account", status: "ACTIVE" }, select: { id: true } });
+    userIds.push(legacyUser.id);
+    const role = await prisma.role.findFirstOrThrow({ where: { key: "LIBRARIAN", isSystem: true }, select: { id: true } });
+    const membership = await prisma.tenantMembership.create({ data: { userId: legacyUser.id, tenantId, status: "ACTIVE" }, select: { id: true } });
+    await prisma.roleAssignment.create({ data: { membershipId: membership.id, roleId: role.id } });
+    // No Staff/Student/Guardian link, no AuditEvent — exactly a bare pre-tracking account.
+
+    const row = (await listAccounts(ctxSchoolAdmin, scopeA, {})).data.find((r) => r.id === legacyUser.id)!;
+    expect(row).toBeDefined();
+    expect(row.createdBy).toBeNull();
+  });
+
+  it("Created By never leaks across tenants — a foreign tenant's account shows its OWN real creator, not anything from another tenant", async () => {
+    // Same fixture-shape fix as above — scopeForeign's `actor` is a shared
+    // static hardcode with no roleKey; rebuild it to match ctxForeignAdmin.
+    const scopeForeignAsAdmin: OrgScope = { ...scopeForeign, actor: { id: ctxForeignAdmin.user.id, name: ctxForeignAdmin.user.name, roleKey: ctxForeignAdmin.activeRoleKey } };
+    const foreignStaff = await prisma.staff.create({ data: { tenantId: foreignTenantId, schoolId: foreignSchoolId, branchId: foreignBranchId, employeeCode: `FCREATED-${stamp}`, firstName: "Foreign", lastName: "Staff", status: "ACTIVE" }, select: { id: true } });
+    staffIds.push(foreignStaff.id);
+    const res = await provisionAccount(ctxForeignAdmin, scopeForeignAsAdmin, { targetRoleKey: "LIBRARIAN", email: `t9w2-fcreated-${stamp}@x.test`, staffId: foreignStaff.id });
+    userIds.push(res.userId);
+
+    const row = (await listAccounts(ctxForeignAdmin, scopeForeign, {})).data.find((r) => r.id === res.userId)!;
+    expect(row.createdBy).not.toBeNull();
+    expect(row.createdBy!.id).toBe(ctxForeignAdmin.user.id);
+    expect(row.createdBy!.roleKey).toBe("SCHOOL_ADMIN");
+
+    // And this foreign-tenant account/creator must never appear at all in
+    // School A's own listing (pre-existing tenant isolation, re-asserted here
+    // alongside the new Created By field).
+    const scopedToA = await listAccounts(ctxSchoolAdmin, scopeA, {});
+    expect(scopedToA.data.some((r) => r.id === res.userId)).toBe(false);
+  });
+});
+
 describe.skipIf(!dbReady)("Direct password creation (Create Account UX pass)", () => {
   it("creating with a password logs in immediately — real ACTIVE status, no setup token issued", async () => {
     const staffId = await makeStaff(schoolAId, branchAId, { code: `PWCREATE-${stamp}` });

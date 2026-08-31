@@ -474,11 +474,21 @@ export type AccountListItem = {
   staffId: string | null;
   studentId: string | null;
   guardianId: string | null;
+  // Secondary identifier for the User column — Staff.employeeCode or
+  // Student.admissionNumber. Guardian has no natural code of its own.
+  code: string | null;
   branchId: string | null;
   branchName: string | null;
   designation: string | null;
   createdAt: string;
   updatedAt: string;
+  // Who provisioned this login, and what real system Role they were acting as
+  // AT THAT MOMENT (lib/server/api/audit.ts AuditEvent.actorRoleKey — a
+  // historical snapshot, never the creator's current role). Null when no
+  // USER_ACCOUNT_PROVISIONED event exists for this account (created before
+  // this tracking existed, or via the separate platform school-provisioning
+  // flow) — the UI must render that as "—", never guess a creator.
+  createdBy: { id: string; name: string | null; roleKey: string | null; roleName: string | null } | null;
 };
 
 /**
@@ -524,6 +534,11 @@ export async function listAccounts(
   });
 
   const userConditions: Prisma.UserWhereInput[] = [
+    // The currently authenticated user must never appear in their own Users &
+    // Access list — resolved from the server-side session (ctx.user.id), NEVER
+    // a userId the client could send. Placed first so it composes with every
+    // other filter/count/pagination path below, not bolted on as a UI-only hide.
+    { id: { not: ctx.user.id } },
     {
       OR: [
         { staffProfile: { schoolId: scope.schoolId } },
@@ -534,7 +549,15 @@ export async function listAccounts(
     },
   ];
   if (search) {
-    userConditions.push({ OR: [{ email: { contains: search, mode: "insensitive" } }, { name: { contains: search, mode: "insensitive" } }] });
+    userConditions.push({
+      OR: [
+        { email: { contains: search, mode: "insensitive" } },
+        { name: { contains: search, mode: "insensitive" } },
+        { staffProfile: { phone: { contains: search, mode: "insensitive" } } },
+        { studentProfile: { phone: { contains: search, mode: "insensitive" } } },
+        { guardianProfile: { phone: { contains: search, mode: "insensitive" } } },
+      ],
+    });
   }
   if (filters.status) {
     userConditions.push({ status: filters.status as UserStatus });
@@ -573,8 +596,8 @@ export async function listAccounts(
             passwordSetupRequired: true,
             createdAt: true,
             updatedAt: true,
-            staffProfile: { select: { id: true, branchId: true, designation: true, phone: true } },
-            studentProfile: { select: { id: true, branchId: true, phone: true } },
+            staffProfile: { select: { id: true, branchId: true, designation: true, phone: true, employeeCode: true } },
+            studentProfile: { select: { id: true, branchId: true, phone: true, admissionNumber: true } },
             guardianProfile: { select: { id: true, phone: true } },
           },
         },
@@ -591,9 +614,32 @@ export async function listAccounts(
   const branches = branchIds.length ? await prisma.branch.findMany({ where: { id: { in: branchIds } }, select: { id: true, name: true } }) : [];
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
 
+  // "Created By" — batched over this page only (never per-row, never N+1).
+  // The earliest USER_ACCOUNT_PROVISIONED event for an entityId is its real
+  // creation event; a user reused-by-email and linked to a SECOND domain
+  // record later also gets this action recorded, so only the first one counts.
+  const pageUserIds = rows.map((r) => r.user.id);
+  const creationEvents = pageUserIds.length
+    ? await prisma.auditEvent.findMany({
+        where: { tenantId: scope.tenantId, action: "USER_ACCOUNT_PROVISIONED", entityType: "User", entityId: { in: pageUserIds } },
+        select: { entityId: true, actorUserId: true, actorName: true, actorRoleKey: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const creationEventByUserId = new Map<string, (typeof creationEvents)[number]>();
+  for (const e of creationEvents) {
+    if (!creationEventByUserId.has(e.entityId)) creationEventByUserId.set(e.entityId, e);
+  }
+  const creatorRoleKeys = [...new Set([...creationEventByUserId.values()].map((e) => e.actorRoleKey).filter((v): v is string => Boolean(v)))];
+  const creatorRoles = creatorRoleKeys.length
+    ? await prisma.role.findMany({ where: { key: { in: creatorRoleKeys }, isSystem: true }, select: { key: true, name: true } })
+    : [];
+  const creatorRoleNameByKey = new Map(creatorRoles.map((r) => [r.key, r.name]));
+
   return {
     data: rows.map((r) => {
       const branchId = r.user.staffProfile?.branchId ?? r.user.studentProfile?.branchId ?? null;
+      const creationEvent = creationEventByUserId.get(r.user.id);
       return {
         id: r.user.id,
         name: r.user.name,
@@ -606,11 +652,20 @@ export async function listAccounts(
         staffId: r.user.staffProfile?.id ?? null,
         studentId: r.user.studentProfile?.id ?? null,
         guardianId: r.user.guardianProfile?.id ?? null,
+        code: r.user.staffProfile?.employeeCode ?? r.user.studentProfile?.admissionNumber ?? null,
         branchId,
         branchName: branchId ? (branchNameById.get(branchId) ?? null) : null,
         designation: r.user.staffProfile?.designation ?? null,
         createdAt: r.user.createdAt.toISOString(),
         updatedAt: r.user.updatedAt.toISOString(),
+        createdBy: creationEvent?.actorUserId
+          ? {
+              id: creationEvent.actorUserId,
+              name: creationEvent.actorName,
+              roleKey: creationEvent.actorRoleKey,
+              roleName: creationEvent.actorRoleKey ? (creatorRoleNameByKey.get(creationEvent.actorRoleKey) ?? null) : null,
+            }
+          : null,
       };
     }),
     meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)), schoolName: school?.name ?? null },

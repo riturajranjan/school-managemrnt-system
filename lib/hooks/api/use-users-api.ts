@@ -23,11 +23,13 @@ export type AccountListItem = {
   staffId: string | null;
   studentId: string | null;
   guardianId: string | null;
+  code: string | null;
   branchId: string | null;
   branchName: string | null;
   designation: string | null;
   createdAt: string;
   updatedAt: string;
+  createdBy: { id: string; name: string | null; roleKey: string | null; roleName: string | null } | null;
 };
 
 export type AccountDetail = {
@@ -79,6 +81,7 @@ export type EditAccountInput = Partial<{
   phone: string;
   email: string;
   photoUrl: string;
+  departmentId: string;
   designationId: string;
   joiningDate: string;
 }>;

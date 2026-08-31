@@ -44,7 +44,7 @@ import {
   useUpdateAccount,
   type EditAccountInput,
 } from "@/lib/hooks/api/use-users-api";
-import { useDesignations } from "@/lib/hooks/api/use-hr-api";
+import { useDepartments, useDesignations } from "@/lib/hooks/api/use-hr-api";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -98,7 +98,14 @@ export default function UserProfilePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [seededFor, setSeededFor] = useState<string | null>(null);
-  const { data: designations } = useDesignations({ status: "active" });
+  const { data: departments } = useDepartments({ status: "active" });
+  // Department is a real filter, not just a display grouping — a designation
+  // belongs to at most one department (see resolveDeptDesigWrite server-side),
+  // so once a department is chosen only its own designations are offered.
+  const { data: designations } = useDesignations({
+    status: "active",
+    departmentId: form.departmentId || undefined,
+  });
 
   const { can } = usePermissions();
   const canManage = can("users.manage");
@@ -149,6 +156,7 @@ export default function UserProfilePage() {
       phone: detail.personal.mobile ?? undefined,
       email: detail.personal.contactEmail ?? undefined,
       photoUrl: detail.personal.photoUrl ?? undefined,
+      departmentId: undefined,
       designationId: undefined,
       joiningDate: detail.schoolAssignment?.joiningDate ?? undefined,
     });
@@ -185,6 +193,7 @@ export default function UserProfilePage() {
         "lastName",
         "phone",
         "email",
+        "departmentId",
         "designationId",
         "joiningDate",
       ],
@@ -375,6 +384,30 @@ export default function UserProfilePage() {
           {kind === "staff" && (
             <div className="grid grid-cols-2 gap-sm">
               <div>
+                <Label>Department</Label>
+                <Select
+                  value={form.departmentId ?? ""}
+                  onValueChange={(v) =>
+                    setForm({ ...form, departmentId: v, designationId: "" })
+                  }>
+                  <SelectTrigger aria-label="Department">
+                    <SelectValue
+                      placeholder={
+                        detail.schoolAssignment?.department ??
+                        "Select department"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(departments ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Designation</Label>
                 <Select
                   value={form.designationId ?? ""}
@@ -388,7 +421,7 @@ export default function UserProfilePage() {
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {designations.map((d) => (
+                    {(designations ?? []).map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.name}
                       </SelectItem>
@@ -396,7 +429,7 @@ export default function UserProfilePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="col-span-2">
                 <Label htmlFor="e-joining">Joining date</Label>
                 <Input
                   id="e-joining"

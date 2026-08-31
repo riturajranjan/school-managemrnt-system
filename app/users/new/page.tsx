@@ -269,7 +269,6 @@ export default function CreateAccountPage() {
     "/api/auth/context/branches",
   );
   const { data: departments } = useDepartments({ status: "active" });
-  const { data: designations } = useDesignations({ status: "active" });
 
   const [targetRoleKey, setTargetRoleKey] = useState("");
   const [mode, setMode] = useState<"link" | "create">("link");
@@ -293,6 +292,18 @@ export default function CreateAccountPage() {
   const [departmentId, setDepartmentId] = useState("");
   const [designationId, setDesignationId] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
+  // Department is a real filter, not just a display grouping — a designation
+  // belongs to at most one department (see resolveDeptDesigWrite server-side),
+  // so once a department is chosen only its own designations are offered.
+  const { data: designations } = useDesignations({
+    status: "active",
+    departmentId: departmentId || undefined,
+  });
+
+  function selectDepartment(v: string) {
+    setDepartmentId(v);
+    setDesignationId("");
+  }
 
   // Login credentials
   const [email, setEmail] = useState("");
@@ -704,7 +715,7 @@ export default function CreateAccountPage() {
                       <Label>Department</Label>
                       <Select
                         value={departmentId}
-                        onValueChange={setDepartmentId}>
+                        onValueChange={selectDepartment}>
                         <SelectTrigger aria-label="Department">
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
