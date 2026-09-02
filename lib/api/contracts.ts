@@ -3633,6 +3633,19 @@ export type CreateJobOpeningRequest = {
 };
 export type UpdateJobOpeningRequest = Partial<CreateJobOpeningRequest>;
 
+/** Whole-scope aggregates for the stat tiles — never Interviews/Offers,
+ * those entities don't exist in this schema. */
+export type RecruitmentSummaryDto = {
+  totalOpenings: number;
+  open: number;
+  closed: number;
+  draft: number;
+  archived: number;
+  positionsAvailable: number;
+  totalApplicants: number;
+  hired: number;
+};
+
 export type JobApplicantStageDto = "applied" | "screening" | "interview" | "selected" | "hired" | "rejected" | "withdrawn";
 
 export type JobApplicantDto = {

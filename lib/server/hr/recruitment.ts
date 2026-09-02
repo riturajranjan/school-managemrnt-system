@@ -14,6 +14,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
+import type { ListMeta } from "@/lib/server/api/response";
 import { parseInput } from "@/lib/server/validation";
 import { createStaff } from "@/lib/server/staff/service";
 import type { OrgScope } from "@/lib/server/api/scope";
@@ -24,6 +25,7 @@ import type {
   JobApplicantStageDto,
   JobOpeningDto,
   JobOpeningStatusDto,
+  RecruitmentSummaryDto,
 } from "@/lib/api/contracts";
 import { startEmployeeOnboarding } from "./onboarding";
 
@@ -109,15 +111,63 @@ async function requireOpeningRow(scope: OrgScope, openingId: string): Promise<Op
   return row;
 }
 
-export async function listJobOpenings(scope: OrgScope, params: { status?: JobOpeningStatusDto } = {}): Promise<JobOpeningDto[]> {
+export const listJobOpeningsSchema = z.object({
+  status: z.enum(JOB_OPENING_STATUS_VALUES).optional(),
+  departmentId: z.string().min(1).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+/** Search matches the opening's own title plus real department/designation
+ * names — never a free-text field that doesn't exist on the row. */
+export async function listJobOpenings(scope: OrgScope, raw: unknown = {}): Promise<{ data: JobOpeningDto[]; meta: ListMeta }> {
+  const input = parseInput(listJobOpeningsSchema, raw);
   const where: Prisma.JobOpeningWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-  if (params.status) where.status = DTO_TO_OPENING_STATUS[params.status] as never;
-  const rows = await prisma.jobOpening.findMany({ where, select: openingSelect, orderBy: { createdAt: "desc" } });
-  return rows.map(openingDto);
+  if (input.status) where.status = DTO_TO_OPENING_STATUS[input.status] as never;
+  if (input.departmentId) where.departmentId = input.departmentId;
+  if (input.search) {
+    const q = input.search;
+    where.OR = [
+      { title: { contains: q, mode: "insensitive" } },
+      { department: { name: { contains: q, mode: "insensitive" } } },
+      { designation: { name: { contains: q, mode: "insensitive" } } },
+    ];
+  }
+  const [total, rows] = await Promise.all([
+    prisma.jobOpening.count({ where }),
+    prisma.jobOpening.findMany({ where, select: openingSelect, orderBy: { createdAt: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+  ]);
+  return { data: rows.map(openingDto), meta: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) } };
 }
 
 export async function getJobOpening(scope: OrgScope, openingId: string): Promise<JobOpeningDto> {
   return openingDto(await requireOpeningRow(scope, openingId));
+}
+
+/** Whole-scope status aggregates for the stat tiles — deliberately ignores
+ * the list's own search/status/department filter and page so the tiles
+ * never regress to counting only the current page. Applicants/Hired are
+ * real JobApplicant counts (never Interviews/Offers — those entities don't
+ * exist). */
+export async function getRecruitmentSummary(scope: OrgScope): Promise<RecruitmentSummaryDto> {
+  const where: Prisma.JobOpeningWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
+  const applicantWhere: Prisma.JobApplicantWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
+  const [grouped, positionsAvailable, totalApplicants, hired] = await Promise.all([
+    prisma.jobOpening.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    prisma.jobOpening.aggregate({ where: { ...where, status: "OPEN" }, _sum: { openings: true } }),
+    prisma.jobApplicant.count({ where: applicantWhere }),
+    prisma.jobApplicant.count({ where: { ...applicantWhere, stage: "HIRED" } }),
+  ]);
+  const counts = Object.fromEntries(grouped.map((g) => [g.status, g._count._all]));
+  const draft = counts.DRAFT ?? 0, open = counts.OPEN ?? 0, closed = counts.CLOSED ?? 0, archived = counts.ARCHIVED ?? 0;
+  return {
+    totalOpenings: draft + open + closed + archived,
+    open, closed, draft, archived,
+    positionsAvailable: positionsAvailable._sum.openings ?? 0,
+    totalApplicants,
+    hired,
+  };
 }
 
 async function resolveBranch(scope: OrgScope): Promise<string> {

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
+import type { ListMeta } from "@/lib/server/api/response";
 import { parseInput } from "@/lib/server/validation";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { HrPolicyDto, HrPolicyStatusDto, MyHrPolicyDto } from "@/lib/api/contracts";
@@ -67,11 +68,28 @@ async function requirePolicyRow(scope: OrgScope, policyId: string): Promise<Row>
   return row;
 }
 
-export async function listHrPolicies(scope: OrgScope, params: { status?: HrPolicyStatusDto } = {}): Promise<HrPolicyDto[]> {
+export const listHrPoliciesSchema = z.object({
+  status: z.enum(HR_POLICY_STATUS_VALUES).optional(),
+  category: z.string().trim().max(80).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+export async function listHrPolicies(scope: OrgScope, raw: unknown = {}): Promise<{ data: HrPolicyDto[]; meta: ListMeta }> {
+  const input = parseInput(listHrPoliciesSchema, raw);
   const where: Prisma.HrPolicyWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-  if (params.status) where.status = DTO_TO_STATUS[params.status] as never;
-  const rows = await prisma.hrPolicy.findMany({ where, select, orderBy: { createdAt: "desc" } });
-  return rows.map(dto);
+  if (input.status) where.status = DTO_TO_STATUS[input.status] as never;
+  if (input.category) where.category = { equals: input.category, mode: "insensitive" };
+  if (input.search) {
+    const q = input.search;
+    where.OR = [{ title: { contains: q, mode: "insensitive" } }, { category: { contains: q, mode: "insensitive" } }];
+  }
+  const [total, rows] = await Promise.all([
+    prisma.hrPolicy.count({ where }),
+    prisma.hrPolicy.findMany({ where, select, orderBy: { createdAt: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+  ]);
+  return { data: rows.map(dto), meta: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) } };
 }
 
 export async function getHrPolicy(scope: OrgScope, policyId: string): Promise<HrPolicyDto> {

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
+import type { ListMeta } from "@/lib/server/api/response";
 import { parseInput } from "@/lib/server/validation";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { AssignShiftRequest, MyShiftDto, ShiftAssignmentDto, ShiftDto, ShiftStatusDto } from "@/lib/api/contracts";
@@ -67,11 +68,23 @@ async function requireShiftRow(scope: OrgScope, shiftId: string): Promise<ShiftR
   return row;
 }
 
-export async function listShifts(scope: OrgScope, params: { status?: ShiftStatusDto } = {}): Promise<ShiftDto[]> {
+export const listShiftsSchema = z.object({
+  status: z.enum(SHIFT_STATUS_VALUES).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+export async function listShifts(scope: OrgScope, raw: unknown = {}): Promise<{ data: ShiftDto[]; meta: ListMeta }> {
+  const input = parseInput(listShiftsSchema, raw);
   const where: Prisma.ShiftWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-  if (params.status) where.status = DTO_TO_STATUS[params.status] as never;
-  const rows = await prisma.shift.findMany({ where, select: shiftSelect, orderBy: { name: "asc" } });
-  return rows.map(shiftDto);
+  if (input.status) where.status = DTO_TO_STATUS[input.status] as never;
+  if (input.search) where.name = { contains: input.search, mode: "insensitive" };
+  const [total, rows] = await Promise.all([
+    prisma.shift.count({ where }),
+    prisma.shift.findMany({ where, select: shiftSelect, orderBy: { name: "asc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+  ]);
+  return { data: rows.map(shiftDto), meta: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) } };
 }
 
 export async function getShift(scope: OrgScope, shiftId: string): Promise<ShiftDto> {

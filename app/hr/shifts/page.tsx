@@ -6,7 +6,7 @@
 // server — see lib/server/hr/shifts.ts. hr.view/hr.manage RBAC — no new
 // permission.
 import { useState } from "react";
-import { CalendarClock, Clock, Plus, UserPlus } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Clock, Plus, Search, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,9 +17,12 @@ import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { assignShiftRequest, createShiftRequest, setShiftStatusRequest, useShiftAssignments, useShifts } from "@/lib/hooks/api/use-hr-api";
 import { useStaffList } from "@/lib/hooks/api/use-staff-api";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { ShiftDto, ShiftStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
 
 const WEEKDAYS = [
   { code: "MON", label: "Mon" }, { code: "TUE", label: "Tue" }, { code: "WED", label: "Wed" }, { code: "THU", label: "Thu" },
@@ -28,7 +31,16 @@ const WEEKDAYS = [
 
 export default function ShiftsPage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
-  const { data: shifts, loading, error, reload } = useShifts();
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const [statusFilter, setStatusFilter] = useState<ShiftStatusDto | "all">("all");
+  const [page, setPage] = useState(1);
+  const { data: shifts, meta, loading, error, reload } = useShifts({
+    search: debouncedSearch || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
   const { data: staff } = useStaffList({ status: "active", pageSize: 500 });
   const [createOpen, setCreateOpen] = useState(false);
   const [manageShift, setManageShift] = useState<ShiftDto | null>(null);
@@ -52,6 +64,8 @@ export default function ShiftsPage() {
     return <PermissionDenied action="view shifts" role={roleLabels[role]} backHref="/hr" />;
   }
   const canManage = hasServerPermission("hr.manage");
+  const isFiltered = searchInput.trim().length > 0 || statusFilter !== "all";
+  const totalPages = meta?.totalPages ?? 1;
 
   function toMinutes(hhmm: string): number {
     const [h, m] = hhmm.split(":").map(Number);
@@ -99,14 +113,42 @@ export default function ShiftsPage() {
         {canManage && <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="size-3.5" /> New shift</Button>}
       </div>
 
-      {error && <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">Could not load shifts: {error}</div>}
+      {error && (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
+          Could not load shifts: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>Retry</Button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+            placeholder="Search shift name…"
+            aria-label="Search shifts"
+            className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as ShiftStatusDto | "all"); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {loading && shifts.length === 0 ? (
         <p className="py-2xl text-center text-sm text-muted-foreground">Loading shifts…</p>
       ) : shifts.length === 0 ? (
         <div className="flex flex-col items-center gap-sm rounded-lg border border-dashed border-border bg-surface px-md py-2xl text-center">
           <CalendarClock className="size-6 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No shifts found.</p>
+          <p className="text-sm text-muted-foreground">
+            {isFiltered ? "No shifts match your search or filters." : "No shifts found."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
@@ -142,6 +184,20 @@ export default function ShiftsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {meta && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-sm text-sm">
+          <span className="text-muted-foreground">Page {meta.page} of {totalPages} · {meta.total} total</span>
+          <div className="flex gap-xs">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
         </div>
       )}
 

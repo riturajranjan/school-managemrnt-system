@@ -34,6 +34,7 @@ import type {
   PerformanceReviewDto,
   PerformanceReviewStatusDto,
   PerformanceReviewSummaryDto,
+  RecruitmentSummaryDto,
   ShiftAssignmentDto,
   ShiftDto,
   ShiftStatusDto,
@@ -166,11 +167,15 @@ export const setTrainingParticipantStatusRequest = (
 
 // ── Recruitment (Production migration, HR Sub-batch 4) ──────────────────
 
-export function useJobOpenings(filters: { status?: JobOpeningStatusDto } = {}) {
+export function useJobOpenings(filters: { status?: JobOpeningStatusDto; departmentId?: string; search?: string; page?: number; pageSize?: number } = {}) {
   return useApiList<JobOpeningDto>(`/api/hr/job-openings${buildQuery(filters)}`);
 }
 export function useJobOpening(openingId: string | undefined) {
   return useApiResource<JobOpeningDto>(openingId ? `/api/hr/job-openings/${openingId}` : null);
+}
+/** Whole-scope openings/applicant aggregates for the stat tiles — unaffected by the list's own search/filter/page. */
+export function useRecruitmentSummary() {
+  return useApiResource<RecruitmentSummaryDto>("/api/hr/job-openings/summary");
 }
 export const createJobOpeningRequest = (body: CreateJobOpeningRequest): Promise<ApiResult<JobOpeningDto>> => apiPost<JobOpeningDto>("/api/hr/job-openings", body);
 export const updateJobOpeningRequest = (id: string, body: UpdateJobOpeningRequest): Promise<ApiResult<JobOpeningDto>> => apiPatch<JobOpeningDto>(`/api/hr/job-openings/${id}`, body);
@@ -189,7 +194,7 @@ export const startOnboardingFromApplicantRequest = (id: string, body: StartOnboa
 
 // ── Employee Onboarding (Production migration, HR Sub-batch 4) ──────────
 
-export function useEmployeeOnboardings(filters: { status?: EmployeeOnboardingStatusDto } = {}) {
+export function useEmployeeOnboardings(filters: { status?: EmployeeOnboardingStatusDto; search?: string; page?: number; pageSize?: number } = {}) {
   return useApiList<EmployeeOnboardingDto>(`/api/hr/onboarding${buildQuery(filters)}`);
 }
 export function useEmployeeOnboarding(onboardingId: string | undefined) {
@@ -208,7 +213,7 @@ export const reopenOnboardingTaskRequest = (taskId: string): Promise<ApiResult<E
 
 // ── HR Policies (Production migration, HR Sub-batch 4) ──────────────────
 
-export function useHrPolicies(filters: { status?: HrPolicyStatusDto } = {}) {
+export function useHrPolicies(filters: { status?: HrPolicyStatusDto; category?: string; search?: string; page?: number; pageSize?: number } = {}) {
   return useApiList<HrPolicyDto>(`/api/hr/policies${buildQuery(filters)}`);
 }
 export const createHrPolicyRequest = (body: CreateHrPolicyRequest): Promise<ApiResult<HrPolicyDto>> => apiPost<HrPolicyDto>("/api/hr/policies", body);
@@ -220,7 +225,7 @@ export const acknowledgePolicyRequest = (id: string): Promise<ApiResult<{ acknow
 
 // ── Shifts (Production migration, HR Sub-batch 4) ────────────────────────
 
-export function useShifts(filters: { status?: ShiftStatusDto } = {}) {
+export function useShifts(filters: { status?: ShiftStatusDto; search?: string; page?: number; pageSize?: number } = {}) {
   return useApiList<ShiftDto>(`/api/hr/shifts${buildQuery(filters)}`);
 }
 export const createShiftRequest = (body: CreateShiftRequest): Promise<ApiResult<ShiftDto>> => apiPost<ShiftDto>("/api/hr/shifts", body);

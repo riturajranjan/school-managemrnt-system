@@ -8,14 +8,21 @@ import { readJson, singleParam } from "@/lib/server/api/request";
 import { ok } from "@/lib/server/api/response";
 import { requireOrgScope } from "@/lib/server/api/scope";
 import { createHrPolicy, listHrPolicies } from "@/lib/server/hr/policies";
-import type { HrPolicyStatusDto } from "@/lib/api/contracts";
 
 export async function GET(request: NextRequest) {
   return handle(async () => {
     const ctx = await requireAnyPermission(["hr.view", "hr.manage"]);
     const scope = await requireOrgScope(ctx);
     const sp = request.nextUrl.searchParams;
-    return ok(await listHrPolicies(scope, { status: singleParam(sp, "status") as HrPolicyStatusDto | undefined }));
+    const page = singleParam(sp, "page"), pageSize = singleParam(sp, "pageSize");
+    const { data, meta } = await listHrPolicies(scope, {
+      status: singleParam(sp, "status"),
+      category: singleParam(sp, "category"),
+      search: singleParam(sp, "search"),
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    return ok(data, meta);
   });
 }
 

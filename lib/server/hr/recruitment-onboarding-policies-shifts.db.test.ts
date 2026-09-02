@@ -18,6 +18,7 @@ import {
   createJobOpening,
   getJobApplicant,
   getJobOpening,
+  getRecruitmentSummary,
   JOB_APPLICANT_STAGE_VALUES,
   JOB_OPENING_STATUS_VALUES,
   listJobApplicants,
@@ -157,7 +158,7 @@ describe.skipIf(!dbReady)("RBAC catalog contract — no new permission introduce
   it("SCHOOL_ADMIN (hr.view) can read the full recruitment directory but the service layer applies no extra restriction beyond scope — RBAC itself is enforced at the route layer (requirePermission), matching every other HR sub-batch's documented convention", async () => {
     const opening = await createJobOpening(scopeHrAdminA, { title: "SCHOOL_ADMIN read check" });
     const list = await listJobOpenings(scopeSchoolAdminA);
-    expect(list.some((o) => o.id === opening.id)).toBe(true);
+    expect(list.data.some((o) => o.id === opening.id)).toBe(true);
     void scopePrincipalA; // PRINCIPAL/TEACHER/STAFF get hr.viewOwn only — enforced at the route layer, not here.
   });
 });
@@ -245,7 +246,7 @@ describe.skipIf(!dbReady)("Recruitment (DB)", () => {
     const applicant = await createJobApplicant(scopeHrAdminA, { jobOpeningId: opening.id, candidateName: "Iso Candidate", email: `iso-${stamp}@x.test` });
 
     const listB = await listJobOpenings(scopeHrAdminB);
-    expect(listB.some((o) => o.id === opening.id)).toBe(false);
+    expect(listB.data.some((o) => o.id === opening.id)).toBe(false);
     await expect(getJobOpening(scopeHrAdminB, opening.id)).rejects.toThrow(HttpError);
     await expect(updateJobOpening(scopeHrAdminB, opening.id, { title: "hijacked" })).rejects.toThrow(HttpError);
     await expect(setJobOpeningStatus(scopeHrAdminB, opening.id, "archived")).rejects.toThrow(HttpError);
@@ -260,6 +261,42 @@ describe.skipIf(!dbReady)("Recruitment (DB)", () => {
     expect(JOB_OPENING_STATUS_VALUES).not.toContain("bogus");
     expect(JOB_APPLICANT_STAGE_VALUES).toContain("hired");
     expect(JOB_APPLICANT_STAGE_VALUES).not.toContain("bogus");
+  });
+
+  it("search + department filter + pagination, and cross-tenant isolation via search", async () => {
+    const uniqueTitle = `Search-${NS}-${stamp}`;
+    await createJobOpening(scopeHrAdminA, { title: `${uniqueTitle} Alpha`, departmentId: deptA });
+    await createJobOpening(scopeHrAdminA, { title: `${uniqueTitle} Beta` });
+
+    const bySearch = await listJobOpenings(scopeHrAdminA, { search: uniqueTitle });
+    expect(bySearch.data.length).toBe(2);
+    expect(bySearch.meta.total).toBe(2);
+
+    const byDept = await listJobOpenings(scopeHrAdminA, { search: uniqueTitle, departmentId: deptA });
+    expect(byDept.data.length).toBe(1);
+    expect(byDept.data[0].title).toBe(`${uniqueTitle} Alpha`);
+
+    const page1 = await listJobOpenings(scopeHrAdminA, { search: uniqueTitle, page: 1, pageSize: 1 });
+    expect(page1.data.length).toBe(1);
+    expect(page1.meta.totalPages).toBe(2);
+    const page2 = await listJobOpenings(scopeHrAdminA, { search: uniqueTitle, page: 2, pageSize: 1 });
+    expect(page2.data.length).toBe(1);
+    expect(page2.data[0].id).not.toBe(page1.data[0].id);
+
+    const crossTenant = await listJobOpenings(scopeHrAdminB, { search: uniqueTitle });
+    expect(crossTenant.data.length).toBe(0);
+  });
+
+  it("real summary aggregates reflect the whole scope, never the current page/filter — Applicants/Hired only, never fabricated Interviews/Offers", async () => {
+    const before = await getRecruitmentSummary(scopeHrAdminA);
+    const opening = await createJobOpening(scopeHrAdminA, { title: `Summary-${stamp}`, openings: 3 });
+    await setJobOpeningStatus(scopeHrAdminA, opening.id, "open");
+    const after = await getRecruitmentSummary(scopeHrAdminA);
+    expect(after.totalOpenings).toBe(before.totalOpenings + 1);
+    expect(after.open).toBe(before.open + 1);
+    expect(after.positionsAvailable).toBeGreaterThanOrEqual(before.positionsAvailable + 3);
+    expect(after).not.toHaveProperty("interviews");
+    expect(after).not.toHaveProperty("offers");
   });
 
   it("DTOs never leak tenantId/schoolId/branchId", async () => {
@@ -314,7 +351,7 @@ describe.skipIf(!dbReady)("Employee Onboarding (DB)", () => {
     const staff = (await createStaff(scopeHrAdminA, { employeeCode: `${NS}-ISO-${stamp}`, firstName: "Iso" })).id;
     const onboarding = await createEmployeeOnboarding(scopeHrAdminA, { staffId: staff, startDate: "2026-01-01" });
     const listB = await listEmployeeOnboardings(scopeHrAdminB);
-    expect(listB.some((o) => o.id === onboarding.id)).toBe(false);
+    expect(listB.data.some((o) => o.id === onboarding.id)).toBe(false);
     await expect(getEmployeeOnboarding(scopeHrAdminB, onboarding.id)).rejects.toThrow(HttpError);
     await expect(updateEmployeeOnboarding(scopeHrAdminB, onboarding.id, {})).rejects.toThrow(HttpError);
     await expect(setEmployeeOnboardingStatus(scopeHrAdminB, onboarding.id, "cancelled")).rejects.toThrow(HttpError);
@@ -338,6 +375,24 @@ describe.skipIf(!dbReady)("Employee Onboarding (DB)", () => {
   it("invalid status value rejected at the value-set level", () => {
     expect(EMPLOYEE_ONBOARDING_STATUS_VALUES).toContain("cancelled");
     expect(EMPLOYEE_ONBOARDING_STATUS_VALUES).not.toContain("bogus");
+  });
+
+  it("search by real Staff name/employee code + status filter + pagination", async () => {
+    const staff = (await createStaff(scopeHrAdminA, { employeeCode: `${NS}-SEARCH-${stamp}`, firstName: "Zed", lastName: `Search${stamp}` })).id;
+    await createEmployeeOnboarding(scopeHrAdminA, { staffId: staff, startDate: "2026-01-01" });
+
+    const byName = await listEmployeeOnboardings(scopeHrAdminA, { search: `Search${stamp}` });
+    expect(byName.data.length).toBe(1);
+    expect(byName.data[0].staffId).toBe(staff);
+    expect(byName.meta.page).toBe(1);
+
+    const byCode = await listEmployeeOnboardings(scopeHrAdminA, { search: `${NS}-SEARCH-${stamp}` });
+    expect(byCode.data.some((o) => o.staffId === staff)).toBe(true);
+
+    const byStatus = await listEmployeeOnboardings(scopeHrAdminA, { search: `Search${stamp}`, status: "not-started" });
+    expect(byStatus.data.length).toBe(1);
+    const byWrongStatus = await listEmployeeOnboardings(scopeHrAdminA, { search: `Search${stamp}`, status: "completed" });
+    expect(byWrongStatus.data.length).toBe(0);
   });
 });
 
@@ -389,7 +444,7 @@ describe.skipIf(!dbReady)("HR Policies (DB)", () => {
   it("School A / School B isolation: HR Admin B cannot read/update/status-change School A's policy", async () => {
     const policy = await createHrPolicy(scopeHrAdminA, { title: "Isolated policy", content: "x", version: "1.0" });
     const listB = await listHrPolicies(scopeHrAdminB);
-    expect(listB.some((p) => p.id === policy.id)).toBe(false);
+    expect(listB.data.some((p) => p.id === policy.id)).toBe(false);
     await expect(getHrPolicy(scopeHrAdminB, policy.id)).rejects.toThrow(HttpError);
     await expect(updateHrPolicy(scopeHrAdminB, policy.id, { content: "hijacked" })).rejects.toThrow(HttpError);
     await expect(setHrPolicyStatus(scopeHrAdminB, policy.id, "archived")).rejects.toThrow(HttpError);
@@ -398,6 +453,23 @@ describe.skipIf(!dbReady)("HR Policies (DB)", () => {
   it("invalid status value rejected at the value-set level", () => {
     expect(HR_POLICY_STATUS_VALUES).toContain("published");
     expect(HR_POLICY_STATUS_VALUES).not.toContain("bogus");
+  });
+
+  it("search + category filter + pagination", async () => {
+    const uniqueTitle = `Policy-Search-${stamp}`;
+    await createHrPolicy(scopeHrAdminA, { title: `${uniqueTitle} A`, content: "x", version: "1.0", category: "Leave" });
+    await createHrPolicy(scopeHrAdminA, { title: `${uniqueTitle} B`, content: "x", version: "1.0", category: "Conduct" });
+
+    const bySearch = await listHrPolicies(scopeHrAdminA, { search: uniqueTitle });
+    expect(bySearch.data.length).toBe(2);
+
+    const byCategory = await listHrPolicies(scopeHrAdminA, { search: uniqueTitle, category: "Leave" });
+    expect(byCategory.data.length).toBe(1);
+    expect(byCategory.data[0].title).toBe(`${uniqueTitle} A`);
+
+    const paged = await listHrPolicies(scopeHrAdminA, { search: uniqueTitle, page: 1, pageSize: 1 });
+    expect(paged.meta.totalPages).toBe(2);
+    expect(paged.data.length).toBe(1);
   });
 });
 
@@ -443,7 +515,7 @@ describe.skipIf(!dbReady)("Shifts (DB)", () => {
   it("School A / School B isolation: HR Admin B cannot read/update/status-change/assign on School A's shift", async () => {
     const shift = await createShift(scopeHrAdminA, { name: `Isolated-${stamp}`, startMinutes: 0, endMinutes: 480 });
     const listB = await listShifts(scopeHrAdminB);
-    expect(listB.some((s) => s.id === shift.id)).toBe(false);
+    expect(listB.data.some((s) => s.id === shift.id)).toBe(false);
     await expect(getShift(scopeHrAdminB, shift.id)).rejects.toThrow(HttpError);
     await expect(updateShift(scopeHrAdminB, shift.id, { name: "hijacked" })).rejects.toThrow(HttpError);
     await expect(setShiftStatus(scopeHrAdminB, shift.id, "inactive")).rejects.toThrow(HttpError);
@@ -453,6 +525,26 @@ describe.skipIf(!dbReady)("Shifts (DB)", () => {
   it("invalid status value rejected at the value-set level", () => {
     expect(SHIFT_STATUS_VALUES).toContain("inactive");
     expect(SHIFT_STATUS_VALUES).not.toContain("bogus");
+  });
+
+  it("overnight shift (end crosses midnight) is accepted — endMinutes is not assumed to be later than startMinutes on the same day", async () => {
+    const shift = await createShift(scopeHrAdminA, { name: `Night-${stamp}`, startMinutes: 22 * 60, endMinutes: 6 * 60 }); // 22:00 -> 06:00
+    expect(shift.startTime).toBe("22:00");
+    expect(shift.endTime).toBe("06:00");
+    expect(shift.startMinutes).toBeGreaterThan(shift.endMinutes);
+  });
+
+  it("search by name + pagination", async () => {
+    const uniqueName = `Shift-Search-${stamp}`;
+    await createShift(scopeHrAdminA, { name: `${uniqueName}-1`, startMinutes: 0, endMinutes: 480 });
+    await createShift(scopeHrAdminA, { name: `${uniqueName}-2`, startMinutes: 480, endMinutes: 960 });
+
+    const bySearch = await listShifts(scopeHrAdminA, { search: uniqueName });
+    expect(bySearch.data.length).toBe(2);
+
+    const paged = await listShifts(scopeHrAdminA, { search: uniqueName, page: 1, pageSize: 1 });
+    expect(paged.meta.totalPages).toBe(2);
+    expect(paged.data.length).toBe(1);
   });
 });
 

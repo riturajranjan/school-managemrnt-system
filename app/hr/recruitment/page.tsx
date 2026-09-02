@@ -12,7 +12,7 @@
 // system, and never invoked as a side effect of a stage change).
 import Link from "next/link";
 import { useState } from "react";
-import { BriefcaseBusiness, CalendarClock, Plus, UserPlus, Users } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, ChevronLeft, ChevronRight, Plus, Search, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -30,11 +30,15 @@ import {
   startOnboardingFromApplicantRequest,
   useJobApplicants,
   useJobOpenings,
+  useRecruitmentSummary,
 } from "@/lib/hooks/api/use-hr-api";
 import { useDepartments, useDesignations } from "@/lib/hooks/api/use-hr-api";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { EmploymentType, JobApplicantDto, JobApplicantStageDto, JobOpeningDto, JobOpeningStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
 
 const openingStatusLabels: Record<JobOpeningStatusDto, string> = { draft: "Draft", open: "Open", closed: "Closed", archived: "Archived" };
 const openingStatusTone: Record<JobOpeningStatusDto, "success" | "warning" | "error" | "neutral" | "info"> = {
@@ -62,7 +66,20 @@ const empTypeLabels: Record<EmploymentType, string> = { "full-time": "Full time"
 
 export default function RecruitmentPage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
-  const { data: openings, loading, error, reload } = useJobOpenings();
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const [statusFilter, setStatusFilter] = useState<JobOpeningStatusDto | "all">("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+
+  const { data: openings, meta, loading, error, reload } = useJobOpenings({
+    search: debouncedSearch || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    departmentId: departmentFilter === "all" ? undefined : departmentFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const { data: summary } = useRecruitmentSummary();
   const { data: departments } = useDepartments({ status: "active" });
   const { data: designations } = useDesignations({ status: "active" });
   const [createOpen, setCreateOpen] = useState(false);
@@ -91,9 +108,8 @@ export default function RecruitmentPage() {
     return <PermissionDenied action="view recruitment" role={roleLabels[role]} backHref="/hr" />;
   }
   const canManage = hasServerPermission("hr.manage");
-
-  const openCount = openings.filter((o) => o.status === "open").reduce((s, o) => s + o.openings, 0);
-  const totalApplicants = openings.reduce((s, o) => s + o.applicantCount, 0);
+  const isFiltered = searchInput.trim().length > 0 || statusFilter !== "all" || departmentFilter !== "all";
+  const totalPages = meta?.totalPages ?? 1;
 
   function resetForm() {
     setTitle(""); setDepartmentId(""); setDesignationId(""); setEmploymentType(""); setOpeningsCount("1");
@@ -168,20 +184,54 @@ export default function RecruitmentPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Open positions" value={String(openCount)} icon={BriefcaseBusiness} tone={openCount > 0 ? "warning" : "success"} />
-        <StatTile label="Openings" value={String(openings.length)} icon={BriefcaseBusiness} tone="neutral" />
-        <StatTile label="Applicants" value={String(totalApplicants)} icon={Users} tone="info" />
-        <StatTile label="Hired" value={String(0)} icon={Users} tone="success" />
+        <StatTile label="Positions available" value={summary ? String(summary.positionsAvailable) : "—"} icon={BriefcaseBusiness} tone={summary && summary.positionsAvailable > 0 ? "warning" : "success"} />
+        <StatTile label="Total openings" value={summary ? String(summary.totalOpenings) : "—"} icon={BriefcaseBusiness} tone="neutral" />
+        <StatTile label="Applicants" value={summary ? String(summary.totalApplicants) : "—"} icon={Users} tone="info" />
+        <StatTile label="Hired" value={summary ? String(summary.hired) : "—"} icon={Users} tone="success" />
       </div>
 
-      {error && <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">Could not load job openings: {error}</div>}
+      {error && (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
+          Could not load job openings: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>Retry</Button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+            placeholder="Search title, department, or designation…"
+            aria-label="Search job openings"
+            className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as JobOpeningStatusDto | "all"); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {(Object.keys(openingStatusLabels) as JobOpeningStatusDto[]).map((s) => <SelectItem key={s} value={s}>{openingStatusLabels[s]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={departmentFilter} onValueChange={(v) => { setDepartmentFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by department"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All departments</SelectItem>
+            {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="rounded-lg border border-border bg-surface p-md">
         <h2 className="mb-sm text-sm font-semibold text-foreground">Job openings</h2>
         {loading && openings.length === 0 ? (
           <p className="py-md text-center text-sm text-muted-foreground">Loading job openings…</p>
         ) : openings.length === 0 ? (
-          <p className="py-md text-center text-sm text-muted-foreground">No job openings found.</p>
+          <p className="py-md text-center text-sm text-muted-foreground">
+            {isFiltered ? "No job openings match your search or filters." : "No job openings found."}
+          </p>
         ) : (
           <div className="flex flex-col gap-sm">
             {openings.map((o) => (
@@ -208,6 +258,20 @@ export default function RecruitmentPage() {
           </div>
         )}
       </div>
+
+      {meta && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-sm text-sm">
+          <span className="text-muted-foreground">Page {meta.page} of {totalPages} · {meta.total} total</span>
+          <div className="flex gap-xs">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {canManage && (
         <DetailDrawer open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetForm(); }} title="Create job opening" description="Post a real job opening">

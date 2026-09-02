@@ -6,14 +6,20 @@ import { readJson, singleParam } from "@/lib/server/api/request";
 import { ok } from "@/lib/server/api/response";
 import { requireOrgScope } from "@/lib/server/api/scope";
 import { createShift, listShifts } from "@/lib/server/hr/shifts";
-import type { ShiftStatusDto } from "@/lib/api/contracts";
 
 export async function GET(request: NextRequest) {
   return handle(async () => {
     const ctx = await requireAnyPermission(["hr.view", "hr.manage"]);
     const scope = await requireOrgScope(ctx);
     const sp = request.nextUrl.searchParams;
-    return ok(await listShifts(scope, { status: singleParam(sp, "status") as ShiftStatusDto | undefined }));
+    const page = singleParam(sp, "page"), pageSize = singleParam(sp, "pageSize");
+    const { data, meta } = await listShifts(scope, {
+      status: singleParam(sp, "status"),
+      search: singleParam(sp, "search"),
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    return ok(data, meta);
   });
 }
 

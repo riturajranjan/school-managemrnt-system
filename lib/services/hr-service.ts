@@ -9,7 +9,6 @@ import type {
   Interview,
   InterviewType,
   LetterType,
-  RecruitmentJob,
 } from "@/lib/types/hr";
 import { moneyFromMajor } from "@/lib/finance/money";
 import { generateId } from "@/lib/utils";
@@ -130,23 +129,6 @@ export function scheduleInterview(input: { candidateId: string; jobId: string; t
   const interview: Interview = { id: generateId("intv"), candidateId: input.candidateId, jobId: input.jobId, type: input.type, date: input.date, time: input.time, durationMinutes: 45, interviewerIds: input.interviewerIds, location: input.location, videoLink: input.videoLink, status: "scheduled" };
   setState((db) => ({ ...db, interviews: [interview, ...db.interviews], candidates: db.candidates.map((c) => (c.id === input.candidateId && (c.stage === "shortlisted" || c.stage === "screening") ? { ...c, stage: "interview" } : c)) }));
   return { ok: true, interview };
-}
-
-export function updateJobStatus(jobId: string, status: RecruitmentJob["status"]): Result {
-  const db = getSnapshot();
-  if (!db.recruitmentJobs.some((j) => j.id === jobId)) return { ok: false, error: "Job not found." };
-  setState((current) => ({ ...current, recruitmentJobs: current.recruitmentJobs.map((j) => (j.id === jobId ? { ...j, status } : j)) }));
-  return { ok: true };
-}
-
-export type JobDraft = Omit<RecruitmentJob, "id" | "createdAt" | "status"> & { status?: RecruitmentJob["status"] };
-
-export function createJob(draft: JobDraft): Result & { job?: RecruitmentJob } {
-  if (!draft.title.trim()) return { ok: false, error: "Job title is required." };
-  const now = new Date().toISOString();
-  const job: RecruitmentJob = { ...draft, id: generateId("job"), status: draft.status ?? "open", createdAt: now };
-  setState((db) => ({ ...db, recruitmentJobs: [job, ...db.recruitmentJobs] }));
-  return { ok: true, job };
 }
 
 /** Converts a hired candidate into an employee record (frontend mock). */

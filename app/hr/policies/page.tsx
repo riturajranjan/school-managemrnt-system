@@ -5,7 +5,7 @@
 // Service (see /hr/employee-self-service) — this admin page shows every
 // status, including drafts, gated by hr.view/hr.manage. No new permission.
 import { useState } from "react";
-import { Plus, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -15,9 +15,12 @@ import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
 import { createHrPolicyRequest, setHrPolicyStatusRequest, useHrPolicies } from "@/lib/hooks/api/use-hr-api";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { HrPolicyDto, HrPolicyStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
 
 const statusLabels: Record<HrPolicyStatusDto, string> = { draft: "Draft", published: "Published", archived: "Archived" };
 const statusTone: Record<HrPolicyStatusDto, "success" | "warning" | "error" | "neutral" | "info"> = { draft: "neutral", published: "success", archived: "warning" };
@@ -25,7 +28,16 @@ const NEXT_STATUS: Record<HrPolicyStatusDto, HrPolicyStatusDto[]> = { draft: ["p
 
 export default function PoliciesPage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
-  const { data: policies, loading, error, reload } = useHrPolicies();
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const [statusFilter, setStatusFilter] = useState<HrPolicyStatusDto | "all">("all");
+  const [page, setPage] = useState(1);
+  const { data: policies, meta, loading, error, reload } = useHrPolicies({
+    search: debouncedSearch || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -40,6 +52,8 @@ export default function PoliciesPage() {
     return <PermissionDenied action="view policies" role={roleLabels[role]} backHref="/hr" />;
   }
   const canManage = hasServerPermission("hr.manage");
+  const isFiltered = searchInput.trim().length > 0 || statusFilter !== "all";
+  const totalPages = meta?.totalPages ?? 1;
 
   function resetForm() {
     setTitle(""); setCategory(""); setContent(""); setVersion("1.0"); setEffectiveDate(""); setFormError(null);
@@ -72,14 +86,41 @@ export default function PoliciesPage() {
         {canManage && <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="size-3.5" /> New policy</Button>}
       </div>
 
-      {error && <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">Could not load policies: {error}</div>}
+      {error && (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
+          Could not load policies: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>Retry</Button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+            placeholder="Search title or category…"
+            aria-label="Search policies"
+            className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as HrPolicyStatusDto | "all"); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {(Object.keys(statusLabels) as HrPolicyStatusDto[]).map((s) => <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
       {loading && policies.length === 0 ? (
         <p className="py-2xl text-center text-sm text-muted-foreground">Loading policies…</p>
       ) : policies.length === 0 ? (
         <div className="flex flex-col items-center gap-sm rounded-lg border border-dashed border-border bg-surface px-md py-2xl text-center">
           <ShieldCheck className="size-6 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No policies found.</p>
+          <p className="text-sm text-muted-foreground">
+            {isFiltered ? "No policies match your search or filters." : "No HR policies have been created yet."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">
@@ -105,6 +146,20 @@ export default function PoliciesPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {meta && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-sm text-sm">
+          <span className="text-muted-foreground">Page {meta.page} of {totalPages} · {meta.total} total</span>
+          <div className="flex gap-xs">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
         </div>
       )}
 

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
+import type { ListMeta } from "@/lib/server/api/response";
 import { parseInput } from "@/lib/server/validation";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type { EmployeeOnboardingDto, EmployeeOnboardingStatusDto, OnboardingTaskDto } from "@/lib/api/contracts";
@@ -122,11 +123,35 @@ async function requireOnboardingRow(scope: OrgScope, onboardingId: string): Prom
   return row;
 }
 
-export async function listEmployeeOnboardings(scope: OrgScope, params: { status?: EmployeeOnboardingStatusDto } = {}): Promise<EmployeeOnboardingDto[]> {
+export const listEmployeeOnboardingsSchema = z.object({
+  status: z.enum(EMPLOYEE_ONBOARDING_STATUS_VALUES).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+/** Search matches the real Staff subject's own name/employee code — never a
+ * free-text field that doesn't exist on the row. */
+export async function listEmployeeOnboardings(scope: OrgScope, raw: unknown = {}): Promise<{ data: EmployeeOnboardingDto[]; meta: ListMeta }> {
+  const input = parseInput(listEmployeeOnboardingsSchema, raw);
   const where: Prisma.EmployeeOnboardingWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-  if (params.status) where.status = DTO_TO_STATUS[params.status] as never;
-  const rows = await prisma.employeeOnboarding.findMany({ where, select, orderBy: { startDate: "desc" } });
-  return rows.map(dto);
+  if (input.status) where.status = DTO_TO_STATUS[input.status] as never;
+  if (input.search) {
+    const q = input.search;
+    where.staff = {
+      OR: [
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+        { displayName: { contains: q, mode: "insensitive" } },
+        { employeeCode: { contains: q, mode: "insensitive" } },
+      ],
+    };
+  }
+  const [total, rows] = await Promise.all([
+    prisma.employeeOnboarding.count({ where }),
+    prisma.employeeOnboarding.findMany({ where, select, orderBy: { startDate: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+  ]);
+  return { data: rows.map(dto), meta: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) } };
 }
 
 export async function getEmployeeOnboarding(scope: OrgScope, onboardingId: string): Promise<EmployeeOnboardingDto> {
