@@ -14,6 +14,7 @@ import { createStaff } from "@/lib/server/staff/service";
 import {
   createPerformanceReview,
   getPerformanceReview,
+  getPerformanceReviewSummary,
   listMyPerformanceReviews,
   listPerformanceReviews,
   PERFORMANCE_REVIEW_STATUS_VALUES,
@@ -24,6 +25,7 @@ import {
   assignTrainingParticipant,
   createTrainingProgram,
   getTrainingProgram,
+  getTrainingProgramSummary,
   listMyTrainingAssignments,
   listTrainingParticipants,
   listTrainingPrograms,
@@ -45,11 +47,13 @@ try {
 const NS = "T9X3";
 const stamp = Date.now().toString(36);
 
-let tenantA = "", schoolA = "", branchA = "";
+let tenantA = "", schoolA = "", branchA = "", branchA2 = "";
 let tenantB = "", schoolB = "", branchB = "";
 let scopeHrAdminA: OrgScope, scopeSchoolAdminA: OrgScope, scopeTeacherA: OrgScope, scopeHrAdminB: OrgScope;
+/** Same tenant/school as scopeHrAdminA, a DIFFERENT branch — for branch isolation. */
+let scopeHrAdminA_Branch2: OrgScope;
 let hrAdminAUser = "", schoolAdminAUser = "", teacherAUser = "", hrAdminBUser = "";
-let staffA1 = "", staffA2 = "", staffA3 = "", staffB1 = "";
+let staffA1 = "", staffA2 = "", staffA3 = "", staffB1 = "", staffA2_Branch2 = "";
 
 async function makeUserWithRole(email: string, roleKey: string, tenantId: string): Promise<string> {
   const u = await prisma.user.create({ data: { email, name: email, status: "ACTIVE" }, select: { id: true } });
@@ -64,6 +68,7 @@ beforeAll(async () => {
   tenantA = (await prisma.tenant.create({ data: { name: `${NS} A`, slug: `t9x3-a-${stamp}` }, select: { id: true } })).id;
   schoolA = (await prisma.school.create({ data: { tenantId: tenantA, name: `${NS} School A`, code: `${NS}-A-${stamp}`, status: "ACTIVE" }, select: { id: true } })).id;
   branchA = (await prisma.branch.create({ data: { schoolId: schoolA, name: "A", code: `${NS}-A`, status: "ACTIVE" }, select: { id: true } })).id;
+  branchA2 = (await prisma.branch.create({ data: { schoolId: schoolA, name: "A2", code: `${NS}-A2`, status: "ACTIVE" }, select: { id: true } })).id;
 
   tenantB = (await prisma.tenant.create({ data: { name: `${NS} B`, slug: `t9x3-b-${stamp}` }, select: { id: true } })).id;
   schoolB = (await prisma.school.create({ data: { tenantId: tenantB, name: `${NS} School B`, code: `${NS}-B-${stamp}`, status: "ACTIVE" }, select: { id: true } })).id;
@@ -78,11 +83,13 @@ beforeAll(async () => {
   scopeSchoolAdminA = { tenantId: tenantA, schoolId: schoolA, branchId: branchA, academicSessionId: null, actor: { id: schoolAdminAUser, name: "School Admin A" } };
   scopeTeacherA = { tenantId: tenantA, schoolId: schoolA, branchId: branchA, academicSessionId: null, actor: { id: teacherAUser, name: "Teacher A" } };
   scopeHrAdminB = { tenantId: tenantB, schoolId: schoolB, branchId: branchB, academicSessionId: null, actor: { id: hrAdminBUser, name: "HR Admin B" } };
+  scopeHrAdminA_Branch2 = { tenantId: tenantA, schoolId: schoolA, branchId: branchA2, academicSessionId: null, actor: { id: hrAdminAUser, name: "HR Admin A (Branch 2)" } };
 
   staffA1 = (await createStaff(scopeHrAdminA, { employeeCode: `${NS}-A1-${stamp}`, firstName: "Alice", lastName: "One", userId: teacherAUser })).id;
   staffA2 = (await createStaff(scopeHrAdminA, { employeeCode: `${NS}-A2-${stamp}`, firstName: "Alan", lastName: "Two" })).id;
   staffA3 = (await createStaff(scopeHrAdminA, { employeeCode: `${NS}-A3-${stamp}`, firstName: "Anita", lastName: "Three" })).id;
   staffB1 = (await createStaff(scopeHrAdminB, { employeeCode: `${NS}-B1-${stamp}`, firstName: "Bob", lastName: "One" })).id;
+  staffA2_Branch2 = (await createStaff(scopeHrAdminA_Branch2, { employeeCode: `${NS}-A2B2-${stamp}`, firstName: "Beth", lastName: "Branch2" })).id;
 });
 
 afterAll(async () => {
@@ -172,7 +179,7 @@ describe.skipIf(!dbReady)("Performance Reviews (DB)", () => {
 
   it("School A / School B isolation: HR Admin B cannot read, update, or change status of School A's review", async () => {
     const review = await createPerformanceReview(scopeHrAdminA, { staffId: staffA2, reviewerId: staffA3, reviewPeriodStart: "2026-02-01", reviewPeriodEnd: "2026-07-31" });
-    const listB = await listPerformanceReviews(scopeHrAdminB);
+    const { data: listB } = await listPerformanceReviews(scopeHrAdminB);
     expect(listB.some((r) => r.id === review.id)).toBe(false);
     await expect(getPerformanceReview(scopeHrAdminB, review.id)).rejects.toThrow(HttpError);
     await expect(updatePerformanceReview(scopeHrAdminB, review.id, { summary: "hijacked" })).rejects.toThrow(HttpError);
@@ -181,7 +188,7 @@ describe.skipIf(!dbReady)("Performance Reviews (DB)", () => {
 
   it("SCHOOL_ADMIN (hr.view) can read the full directory listing", async () => {
     const review = await createPerformanceReview(scopeHrAdminA, { staffId: staffA2, reviewerId: staffA3, reviewPeriodStart: "2026-03-01", reviewPeriodEnd: "2026-08-31" });
-    const list = await listPerformanceReviews(scopeSchoolAdminA);
+    const { data: list } = await listPerformanceReviews(scopeSchoolAdminA);
     expect(list.some((r) => r.id === review.id)).toBe(true);
   });
 
@@ -224,12 +231,78 @@ describe.skipIf(!dbReady)("Performance Reviews (DB)", () => {
     expect(raw).not.toContain(tenantA);
     expect(raw).not.toContain(schoolA);
   });
+
+  it("rejects an out-of-sequence status transition server-side, independent of any frontend button state", async () => {
+    const review = await createPerformanceReview(scopeHrAdminA, { staffId: staffA2, reviewerId: staffA3, reviewPeriodStart: "2026-01-01", reviewPeriodEnd: "2026-06-30" });
+
+    // draft -> completed skips in-review — rejected, and the record is untouched.
+    await expect(setPerformanceReviewStatus(scopeHrAdminA, review.id, "completed")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+    expect((await getPerformanceReview(scopeHrAdminA, review.id)).status).toBe("draft");
+
+    await setPerformanceReviewStatus(scopeHrAdminA, review.id, "in-review");
+    // in-review -> draft (backward) is rejected.
+    await expect(setPerformanceReviewStatus(scopeHrAdminA, review.id, "draft")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+
+    await setPerformanceReviewStatus(scopeHrAdminA, review.id, "completed");
+    // completed's only valid next state is archived — completed -> in-review is rejected.
+    await expect(setPerformanceReviewStatus(scopeHrAdminA, review.id, "in-review")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+
+    const archived = await setPerformanceReviewStatus(scopeHrAdminA, review.id, "archived");
+    expect(archived.status).toBe("archived");
+    // archived is terminal — every further transition is rejected.
+    await expect(setPerformanceReviewStatus(scopeHrAdminA, review.id, "completed")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+    await expect(setPerformanceReviewStatus(scopeHrAdminA, review.id, "draft")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+  });
+
+  it("Branch A / Branch A2 isolation (same tenant/school): a Branch A2 context cannot read, update, or transition Branch A's review", async () => {
+    const review = await createPerformanceReview(scopeHrAdminA, { staffId: staffA2, reviewerId: staffA3, reviewPeriodStart: "2026-01-01", reviewPeriodEnd: "2026-06-30" });
+    const { data: listBranch2 } = await listPerformanceReviews(scopeHrAdminA_Branch2);
+    expect(listBranch2.some((r) => r.id === review.id)).toBe(false);
+    await expect(getPerformanceReview(scopeHrAdminA_Branch2, review.id)).rejects.toThrow(HttpError);
+    await expect(updatePerformanceReview(scopeHrAdminA_Branch2, review.id, { summary: "hijacked" })).rejects.toThrow(HttpError);
+    await expect(setPerformanceReviewStatus(scopeHrAdminA_Branch2, review.id, "in-review")).rejects.toThrow(HttpError);
+  });
+
+  it("search/filter/pagination: matches staff/reviewer name and summary, filters by status, paginates with a real total, and returns empty for no matches", async () => {
+    const unique = `Zed${stamp}`;
+    const zed = (await createStaff(scopeHrAdminA, { employeeCode: `${NS}-ZED-${stamp}`, firstName: unique, lastName: "Search" })).id;
+    const r1 = await createPerformanceReview(scopeHrAdminA, { staffId: zed, reviewerId: staffA3, reviewPeriodStart: "2026-01-01", reviewPeriodEnd: "2026-06-30" });
+    const r2 = await createPerformanceReview(scopeHrAdminA, { staffId: zed, reviewerId: staffA3, reviewPeriodStart: "2026-02-01", reviewPeriodEnd: "2026-07-31" });
+    await setPerformanceReviewStatus(scopeHrAdminA, r2.id, "in-review");
+
+    const { data: bySearch } = await listPerformanceReviews(scopeHrAdminA, { search: unique });
+    expect(bySearch.map((r) => r.id).sort()).toEqual([r1.id, r2.id].sort());
+
+    const { data: byStatus } = await listPerformanceReviews(scopeHrAdminA, { search: unique, status: "in-review" });
+    expect(byStatus.map((r) => r.id)).toEqual([r2.id]);
+
+    const { data: page1, meta: meta1 } = await listPerformanceReviews(scopeHrAdminA, { search: unique, page: 1, pageSize: 1 });
+    expect(page1.length).toBe(1);
+    expect(meta1.total).toBe(2);
+    expect(meta1.totalPages).toBe(2);
+    const { data: page2 } = await listPerformanceReviews(scopeHrAdminA, { search: unique, page: 2, pageSize: 1 });
+    expect(page2.length).toBe(1);
+    expect(page1[0].id).not.toBe(page2[0].id);
+
+    const { data: noMatch, meta: metaNoMatch } = await listPerformanceReviews(scopeHrAdminA, { search: `nonexistent-${stamp}` });
+    expect(noMatch).toEqual([]);
+    expect(metaNoMatch.total).toBe(0);
+  });
+
+  it("summary aggregate reflects the whole scope regardless of any list search/filter/page", async () => {
+    const summary = await getPerformanceReviewSummary(scopeHrAdminA);
+    expect(summary.total).toBe(summary.draft + summary.inReview + summary.completed + summary.archived);
+    // Never scoped to School B's data.
+    const summaryB = await getPerformanceReviewSummary(scopeHrAdminB);
+    expect(summaryB.total).toBe(0);
+  });
 });
 
 describe.skipIf(!dbReady)("Training (DB)", () => {
   it("empty state: a fresh school has no training programs", async () => {
-    const list = await listTrainingPrograms(scopeHrAdminB);
+    const { data: list, meta } = await listTrainingPrograms(scopeHrAdminB);
     expect(list).toEqual([]);
+    expect(meta.total).toBe(0);
   });
 
   it("authorized create → update → assign → participant completion lifecycle", async () => {
@@ -284,7 +357,7 @@ describe.skipIf(!dbReady)("Training (DB)", () => {
 
   it("School A / School B isolation: HR Admin B cannot read/update/assign/change-status on School A's program", async () => {
     const program = await createTrainingProgram(scopeHrAdminA, { title: "Isolated program", startDate: "2026-06-01" });
-    const listB = await listTrainingPrograms(scopeHrAdminB);
+    const { data: listB } = await listTrainingPrograms(scopeHrAdminB);
     expect(listB.some((p) => p.id === program.id)).toBe(false);
     await expect(getTrainingProgram(scopeHrAdminB, program.id)).rejects.toThrow(HttpError);
     await expect(updateTrainingProgram(scopeHrAdminB, program.id, { title: "hijacked" })).rejects.toThrow(HttpError);
@@ -323,6 +396,81 @@ describe.skipIf(!dbReady)("Training (DB)", () => {
     const raw = JSON.stringify(program);
     expect(raw).not.toContain(tenantA);
     expect(raw).not.toContain(schoolA);
+  });
+
+  it("rejects an out-of-sequence program status transition server-side", async () => {
+    const program = await createTrainingProgram(scopeHrAdminA, { title: "Transition guard", startDate: "2026-05-01" });
+    // draft -> in-progress skips scheduled — rejected.
+    await expect(setTrainingProgramStatus(scopeHrAdminA, program.id, "in-progress")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+    expect((await getTrainingProgram(scopeHrAdminA, program.id)).status).toBe("draft");
+
+    await setTrainingProgramStatus(scopeHrAdminA, program.id, "scheduled");
+    await setTrainingProgramStatus(scopeHrAdminA, program.id, "in-progress");
+    await setTrainingProgramStatus(scopeHrAdminA, program.id, "completed");
+    // completed's only valid next state is archived.
+    await expect(setTrainingProgramStatus(scopeHrAdminA, program.id, "scheduled")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+    const archived = await setTrainingProgramStatus(scopeHrAdminA, program.id, "archived");
+    expect(archived.status).toBe("archived");
+    // archived is terminal.
+    await expect(setTrainingProgramStatus(scopeHrAdminA, program.id, "draft")).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+  });
+
+  it("rejects an out-of-sequence participant status transition server-side, and rejects any transition once terminal", async () => {
+    const program = await createTrainingProgram(scopeHrAdminA, { title: "Participant transition guard", startDate: "2026-05-01" });
+    const participant = await assignTrainingParticipant(scopeHrAdminA, program.id, { staffId: staffA3 });
+    expect(participant.status).toBe("assigned");
+
+    const completed = await setTrainingParticipantStatus(scopeHrAdminA, participant.id, { status: "completed" });
+    expect(completed.status).toBe("completed");
+    // completed is terminal — no further transition, including "cancelled".
+    await expect(setTrainingParticipantStatus(scopeHrAdminA, participant.id, { status: "cancelled" })).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+
+    const cancelTarget = await assignTrainingParticipant(scopeHrAdminA, program.id, { staffId: staffA1 });
+    await setTrainingParticipantStatus(scopeHrAdminA, cancelTarget.id, { status: "cancelled" });
+    // cancelled is also terminal.
+    await expect(setTrainingParticipantStatus(scopeHrAdminA, cancelTarget.id, { status: "in-progress" })).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+  });
+
+  it("Branch A / Branch A2 isolation (same tenant/school): a Branch A2 context cannot read/update/assign/transition Branch A's program", async () => {
+    const program = await createTrainingProgram(scopeHrAdminA, { title: "Branch-isolated program", startDate: "2026-06-01" });
+    const { data: listBranch2 } = await listTrainingPrograms(scopeHrAdminA_Branch2);
+    expect(listBranch2.some((p) => p.id === program.id)).toBe(false);
+    await expect(getTrainingProgram(scopeHrAdminA_Branch2, program.id)).rejects.toThrow(HttpError);
+    await expect(updateTrainingProgram(scopeHrAdminA_Branch2, program.id, { title: "hijacked" })).rejects.toThrow(HttpError);
+    await expect(setTrainingProgramStatus(scopeHrAdminA_Branch2, program.id, "scheduled")).rejects.toThrow(HttpError);
+    // Branch A2's own staff cannot be assigned to a Branch A program through a Branch A2 context.
+    await expect(assignTrainingParticipant(scopeHrAdminA_Branch2, program.id, { staffId: staffA2_Branch2 })).rejects.toThrow(HttpError);
+  });
+
+  it("search/filter/pagination: matches title/category/trainer, filters by status, paginates with a real total, and returns empty for no matches", async () => {
+    const unique = `Compliance${stamp}`;
+    const p1 = await createTrainingProgram(scopeHrAdminA, { title: `${unique} refresher`, category: "General", startDate: "2026-05-01" });
+    const p2 = await createTrainingProgram(scopeHrAdminA, { title: "Unrelated", category: unique, startDate: "2026-05-02" });
+    await setTrainingProgramStatus(scopeHrAdminA, p2.id, "scheduled");
+
+    const { data: bySearch } = await listTrainingPrograms(scopeHrAdminA, { search: unique });
+    expect(bySearch.map((p) => p.id).sort()).toEqual([p1.id, p2.id].sort());
+
+    const { data: byStatus } = await listTrainingPrograms(scopeHrAdminA, { search: unique, status: "scheduled" });
+    expect(byStatus.map((p) => p.id)).toEqual([p2.id]);
+
+    const { data: page1, meta: meta1 } = await listTrainingPrograms(scopeHrAdminA, { search: unique, page: 1, pageSize: 1 });
+    expect(page1.length).toBe(1);
+    expect(meta1.total).toBe(2);
+    expect(meta1.totalPages).toBe(2);
+    const { data: page2 } = await listTrainingPrograms(scopeHrAdminA, { search: unique, page: 2, pageSize: 1 });
+    expect(page1[0].id).not.toBe(page2[0].id);
+
+    const { data: noMatch, meta: metaNoMatch } = await listTrainingPrograms(scopeHrAdminA, { search: `nonexistent-${stamp}` });
+    expect(noMatch).toEqual([]);
+    expect(metaNoMatch.total).toBe(0);
+  });
+
+  it("summary aggregate reflects the whole scope regardless of any list search/filter/page", async () => {
+    const summary = await getTrainingProgramSummary(scopeHrAdminA);
+    expect(summary.total).toBe(summary.draft + summary.scheduled + summary.inProgress + summary.completed + summary.cancelled + summary.archived);
+    const summaryB = await getTrainingProgramSummary(scopeHrAdminB);
+    expect(summaryB.total).toBe(0);
   });
 });
 

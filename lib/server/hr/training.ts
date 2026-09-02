@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
+import type { ListMeta } from "@/lib/server/api/response";
 import { parseInput } from "@/lib/server/validation";
 import type { OrgScope } from "@/lib/server/api/scope";
 import type {
@@ -15,6 +16,7 @@ import type {
   TrainingParticipantStatusDto,
   TrainingProgramDto,
   TrainingProgramStatusDto,
+  TrainingProgramSummaryDto,
 } from "@/lib/api/contracts";
 
 const PROGRAM_STATUS_TO_DTO: Record<string, TrainingProgramStatusDto> = {
@@ -87,11 +89,44 @@ async function requireProgramRow(scope: OrgScope, programId: string): Promise<Pr
   return row;
 }
 
-export async function listTrainingPrograms(scope: OrgScope, params: { status?: TrainingProgramStatusDto } = {}): Promise<TrainingProgramDto[]> {
+export const listTrainingProgramsSchema = z.object({
+  status: z.enum(PROGRAM_STATUS_VALUES).optional(),
+  category: z.string().trim().max(80).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+export async function listTrainingPrograms(scope: OrgScope, raw: unknown = {}): Promise<{ data: TrainingProgramDto[]; meta: ListMeta }> {
+  const input = parseInput(listTrainingProgramsSchema, raw);
   const where: Prisma.TrainingProgramWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-  if (params.status) where.status = DTO_TO_PROGRAM_STATUS[params.status] as never;
-  const rows = await prisma.trainingProgram.findMany({ where, select: programSelect, orderBy: { startDate: "desc" } });
-  return rows.map(programDto);
+  if (input.status) where.status = DTO_TO_PROGRAM_STATUS[input.status] as never;
+  if (input.category) where.category = { equals: input.category, mode: "insensitive" };
+  if (input.search) {
+    const q = input.search;
+    where.OR = [
+      { title: { contains: q, mode: "insensitive" } },
+      { category: { contains: q, mode: "insensitive" } },
+      { trainerName: { contains: q, mode: "insensitive" } },
+    ];
+  }
+  const [total, rows] = await Promise.all([
+    prisma.trainingProgram.count({ where }),
+    prisma.trainingProgram.findMany({ where, select: programSelect, orderBy: { startDate: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+  ]);
+  return { data: rows.map(programDto), meta: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) } };
+}
+
+/** Whole-scope status aggregates — ignores the list's own search/status
+ * filter and page so summary tiles never regress to counting only the
+ * current page. */
+export async function getTrainingProgramSummary(scope: OrgScope): Promise<TrainingProgramSummaryDto> {
+  const where: Prisma.TrainingProgramWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
+  const grouped = await prisma.trainingProgram.groupBy({ by: ["status"], where, _count: { _all: true } });
+  const counts = Object.fromEntries(grouped.map((g) => [g.status, g._count._all]));
+  const draft = counts.DRAFT ?? 0, scheduled = counts.SCHEDULED ?? 0, inProgress = counts.IN_PROGRESS ?? 0;
+  const completed = counts.COMPLETED ?? 0, cancelled = counts.CANCELLED ?? 0, archived = counts.ARCHIVED ?? 0;
+  return { total: draft + scheduled + inProgress + completed + cancelled + archived, draft, scheduled, inProgress, completed, cancelled, archived };
 }
 
 export async function getTrainingProgram(scope: OrgScope, programId: string): Promise<TrainingProgramDto> {
@@ -163,7 +198,11 @@ export async function updateTrainingProgram(scope: OrgScope, programId: string, 
 }
 
 export async function setTrainingProgramStatus(scope: OrgScope, programId: string, status: TrainingProgramStatusDto): Promise<TrainingProgramDto> {
-  await requireProgramRow(scope, programId);
+  const existing = await requireProgramRow(scope, programId);
+  const current = (PROGRAM_STATUS_TO_DTO[existing.status] ?? "draft") as TrainingProgramStatusDto;
+  if (!TRAINING_PROGRAM_NEXT_STATUS[current].includes(status)) {
+    throw new HttpError("INVALID_STATUS_TRANSITION", `Cannot move a training program from "${current}" to "${status}"`);
+  }
   const row = await prisma.trainingProgram.update({
     where: { id: programId },
     data: { status: DTO_TO_PROGRAM_STATUS[status] as never, updatedByUserId: scope.actor.id, updatedByName: scope.actor.name },
@@ -259,7 +298,11 @@ export const updateTrainingParticipantStatusSchema = z.object({
 
 export async function setTrainingParticipantStatus(scope: OrgScope, participantId: string, raw: unknown): Promise<TrainingParticipantDto> {
   const input = parseInput(updateTrainingParticipantStatusSchema, raw);
-  await requireParticipantRow(scope, participantId);
+  const existing = await requireParticipantRow(scope, participantId);
+  const current = (PARTICIPANT_STATUS_TO_DTO[existing.status] ?? "assigned") as TrainingParticipantStatusDto;
+  if (!TRAINING_PARTICIPANT_NEXT_STATUS[current].includes(input.status)) {
+    throw new HttpError("INVALID_STATUS_TRANSITION", `Cannot move a training participant from "${current}" to "${input.status}"`);
+  }
   const row = await prisma.trainingParticipant.update({
     where: { id: participantId },
     data: {

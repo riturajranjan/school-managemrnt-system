@@ -7,7 +7,7 @@
 // certificateIssued is a simple recorded fact HR can mark.
 import Link from "next/link";
 import { useState } from "react";
-import { CalendarClock, GraduationCap, ListChecks, Plus, UserPlus } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, GraduationCap, ListChecks, Plus, Search, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -24,11 +24,15 @@ import {
   setTrainingProgramStatusRequest,
   useTrainingParticipants,
   useTrainingPrograms,
+  useTrainingProgramsSummary,
 } from "@/lib/hooks/api/use-hr-api";
 import { useStaffList } from "@/lib/hooks/api/use-staff-api";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { TrainingParticipantStatusDto, TrainingProgramDto, TrainingProgramStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
 
 const programStatusLabels: Record<TrainingProgramStatusDto, string> = {
   draft: "Draft", scheduled: "Scheduled", "in-progress": "In progress", completed: "Completed", cancelled: "Cancelled", archived: "Archived",
@@ -36,6 +40,9 @@ const programStatusLabels: Record<TrainingProgramStatusDto, string> = {
 const programStatusTone: Record<TrainingProgramStatusDto, "success" | "warning" | "error" | "neutral" | "info"> = {
   draft: "neutral", scheduled: "info", "in-progress": "warning", completed: "success", cancelled: "error", archived: "neutral",
 };
+/** Mirrors the server-authoritative TRAINING_PROGRAM_NEXT_STATUS in
+ * lib/server/hr/training.ts — used here only to decide which actions to
+ * show; the server independently re-validates every transition. */
 const PROGRAM_NEXT_STATUS: Record<TrainingProgramStatusDto, TrainingProgramStatusDto[]> = {
   draft: ["scheduled", "cancelled", "archived"],
   scheduled: ["in-progress", "cancelled", "archived"],
@@ -58,7 +65,18 @@ const PARTICIPANT_NEXT_STATUS: Record<TrainingParticipantStatusDto, TrainingPart
 
 export default function TrainingPage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
-  const { data: programs, loading, error, reload } = useTrainingPrograms();
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const [statusFilter, setStatusFilter] = useState<TrainingProgramStatusDto | "all">("all");
+  const [page, setPage] = useState(1);
+
+  const { data: programs, meta, loading, error, reload } = useTrainingPrograms({
+    search: debouncedSearch || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const { data: programSummary } = useTrainingProgramsSummary();
   const { data: staff } = useStaffList({ status: "active", pageSize: 500 });
   const [createOpen, setCreateOpen] = useState(false);
   const [manageProgram, setManageProgram] = useState<TrainingProgramDto | null>(null);
@@ -80,10 +98,8 @@ export default function TrainingPage() {
     return <PermissionDenied action="view training" role={roleLabels[role]} backHref="/hr" />;
   }
   const canManage = hasServerPermission("hr.manage");
-
-  const scheduled = programs.filter((p) => p.status === "scheduled").length;
-  const inProgress = programs.filter((p) => p.status === "in-progress").length;
-  const completed = programs.filter((p) => p.status === "completed").length;
+  const isFiltered = searchInput.trim().length > 0 || statusFilter !== "all";
+  const totalPages = meta?.totalPages ?? 1;
 
   function resetForm() {
     setTitle(""); setDescription(""); setCategory(""); setTrainerName(""); setStartDate(""); setEndDate(""); setFormError(null);
@@ -145,24 +161,47 @@ export default function TrainingPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Programs" value={String(programs.length)} icon={GraduationCap} tone="neutral" />
-        <StatTile label="Scheduled" value={String(scheduled)} icon={GraduationCap} tone="info" />
-        <StatTile label="In progress" value={String(inProgress)} icon={GraduationCap} tone="warning" />
-        <StatTile label="Completed" value={String(completed)} icon={GraduationCap} tone="success" />
+        <StatTile label="Programs" value={programSummary ? String(programSummary.total) : "—"} icon={GraduationCap} tone="neutral" />
+        <StatTile label="Scheduled" value={programSummary ? String(programSummary.scheduled) : "—"} icon={GraduationCap} tone="info" />
+        <StatTile label="In progress" value={programSummary ? String(programSummary.inProgress) : "—"} icon={GraduationCap} tone="warning" />
+        <StatTile label="Completed" value={programSummary ? String(programSummary.completed) : "—"} icon={GraduationCap} tone="success" />
       </div>
 
       {error && (
         <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
           Could not load training programs: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>Retry</Button>
         </div>
       )}
+
+      <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+            placeholder="Search title, category, or trainer…"
+            aria-label="Search training programs"
+            className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TrainingProgramStatusDto | "all"); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {(Object.keys(programStatusLabels) as TrainingProgramStatusDto[]).map((s) => <SelectItem key={s} value={s}>{programStatusLabels[s]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="rounded-lg border border-border bg-surface p-md">
         <h2 className="mb-sm text-sm font-semibold text-foreground">Programs</h2>
         {loading && programs.length === 0 ? (
           <p className="py-md text-center text-sm text-muted-foreground">Loading programs…</p>
         ) : programs.length === 0 ? (
-          <p className="py-md text-center text-sm text-muted-foreground">No training programs found.</p>
+          <p className="py-md text-center text-sm text-muted-foreground">
+            {isFiltered ? "No programs match your search or filters." : "No training programs found."}
+          </p>
         ) : (
           <div className="flex flex-col gap-sm">
             {programs.map((p) => (
@@ -193,6 +232,20 @@ export default function TrainingPage() {
           </div>
         )}
       </div>
+
+      {meta && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-sm text-sm">
+          <span className="text-muted-foreground">Page {meta.page} of {totalPages} · {meta.total} total</span>
+          <div className="flex gap-xs">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {canManage && (
         <DetailDrawer open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetForm(); }} title="New training program" description="Create a real training program">

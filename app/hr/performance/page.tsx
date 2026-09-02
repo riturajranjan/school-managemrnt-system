@@ -10,7 +10,7 @@
 // employee's self-service view.
 import Link from "next/link";
 import { useState } from "react";
-import { Award, MessagesSquare, Plus, Target } from "lucide-react";
+import { Award, ChevronLeft, ChevronRight, MessagesSquare, Plus, Search, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,16 +21,28 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { DetailDrawer } from "@/components/dashboard/detail-drawer";
 import { PermissionDenied } from "@/components/library/permission-denied";
 import { usePermissions } from "@/components/providers/permissions-provider";
-import { createPerformanceReviewRequest, setPerformanceReviewStatusRequest, usePerformanceReviews } from "@/lib/hooks/api/use-hr-api";
+import {
+  createPerformanceReviewRequest,
+  setPerformanceReviewStatusRequest,
+  usePerformanceReviews,
+  usePerformanceReviewsSummary,
+} from "@/lib/hooks/api/use-hr-api";
 import { useStaffList } from "@/lib/hooks/api/use-staff-api";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { roleLabels } from "@/lib/permissions/roles";
 import type { PerformanceReviewDto, PerformanceReviewStatusDto } from "@/lib/api/contracts";
 import { formatDate } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
 
 const statusLabels: Record<PerformanceReviewStatusDto, string> = { draft: "Draft", "in-review": "In review", completed: "Completed", archived: "Archived" };
 const statusTone: Record<PerformanceReviewStatusDto, "success" | "warning" | "error" | "neutral" | "info"> = {
   draft: "neutral", "in-review": "warning", completed: "success", archived: "neutral",
 };
+/** Mirrors the server-authoritative PERFORMANCE_REVIEW_NEXT_STATUS in
+ * lib/server/hr/performance.ts — used here only to decide which actions to
+ * show; the server independently re-validates every transition and is the
+ * only enforcement layer. */
 const NEXT_STATUS: Record<PerformanceReviewStatusDto, PerformanceReviewStatusDto[]> = {
   draft: ["in-review", "archived"],
   "in-review": ["completed", "archived"],
@@ -40,7 +52,18 @@ const NEXT_STATUS: Record<PerformanceReviewStatusDto, PerformanceReviewStatusDto
 
 export default function PerformancePage() {
   const { hasServerPermission, capabilitiesLoading, role } = usePermissions();
-  const { data: reviews, loading, error, reload } = usePerformanceReviews();
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const [statusFilter, setStatusFilter] = useState<PerformanceReviewStatusDto | "all">("all");
+  const [page, setPage] = useState(1);
+
+  const { data: reviews, meta, loading, error, reload } = usePerformanceReviews({
+    search: debouncedSearch || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const { data: reviewSummary } = usePerformanceReviewsSummary();
   const { data: staff } = useStaffList({ status: "active", pageSize: 500 });
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -61,10 +84,8 @@ export default function PerformancePage() {
     return <PermissionDenied action="view performance" role={roleLabels[role]} backHref="/hr" />;
   }
   const canManage = hasServerPermission("hr.manage");
-
-  const draft = reviews.filter((r) => r.status === "draft").length;
-  const inReview = reviews.filter((r) => r.status === "in-review").length;
-  const completed = reviews.filter((r) => r.status === "completed").length;
+  const isFiltered = searchInput.trim().length > 0 || statusFilter !== "all";
+  const totalPages = meta?.totalPages ?? 1;
 
   function resetForm() {
     setStaffId(""); setReviewerId(""); setReviewPeriodStart(""); setReviewPeriodEnd(""); setReviewDate("");
@@ -117,24 +138,47 @@ export default function PerformancePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-        <StatTile label="Total reviews" value={String(reviews.length)} icon={Award} tone="neutral" />
-        <StatTile label="Draft" value={String(draft)} icon={Award} tone="neutral" />
-        <StatTile label="In review" value={String(inReview)} icon={Award} tone={inReview > 0 ? "warning" : "success"} />
-        <StatTile label="Completed" value={String(completed)} icon={Award} tone="success" />
+        <StatTile label="Total reviews" value={reviewSummary ? String(reviewSummary.total) : "—"} icon={Award} tone="neutral" />
+        <StatTile label="Draft" value={reviewSummary ? String(reviewSummary.draft) : "—"} icon={Award} tone="neutral" />
+        <StatTile label="In review" value={reviewSummary ? String(reviewSummary.inReview) : "—"} icon={Award} tone={reviewSummary && reviewSummary.inReview > 0 ? "warning" : "success"} />
+        <StatTile label="Completed" value={reviewSummary ? String(reviewSummary.completed) : "—"} icon={Award} tone="success" />
       </div>
 
       {error && (
         <div className="rounded-lg border border-error/30 bg-error/5 p-md text-sm text-error" role="alert">
           Could not load reviews: {error}
+          <Button variant="outline" size="sm" className="ml-sm" onClick={reload}>Retry</Button>
         </div>
       )}
+
+      <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+            placeholder="Search employee, reviewer, or summary…"
+            aria-label="Search performance reviews"
+            className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as PerformanceReviewStatusDto | "all"); setPage(1); }}>
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {(Object.keys(statusLabels) as PerformanceReviewStatusDto[]).map((s) => <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="rounded-lg border border-border bg-surface p-md">
         <h2 className="mb-sm text-sm font-semibold text-foreground">Reviews</h2>
         {loading && reviews.length === 0 ? (
           <p className="py-md text-center text-sm text-muted-foreground">Loading reviews…</p>
         ) : reviews.length === 0 ? (
-          <p className="py-md text-center text-sm text-muted-foreground">No performance reviews found.</p>
+          <p className="py-md text-center text-sm text-muted-foreground">
+            {isFiltered ? "No reviews match your search or filters." : "No performance reviews found."}
+          </p>
         ) : (
           <div className="flex flex-col gap-sm">
             {reviews.map((r) => (
@@ -168,6 +212,20 @@ export default function PerformancePage() {
           </div>
         )}
       </div>
+
+      {meta && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-sm text-sm">
+          <span className="text-muted-foreground">Page {meta.page} of {totalPages} · {meta.total} total</span>
+          <div className="flex gap-xs">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {canManage && (
         <DetailDrawer open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetForm(); }} title="New performance review" description="Create a real performance review">

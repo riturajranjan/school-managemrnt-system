@@ -33,6 +33,7 @@ import type {
   JobOpeningStatusDto,
   PerformanceReviewDto,
   PerformanceReviewStatusDto,
+  PerformanceReviewSummaryDto,
   ShiftAssignmentDto,
   ShiftDto,
   ShiftStatusDto,
@@ -43,6 +44,7 @@ import type {
   TrainingParticipantStatusDto,
   TrainingProgramDto,
   TrainingProgramStatusDto,
+  TrainingProgramSummaryDto,
   UpdateContractRequest,
   UpdateDepartmentRequest,
   UpdateDesignationRequest,
@@ -112,8 +114,14 @@ export const setStaffDocumentStatusRequest = (id: string, status: "verified" | "
 
 // ── Performance Reviews (Production migration, HR Sub-batch 3) ──────────
 
-export function usePerformanceReviews(filters: { staffId?: string; status?: PerformanceReviewStatusDto } = {}) {
+export function usePerformanceReviews(
+  filters: { staffId?: string; reviewerId?: string; status?: PerformanceReviewStatusDto; search?: string; page?: number; pageSize?: number } = {},
+) {
   return useApiList<PerformanceReviewDto>(`/api/hr/performance-reviews${buildQuery(filters)}`);
+}
+/** Whole-scope status/rating aggregates for the stat tiles — unaffected by the list's own search/filter/page. */
+export function usePerformanceReviewsSummary() {
+  return useApiResource<PerformanceReviewSummaryDto>("/api/hr/performance-reviews/summary");
 }
 export function usePerformanceReview(reviewId: string | undefined) {
   return useApiResource<PerformanceReviewDto>(reviewId ? `/api/hr/performance-reviews/${reviewId}` : null);
@@ -127,8 +135,12 @@ export const setPerformanceReviewStatusRequest = (id: string, status: Performanc
 
 // ── Training (Production migration, HR Sub-batch 3) ──────────────────────
 
-export function useTrainingPrograms(filters: { status?: TrainingProgramStatusDto } = {}) {
+export function useTrainingPrograms(filters: { status?: TrainingProgramStatusDto; category?: string; search?: string; page?: number; pageSize?: number } = {}) {
   return useApiList<TrainingProgramDto>(`/api/hr/training-programs${buildQuery(filters)}`);
+}
+/** Whole-scope status aggregates for the stat tiles — unaffected by the list's own search/filter/page. */
+export function useTrainingProgramsSummary() {
+  return useApiResource<TrainingProgramSummaryDto>("/api/hr/training-programs/summary");
 }
 export function useTrainingProgram(programId: string | undefined) {
   return useApiResource<TrainingProgramDto>(programId ? `/api/hr/training-programs/${programId}` : null);

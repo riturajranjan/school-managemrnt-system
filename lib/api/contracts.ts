@@ -3504,6 +3504,18 @@ export type MyPerformanceReviewDto = {
   goals: string | null;
 };
 
+/** Real DB aggregate counts across the caller's full tenant/school/branch
+ * scope — never affected by the current list search/status filter/page, so
+ * summary tiles stay correct while the list itself is paginated. */
+export type PerformanceReviewSummaryDto = {
+  total: number;
+  draft: number;
+  inReview: number;
+  completed: number;
+  archived: number;
+  averageRating: number | null;
+};
+
 // ── Production migration (Phase B, HR Sub-batch 3) — Training. Relational
 // participant records (never an array of staff ids on the program). ───────
 
@@ -3565,6 +3577,18 @@ export type MyTrainingAssignmentDto = {
   status: TrainingParticipantStatusDto;
   completedAt: string | null;
   certificateIssued: boolean;
+};
+
+/** Real DB aggregate counts across the caller's full tenant/school/branch
+ * scope — never affected by the current list search/status filter/page. */
+export type TrainingProgramSummaryDto = {
+  total: number;
+  draft: number;
+  scheduled: number;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+  archived: number;
 };
 
 // ── Production migration (Phase B, HR Sub-batch 4) — Recruitment. Simple:

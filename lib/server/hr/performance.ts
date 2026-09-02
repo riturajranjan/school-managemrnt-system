@@ -15,9 +15,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { HttpError } from "@/lib/server/api/guard";
 import { recordAudit } from "@/lib/server/api/audit";
+import type { ListMeta } from "@/lib/server/api/response";
 import { parseInput } from "@/lib/server/validation";
 import type { OrgScope } from "@/lib/server/api/scope";
-import type { MyPerformanceReviewDto, PerformanceReviewDto, PerformanceReviewStatusDto } from "@/lib/api/contracts";
+import type { MyPerformanceReviewDto, PerformanceReviewDto, PerformanceReviewStatusDto, PerformanceReviewSummaryDto } from "@/lib/api/contracts";
 
 const STATUS_TO_DTO: Record<string, PerformanceReviewStatusDto> = { DRAFT: "draft", IN_REVIEW: "in-review", COMPLETED: "completed", ARCHIVED: "archived" };
 const DTO_TO_STATUS = Object.fromEntries(Object.entries(STATUS_TO_DTO).map(([k, v]) => [v, k])) as Record<PerformanceReviewStatusDto, string>;
@@ -135,12 +136,55 @@ async function requireReviewRow(scope: OrgScope, reviewId: string): Promise<Row>
   return row;
 }
 
-export async function listPerformanceReviews(scope: OrgScope, params: { staffId?: string; status?: PerformanceReviewStatusDto } = {}): Promise<PerformanceReviewDto[]> {
+export const listPerformanceReviewsSchema = z.object({
+  staffId: z.string().min(1).optional(),
+  reviewerId: z.string().min(1).optional(),
+  status: z.enum(STATUS_VALUES).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+/** Search matches the review's own summary plus the subject/reviewer's real
+ * Staff name fields — never a free-text field that doesn't exist on the row. */
+export async function listPerformanceReviews(scope: OrgScope, raw: unknown = {}): Promise<{ data: PerformanceReviewDto[]; meta: ListMeta }> {
+  const input = parseInput(listPerformanceReviewsSchema, raw);
   const where: Prisma.PerformanceReviewWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-  if (params.staffId) where.staffId = params.staffId;
-  if (params.status) where.status = DTO_TO_STATUS[params.status] as never;
-  const rows = await prisma.performanceReview.findMany({ where, select, orderBy: { reviewPeriodStart: "desc" } });
-  return rows.map(dto);
+  if (input.staffId) where.staffId = input.staffId;
+  if (input.reviewerId) where.reviewerId = input.reviewerId;
+  if (input.status) where.status = DTO_TO_STATUS[input.status] as never;
+  if (input.search) {
+    const q = input.search;
+    const nameOr = [
+      { firstName: { contains: q, mode: "insensitive" } },
+      { lastName: { contains: q, mode: "insensitive" } },
+      { displayName: { contains: q, mode: "insensitive" } },
+    ] satisfies Prisma.StaffWhereInput["OR"];
+    where.OR = [{ summary: { contains: q, mode: "insensitive" } }, { staff: { OR: nameOr } }, { reviewer: { OR: nameOr } }];
+  }
+  const [total, rows] = await Promise.all([
+    prisma.performanceReview.count({ where }),
+    prisma.performanceReview.findMany({ where, select, orderBy: { reviewPeriodStart: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+  ]);
+  return { data: rows.map(dto), meta: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) } };
+}
+
+/** Whole-scope status/rating aggregates — deliberately ignores the list's
+ * own search/status filter and page so summary tiles never regress to
+ * counting only the current page (see production-readiness follow-up). */
+export async function getPerformanceReviewSummary(scope: OrgScope): Promise<PerformanceReviewSummaryDto> {
+  const where: Prisma.PerformanceReviewWhereInput = { schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) };
+  const [grouped, avg] = await Promise.all([
+    prisma.performanceReview.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    prisma.performanceReview.aggregate({ where: { ...where, overallRating: { not: null } }, _avg: { overallRating: true } }),
+  ]);
+  const counts = Object.fromEntries(grouped.map((g) => [g.status, g._count._all]));
+  const draft = counts.DRAFT ?? 0, inReview = counts.IN_REVIEW ?? 0, completed = counts.COMPLETED ?? 0, archived = counts.ARCHIVED ?? 0;
+  return {
+    total: draft + inReview + completed + archived,
+    draft, inReview, completed, archived,
+    averageRating: avg._avg.overallRating !== null ? Math.round(avg._avg.overallRating * 10) / 10 : null,
+  };
 }
 
 export async function getPerformanceReview(scope: OrgScope, reviewId: string): Promise<PerformanceReviewDto> {
@@ -246,7 +290,11 @@ export async function updatePerformanceReview(scope: OrgScope, reviewId: string,
 }
 
 export async function setPerformanceReviewStatus(scope: OrgScope, reviewId: string, status: PerformanceReviewStatusDto): Promise<PerformanceReviewDto> {
-  await requireReviewRow(scope, reviewId);
+  const existing = await requireReviewRow(scope, reviewId);
+  const current = (STATUS_TO_DTO[existing.status] ?? "draft") as PerformanceReviewStatusDto;
+  if (!PERFORMANCE_REVIEW_NEXT_STATUS[current].includes(status)) {
+    throw new HttpError("INVALID_STATUS_TRANSITION", `Cannot move a performance review from "${current}" to "${status}"`);
+  }
   const row = await prisma.performanceReview.update({
     where: { id: reviewId },
     data: { status: DTO_TO_STATUS[status] as never, updatedByUserId: scope.actor.id, updatedByName: scope.actor.name },
