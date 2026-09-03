@@ -10,7 +10,9 @@ import type {
   CreateHealthVisitRequest,
   HealthDashboardDto,
   HealthMedicationAdministrationDto,
+  HealthMedicationListItemDto,
   HealthProfileDto,
+  HealthReportsDto,
   HealthTreatmentRecordDto,
   HealthVisitDetailDto,
   HealthVisitDto,
@@ -59,6 +61,21 @@ export function useStaffHealthProfileRecord(staffId: string | undefined) {
 }
 export const upsertStaffHealthProfileRequest = (staffId: string, body: UpsertHealthProfileRequest): Promise<ApiResult<HealthProfileDto>> =>
   apiPatch<HealthProfileDto>(`/api/health/staff/${staffId}/profile`, body);
+
+// ── Medications (Phase C2) — cross-visit administration log, read-only ────
+
+export function useHealthMedications(filters: { studentId?: string; staffId?: string; search?: string; page?: number; pageSize?: number } = {}) {
+  return useApiList<HealthMedicationListItemDto>(`/api/health/medications${buildQuery(filters)}`);
+}
+export function useHealthMedication(id: string | undefined) {
+  return useApiResource<HealthMedicationListItemDto>(id ? `/api/health/medications/${id}` : null);
+}
+
+// ── Reports (Phase C2) — real DB aggregates only ────────────────────────
+
+export function useHealthReports() {
+  return useApiResource<HealthReportsDto>("/api/health/reports");
+}
 
 // ── Dashboard ────────────────────────────────────────────────────────────
 

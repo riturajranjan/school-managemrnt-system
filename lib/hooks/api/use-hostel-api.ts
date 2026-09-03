@@ -5,18 +5,32 @@
 import { apiPatch, apiPost, type ApiResult } from "@/lib/api/client";
 import { buildQuery, useApiList, useApiResource } from "./use-api";
 import type {
+  AssignHostelComplaintRequest,
+  AssignHostelMaintenanceRequest,
   AssignHostelStaffRequest,
   AssignHostelStudentRequest,
+  CompleteHostelMaintenanceRequest,
+  CreateHostelComplaintRequest,
+  CreateHostelLeaveRequest,
+  CreateHostelMaintenanceRequest,
   CreateHostelRequest,
   CreateHostelRoomRequest,
+  CreateHostelVisitorRequest,
   HostelAssignmentDto,
   HostelBedDto,
+  HostelComplaintDto,
   HostelDashboardDto,
   HostelDto,
+  HostelLeaveRequestDto,
+  HostelMaintenanceRequestDto,
+  HostelReportsDto,
   HostelRoomDto,
   HostelRollCallEntryDto,
   HostelStaffAssignmentDto,
+  HostelVisitorDto,
   MarkHostelRollCallRequest,
+  ResolveHostelComplaintRequest,
+  ReviewHostelLeaveRequest,
   SetHostelBedStatusRequest,
   StudentHostelProfileDto,
   TransferHostelAssignmentRequest,
@@ -82,6 +96,66 @@ export const markHostelRollCallRequest = (body: MarkHostelRollCallRequest): Prom
 
 export function useHostelDashboard() {
   return useApiResource<HostelDashboardDto>("/api/hostel/dashboard");
+}
+
+// ── Leave (Phase C1) ─────────────────────────────────────────────────────
+
+export function useHostelLeaveRequests(filters: { status?: string; studentId?: string; hostelId?: string; search?: string; page?: number; pageSize?: number } = {}) {
+  return useApiList<HostelLeaveRequestDto>(`/api/hostel/leave${buildQuery(filters)}`);
+}
+export function useHostelLeaveRequest(id: string | undefined) {
+  return useApiResource<HostelLeaveRequestDto>(id ? `/api/hostel/leave/${id}` : null);
+}
+export const createHostelLeaveRequestRequest = (body: CreateHostelLeaveRequest): Promise<ApiResult<HostelLeaveRequestDto>> => apiPost<HostelLeaveRequestDto>("/api/hostel/leave", body);
+export const approveHostelLeaveRequestRequest = (id: string, body: ReviewHostelLeaveRequest = {}): Promise<ApiResult<HostelLeaveRequestDto>> => apiPost<HostelLeaveRequestDto>(`/api/hostel/leave/${id}/approve`, body);
+export const rejectHostelLeaveRequestRequest = (id: string, body: ReviewHostelLeaveRequest = {}): Promise<ApiResult<HostelLeaveRequestDto>> => apiPost<HostelLeaveRequestDto>(`/api/hostel/leave/${id}/reject`, body);
+export const cancelHostelLeaveRequestRequest = (id: string, body: ReviewHostelLeaveRequest = {}): Promise<ApiResult<HostelLeaveRequestDto>> => apiPost<HostelLeaveRequestDto>(`/api/hostel/leave/${id}/cancel`, body);
+
+// ── Visitors (Phase C1) — resident/hostel visitors, separate from Front Desk ─
+
+export function useHostelVisitors(filters: { status?: string; studentId?: string; hostelId?: string; search?: string; page?: number; pageSize?: number } = {}) {
+  return useApiList<HostelVisitorDto>(`/api/hostel/visitors${buildQuery(filters)}`);
+}
+export function useHostelVisitor(id: string | undefined) {
+  return useApiResource<HostelVisitorDto>(id ? `/api/hostel/visitors/${id}` : null);
+}
+export const createHostelVisitorRequest = (body: CreateHostelVisitorRequest): Promise<ApiResult<HostelVisitorDto>> => apiPost<HostelVisitorDto>("/api/hostel/visitors", body);
+export const checkInHostelVisitorRequest = (id: string): Promise<ApiResult<HostelVisitorDto>> => apiPost<HostelVisitorDto>(`/api/hostel/visitors/${id}/check-in`, {});
+export const checkOutHostelVisitorRequest = (id: string): Promise<ApiResult<HostelVisitorDto>> => apiPost<HostelVisitorDto>(`/api/hostel/visitors/${id}/check-out`, {});
+export const cancelHostelVisitorRequest = (id: string): Promise<ApiResult<HostelVisitorDto>> => apiPost<HostelVisitorDto>(`/api/hostel/visitors/${id}/cancel`, {});
+
+// ── Complaints (Phase C1) ────────────────────────────────────────────────
+
+export function useHostelComplaints(filters: { status?: string; category?: string; priority?: string; studentId?: string; hostelId?: string; assignedStaffId?: string; search?: string; page?: number; pageSize?: number } = {}) {
+  return useApiList<HostelComplaintDto>(`/api/hostel/complaints${buildQuery(filters)}`);
+}
+export function useHostelComplaint(id: string | undefined) {
+  return useApiResource<HostelComplaintDto>(id ? `/api/hostel/complaints/${id}` : null);
+}
+export const createHostelComplaintRequest = (body: CreateHostelComplaintRequest): Promise<ApiResult<HostelComplaintDto>> => apiPost<HostelComplaintDto>("/api/hostel/complaints", body);
+export const assignHostelComplaintRequest = (id: string, body: AssignHostelComplaintRequest): Promise<ApiResult<HostelComplaintDto>> => apiPost<HostelComplaintDto>(`/api/hostel/complaints/${id}/assign`, body);
+export const startHostelComplaintRequest = (id: string): Promise<ApiResult<HostelComplaintDto>> => apiPost<HostelComplaintDto>(`/api/hostel/complaints/${id}/start`, {});
+export const resolveHostelComplaintRequest = (id: string, body: ResolveHostelComplaintRequest): Promise<ApiResult<HostelComplaintDto>> => apiPost<HostelComplaintDto>(`/api/hostel/complaints/${id}/resolve`, body);
+export const closeHostelComplaintRequest = (id: string): Promise<ApiResult<HostelComplaintDto>> => apiPost<HostelComplaintDto>(`/api/hostel/complaints/${id}/close`, {});
+
+// ── Maintenance (Phase C1) — facility-level, not tied to a resident ────────
+
+export function useHostelMaintenanceRequests(filters: { status?: string; priority?: string; hostelId?: string; assignedStaffId?: string; search?: string; page?: number; pageSize?: number } = {}) {
+  return useApiList<HostelMaintenanceRequestDto>(`/api/hostel/maintenance${buildQuery(filters)}`);
+}
+export function useHostelMaintenanceRequest(id: string | undefined) {
+  return useApiResource<HostelMaintenanceRequestDto>(id ? `/api/hostel/maintenance/${id}` : null);
+}
+export const createHostelMaintenanceRequestRequest = (body: CreateHostelMaintenanceRequest): Promise<ApiResult<HostelMaintenanceRequestDto>> => apiPost<HostelMaintenanceRequestDto>("/api/hostel/maintenance", body);
+export const assignHostelMaintenanceRequest = (id: string, body: AssignHostelMaintenanceRequest): Promise<ApiResult<HostelMaintenanceRequestDto>> => apiPost<HostelMaintenanceRequestDto>(`/api/hostel/maintenance/${id}/assign`, body);
+export const startHostelMaintenanceRequest = (id: string): Promise<ApiResult<HostelMaintenanceRequestDto>> => apiPost<HostelMaintenanceRequestDto>(`/api/hostel/maintenance/${id}/start`, {});
+export const completeHostelMaintenanceRequest = (id: string, body: CompleteHostelMaintenanceRequest = {}): Promise<ApiResult<HostelMaintenanceRequestDto>> => apiPost<HostelMaintenanceRequestDto>(`/api/hostel/maintenance/${id}/complete`, body);
+export const cancelHostelMaintenanceRequest = (id: string): Promise<ApiResult<HostelMaintenanceRequestDto>> => apiPost<HostelMaintenanceRequestDto>(`/api/hostel/maintenance/${id}/cancel`, {});
+
+// ── Reports (Phase C1) — real DB aggregates only ────────────────────────
+
+export function useHostelReports() {
+  return useApiResource<HostelReportsDto>("/api/hostel/reports");
 }
 
 // ── Student 360 ──────────────────────────────────────────────────────────

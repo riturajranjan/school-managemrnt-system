@@ -743,6 +743,9 @@ model Student {
   inventoryIssues        InventoryIssue[] // Phase 9O — consumable issues to this student
   hostelAssignments      StudentHostelAssignment[] // Phase 9Q — hostel bed allocation history
   hostelRollCallRecords  HostelRollCallRecord[] // Phase 9Q — nightly hostel roll call
+  hostelLeaveRequests    HostelLeaveRequest[] // Phase C1 — hostel leave
+  hostelVisitors         HostelVisitor[] // Phase C1 — resident/hostel visitors
+  hostelComplaints       HostelComplaint[] // Phase C1 — hostel complaints
   healthProfile          HealthProfile? // Phase 9R — factual health profile
   healthVisits           HealthVisit[] // Phase 9R — infirmary visit history
   counselingCases        CounselingCase[] // Phase 9S — counseling case history (confidential domain)
@@ -983,11 +986,11 @@ model AdmissionDocument {
 // ---------------------------------------------------------------------------
 
 model AuditEvent {
-  id          String  @id @default(cuid())
-  tenantId    String
-  schoolId    String?
-  actorUserId String?
-  actorName   String?
+  id           String  @id @default(cuid())
+  tenantId     String
+  schoolId     String?
+  actorUserId  String?
+  actorName    String?
   // Historical snapshot of the actor's real system Role key AT THE MOMENT of
   // this event (Users & Access "Created By" — production migration). Additive,
   // nullable: legacy events predate this column and stay null forever — never
@@ -2157,6 +2160,8 @@ model Staff {
   libraryLoans                       LibraryLoan[] // Phase 9N — library circulation
   assetAssignments                   AssetAssignment[] // Phase 9O — durable asset custody
   hostelStaffAssignments             HostelStaffAssignment[] // Phase 9Q — warden/assistant-warden assignment
+  hostelComplaintAssignments         HostelComplaint[] // Phase C1 — assigned hostel complaints
+  hostelMaintenanceAssignments       HostelMaintenanceRequest[] // Phase C1 — assigned hostel maintenance requests
   inventoryIssues                    InventoryIssue[] // Phase 9O — consumable issues to this staff member
   healthProfile                      HealthProfile? // Phase 9R — factual health profile, when this Staff member is a patient
   healthVisitsAsPatient              HealthVisit[]                    @relation("HealthVisitPatientStaff") // Phase 9R
@@ -2171,13 +2176,13 @@ model Staff {
   financialAdvances                  StaffFinancialAdvance[] // Production Payroll checkpoint — loans/advances
   contracts                          Contract[] // Production migration Phase B — employment contracts
   staffDocuments                     StaffDocument[] // Production migration Phase B — HR document records (metadata only, no file storage)
-  performanceReviewsAsSubject        PerformanceReview[]    @relation("PerformanceReviewSubject") // Production migration Phase B — reviews about this staff member
-  performanceReviewsAsReviewer       PerformanceReview[]    @relation("PerformanceReviewReviewer") // Production migration Phase B — reviews this staff member conducted
+  performanceReviewsAsSubject        PerformanceReview[]              @relation("PerformanceReviewSubject") // Production migration Phase B — reviews about this staff member
+  performanceReviewsAsReviewer       PerformanceReview[]              @relation("PerformanceReviewReviewer") // Production migration Phase B — reviews this staff member conducted
   trainingParticipations             TrainingParticipant[] // Production migration Phase B — training assignments
-  employeeOnboardings                 EmployeeOnboarding[] // Production migration Phase B — this staff member's own onboarding record(s)
-  onboardingsOwned                    EmployeeOnboarding[]          @relation("EmployeeOnboardingOwner") // Production migration Phase B — onboardings this staff member owns as the HR owner
-  policyAcknowledgements              StaffPolicyAcknowledgement[] // Production migration Phase B — HR policies this staff member has acknowledged
-  shiftAssignments                    ShiftAssignment[] // Production migration Phase B — shift assignment history
+  employeeOnboardings                EmployeeOnboarding[] // Production migration Phase B — this staff member's own onboarding record(s)
+  onboardingsOwned                   EmployeeOnboarding[]             @relation("EmployeeOnboardingOwner") // Production migration Phase B — onboardings this staff member owns as the HR owner
+  policyAcknowledgements             StaffPolicyAcknowledgement[] // Production migration Phase B — HR policies this staff member has acknowledged
+  shiftAssignments                   ShiftAssignment[] // Production migration Phase B — shift assignment history
 
   // One employee code per school.
   @@unique([schoolId, employeeCode])
@@ -2301,8 +2306,8 @@ model Contract {
   staffId String
 
   type             ContractType
-  startDate        DateTime  @db.Date
-  endDate          DateTime? @db.Date
+  startDate        DateTime     @db.Date
+  endDate          DateTime?    @db.Date
   probationMonths  Int?
   noticePeriodDays Int?
   workHoursPerWeek Int?
@@ -2517,11 +2522,11 @@ model TrainingParticipant {
   trainingProgramId String
   staffId           String
 
-  status      TrainingParticipantStatus @default(ASSIGNED)
-  completedAt DateTime?                 @db.Date
+  status            TrainingParticipantStatus @default(ASSIGNED)
+  completedAt       DateTime?                 @db.Date
   // A simple recorded fact HR can mark, not a fabricated scoring/assessment
   // engine — no result/score field (no genuine assessment basis exists yet).
-  certificateIssued Boolean @default(false)
+  certificateIssued Boolean                   @default(false)
 
   assignedByUserId String
   assignedByName   String?
@@ -2587,8 +2592,8 @@ model JobOpening {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  designation Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  department  Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation Designation?   @relation(fields: [designationId], references: [id], onDelete: SetNull)
   applicants  JobApplicant[]
 
   @@index([tenantId])
@@ -2681,10 +2686,10 @@ model EmployeeOnboarding {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  staff         Staff              @relation(fields: [staffId], references: [id], onDelete: Restrict)
-  jobApplicant  JobApplicant?      @relation(fields: [jobApplicantId], references: [id], onDelete: SetNull)
-  hrOwner       Staff?             @relation("EmployeeOnboardingOwner", fields: [hrOwnerStaffId], references: [id], onDelete: SetNull)
-  tasks         OnboardingTask[]
+  staff        Staff            @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  jobApplicant JobApplicant?    @relation(fields: [jobApplicantId], references: [id], onDelete: SetNull)
+  hrOwner      Staff?           @relation("EmployeeOnboardingOwner", fields: [hrOwnerStaffId], references: [id], onDelete: SetNull)
+  tasks        OnboardingTask[]
 
   @@index([tenantId])
   @@index([schoolId, status])
@@ -6540,10 +6545,14 @@ model Hostel {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  rooms            HostelRoom[]
-  staffAssignments HostelStaffAssignment[]
-  assignments      StudentHostelAssignment[]
-  rollCallRecords  HostelRollCallRecord[]
+  rooms               HostelRoom[]
+  staffAssignments    HostelStaffAssignment[]
+  assignments         StudentHostelAssignment[]
+  rollCallRecords     HostelRollCallRecord[]
+  leaveRequests       HostelLeaveRequest[]
+  visitors            HostelVisitor[]
+  complaints          HostelComplaint[]
+  maintenanceRequests HostelMaintenanceRequest[]
 
   @@unique([schoolId, code])
   @@index([schoolId, status])
@@ -6579,9 +6588,13 @@ model HostelRoom {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  hostel      Hostel                    @relation(fields: [hostelId], references: [id], onDelete: Restrict)
-  beds        HostelBed[]
-  assignments StudentHostelAssignment[]
+  hostel              Hostel                     @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  beds                HostelBed[]
+  assignments         StudentHostelAssignment[]
+  leaveRequests       HostelLeaveRequest[]
+  visitors            HostelVisitor[]
+  complaints          HostelComplaint[]
+  maintenanceRequests HostelMaintenanceRequest[]
 
   @@unique([hostelId, roomNumber])
   @@index([schoolId, status])
@@ -8041,4 +8054,275 @@ model StaffFinancialAdvanceCounter {
 
   @@id([schoolId, type])
   @@map("staff_financial_advance_counters")
+}
+
+// ---------------------------------------------------------------------------
+// Phase C1 — Hostel Leave / Visitors / Complaints / Maintenance. Extends
+// Phase 9Q's real Hostel/HostelRoom/StudentHostelAssignment domain — no
+// parallel Student/Staff identity, no duplicate Hostel/Room/Bed
+// architecture, no generic JSON settings, no cafeteria/vendor/payment
+// architecture. Mess and Settings are explicitly DEFERRED (no canonical
+// schema decided yet) — see the /hostel/mess and /hostel/settings pages,
+// which show an honest "not configured" state instead of a fabricated one.
+//
+// A resident is always a real Student.id with a CURRENTLY ACTIVE
+// StudentHostelAssignment at creation time — never a free-standing
+// studentId. For Leave/Visitor/Complaint, hostelId/roomId are snapshotted
+// from that active assignment AT CREATION (server-derived, never
+// client-supplied), so a later transfer/vacate never rewrites an
+// already-created historical row — mirrors StudentExamResult's
+// classId/sectionId snapshot precedent. HostelMaintenanceRequest is not
+// tied to a resident at all — hostelId/roomId are plain, client-supplied,
+// in-scope-validated FKs (a facilities report, not a student action).
+// ---------------------------------------------------------------------------
+
+enum HostelIssuePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum HostelLeaveType {
+  HOME
+  MEDICAL
+  WEEKEND
+  EMERGENCY
+  DAY_OUT
+  OTHER
+}
+
+enum HostelLeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/**
+ * Server-enforced lifecycle: PENDING -> APPROVED | REJECTED | CANCELLED
+ * only — no further transitions out of a terminal state. hostelId/roomId
+ * are the student's active assignment at request time (a snapshot, not a
+ * live FK) so they stay historically meaningful after the resident later
+ * vacates or transfers.
+ */
+model HostelLeaveRequest {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  studentId String
+  hostelId  String
+  roomId    String
+
+  leaveType HostelLeaveType
+  fromDate  DateTime        @db.Date
+  toDate    DateTime        @db.Date
+  reason    String
+  remarks   String?
+
+  status HostelLeaveStatus @default(PENDING)
+
+  requestedByUserId String
+  requestedAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  reviewedByUserId String?
+  reviewedByName   String?
+  reviewedAt       DateTime? @db.Timestamptz(6)
+  reviewNote       String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student Student    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  hostel  Hostel     @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  room    HostelRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, branchId, status])
+  @@index([schoolId, studentId])
+  @@index([schoolId, hostelId])
+  @@map("hostel_leave_requests")
+}
+
+enum HostelVisitorStatus {
+  EXPECTED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+/**
+ * RESIDENT/hostel visitor management — deliberately separate from the
+ * Front Desk Visitor/VisitorVisit domain (different purpose and grain; a
+ * hostel visitor is always tied to exactly one resident, never a general
+ * campus guest — no shared table). Lifecycle EXPECTED -> CHECKED_IN ->
+ * CHECKED_OUT, or EXPECTED -> CANCELLED — the same 3-transition shape as
+ * VisitorVisit. approvedByUserId/approvedByName/approvedAt are captured at check-in time: the
+ * act of admitting the visitor onto hostel premises IS the approval — no
+ * separate pre-approval state is invented.
+ */
+model HostelVisitor {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  studentId String
+  hostelId  String
+  roomId    String
+
+  visitorName String
+  relation    String
+  phone       String?
+  purpose     String
+
+  expectedAt   DateTime? @db.Timestamptz(6)
+  checkedInAt  DateTime? @db.Timestamptz(6)
+  checkedOutAt DateTime? @db.Timestamptz(6)
+
+  status HostelVisitorStatus @default(EXPECTED)
+
+  approvedByUserId String?
+  approvedByName   String?
+  approvedAt       DateTime? @db.Timestamptz(6)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student Student    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  hostel  Hostel     @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  room    HostelRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, branchId, status])
+  @@index([schoolId, studentId])
+  @@index([schoolId, hostelId, status])
+  @@map("hostel_visitors")
+}
+
+enum HostelComplaintCategory {
+  ELECTRICITY
+  WATER
+  FURNITURE
+  CLEANING
+  BATHROOM
+  WIFI
+  ROOMMATE
+  SAFETY
+  MESS
+  OTHER
+}
+
+enum HostelComplaintStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+/**
+ * OPEN -[assign]-> ASSIGNED -[start]-> IN_PROGRESS -[resolve]-> RESOLVED
+ * -[close]-> CLOSED. Assigned staff is always a real, active, in-school
+ * Staff.id — never a free-text "team" name (the old mock's `assignedTeam`
+ * string is deliberately dropped).
+ */
+model HostelComplaint {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  studentId String
+  hostelId  String
+  roomId    String?
+
+  category    HostelComplaintCategory
+  title       String
+  description String
+  priority    HostelIssuePriority     @default(NORMAL)
+
+  status HostelComplaintStatus @default(OPEN)
+
+  assignedStaffId String?
+  assignedAt      DateTime? @db.Timestamptz(6)
+
+  resolutionNotes String?
+  resolvedAt      DateTime? @db.Timestamptz(6)
+
+  createdByUserId String
+  createdByName   String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student       Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  hostel        Hostel      @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  room          HostelRoom? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  assignedStaff Staff?      @relation(fields: [assignedStaffId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, branchId, status])
+  @@index([schoolId, studentId])
+  @@index([schoolId, hostelId])
+  @@index([assignedStaffId])
+  @@map("hostel_complaints")
+}
+
+enum HostelMaintenanceStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * Facility-level maintenance — NOT tied to a resident. OPEN -[assign]->
+ * ASSIGNED -[start]-> IN_PROGRESS -[complete]-> COMPLETED, or
+ * OPEN/ASSIGNED -[cancel]-> CANCELLED. Deliberately no vendor/invoice/cost/
+ * purchase/asset fields, matching AssetMaintenanceRecord's own
+ * structurally-simple, non-financial-workflow precedent.
+ */
+model HostelMaintenanceRequest {
+  id       String @id @default(cuid())
+  tenantId String
+  schoolId String
+  branchId String
+
+  hostelId String
+  roomId   String?
+
+  title       String
+  description String
+  priority    HostelIssuePriority @default(NORMAL)
+
+  status HostelMaintenanceStatus @default(OPEN)
+
+  assignedStaffId String?
+  assignedAt      DateTime? @db.Timestamptz(6)
+
+  reportedByUserId String
+  reportedByName   String?
+  reportedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  completedAt      DateTime? @db.Timestamptz(6)
+  notes            String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  hostel        Hostel      @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  room          HostelRoom? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  assignedStaff Staff?      @relation(fields: [assignedStaffId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([schoolId, branchId, status])
+  @@index([schoolId, hostelId])
+  @@index([assignedStaffId])
+  @@map("hostel_maintenance_requests")
 }

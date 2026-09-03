@@ -1,9 +1,12 @@
 "use client";
 
 // Health hub (Phase 9R) — real PostgreSQL/API cutover for stat tiles.
-// Medications/Incidents/Appointments/Reports quicklinks stay mock (deferred
-// — no real medication-schedule/incident/appointment infrastructure exists;
-// see route-mock-guard.test.ts for the full reasoning).
+// Medications and Reports went real in Phase C2 (real cross-visit medication
+// log + real DB aggregates, both over the existing HealthVisit/
+// HealthMedicationAdministration schema — no new model). Incidents and
+// Appointments stay honestly deferred (not mock) — no real Incident or
+// Appointment-scheduling domain exists; see app/health/incidents/page.tsx
+// and app/health/appointments/page.tsx for why.
 import Link from "next/link";
 import { Activity, CalendarClock, ClipboardList, Gauge, HeartPulse, Pill, ShieldAlert, Stethoscope, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";

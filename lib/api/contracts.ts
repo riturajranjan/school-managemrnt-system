@@ -3987,6 +3987,134 @@ export type StudentHostelProfileDto = {
   history: { id: string; hostelName: string; roomNumber: string; bedNumber: string; assignedAt: string; vacatedAt: string | null; status: HostelAssignmentStatusDto }[];
 };
 
+// ── Phase C1: Hostel Leave / Visitors / Complaints / Maintenance. Extends
+// the Phase 9Q Hostel domain. A resident is always a real Student.id with a
+// CURRENTLY ACTIVE StudentHostelAssignment — hostelId/roomId are snapshotted
+// server-side from that assignment at creation time (never client-supplied)
+// for Leave/Visitor/Complaint, so a later transfer/vacate never rewrites an
+// already-created historical row. ─────────────────────────────────────────
+
+export type HostelLeaveTypeDto = "home" | "medical" | "weekend" | "emergency" | "day_out" | "other";
+export type HostelLeaveStatusDto = "pending" | "approved" | "rejected" | "cancelled";
+
+export type HostelLeaveRequestDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  hostelId: string;
+  hostelName: string;
+  roomId: string;
+  roomNumber: string;
+  leaveType: HostelLeaveTypeDto;
+  fromDate: string;
+  toDate: string;
+  reason: string;
+  remarks: string | null;
+  status: HostelLeaveStatusDto;
+  requestedByUserId: string;
+  requestedAt: string;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+};
+export type CreateHostelLeaveRequest = { studentId: string; leaveType: HostelLeaveTypeDto; fromDate: string; toDate: string; reason: string; remarks?: string };
+export type ReviewHostelLeaveRequest = { note?: string };
+
+export type HostelVisitorStatusDto = "expected" | "checked_in" | "checked_out" | "cancelled";
+
+export type HostelVisitorDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  hostelId: string;
+  hostelName: string;
+  roomId: string;
+  roomNumber: string;
+  visitorName: string;
+  relation: string;
+  phone: string | null;
+  purpose: string;
+  expectedAt: string | null;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
+  status: HostelVisitorStatusDto;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+};
+export type CreateHostelVisitorRequest = { studentId: string; visitorName: string; relation: string; phone?: string; purpose: string; expectedAt?: string };
+
+export type HostelComplaintCategoryDto = "electricity" | "water" | "furniture" | "cleaning" | "bathroom" | "wifi" | "roommate" | "safety" | "mess" | "other";
+export type HostelComplaintStatusDto = "open" | "assigned" | "in_progress" | "resolved" | "closed";
+
+export type HostelComplaintDto = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  hostelId: string;
+  hostelName: string;
+  roomId: string | null;
+  roomNumber: string | null;
+  category: HostelComplaintCategoryDto;
+  title: string;
+  description: string;
+  priority: HostelIssuePriorityDto;
+  status: HostelComplaintStatusDto;
+  assignedStaffId: string | null;
+  assignedStaffName: string | null;
+  resolutionNotes: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateHostelComplaintRequest = { studentId: string; category: HostelComplaintCategoryDto; title: string; description: string; priority?: HostelIssuePriorityDto };
+export type AssignHostelComplaintRequest = { staffId: string };
+export type ResolveHostelComplaintRequest = { resolutionNotes: string };
+
+export type HostelIssuePriorityDto = "low" | "normal" | "high" | "urgent";
+export type HostelMaintenanceStatusDto = "open" | "assigned" | "in_progress" | "completed" | "cancelled";
+
+export type HostelMaintenanceRequestDto = {
+  id: string;
+  hostelId: string;
+  hostelName: string;
+  roomId: string | null;
+  roomNumber: string | null;
+  title: string;
+  description: string;
+  priority: HostelIssuePriorityDto;
+  status: HostelMaintenanceStatusDto;
+  assignedStaffId: string | null;
+  assignedStaffName: string | null;
+  reportedByName: string | null;
+  reportedAt: string;
+  completedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CreateHostelMaintenanceRequest = { hostelId: string; roomId?: string; title: string; description: string; priority?: HostelIssuePriorityDto };
+export type AssignHostelMaintenanceRequest = { staffId: string };
+export type CompleteHostelMaintenanceRequest = { notes?: string };
+
+/** /hostel/reports — real DB aggregates only. No fabricated historical trend charts. */
+export type HostelReportsDto = {
+  totalHostels: number;
+  totalRooms: number;
+  totalBeds: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  activeResidents: number;
+  pendingLeaveRequests: number;
+  activeVisitors: number;
+  openComplaints: number;
+  pendingMaintenance: number;
+};
+
 // ── Phase 9R: Health / Infirmary Management. A patient is always exactly one
 // real Student.id or Staff.id. Administrative record-keeping only — never a
 // diagnosis/prescription/triage engine. Sensitive fields (reason, notes,
@@ -4092,6 +4220,20 @@ export type HealthMedicationAdministrationDto = {
 
 export type RecordHealthMedicationRequest = { medicationName: string; quantity?: string; unit?: string; notes?: string };
 
+/** Cross-visit medication administration log (Phase C2) — same factual
+ * record as HealthMedicationAdministrationDto, with the visit's patient
+ * attached. Content-gated: the list is empty unless the caller holds
+ * health.viewSensitive (medication name/dose is inherently sensitive —
+ * there is no non-sensitive projection worth returning). */
+export type HealthMedicationListItemDto = HealthMedicationAdministrationDto & {
+  visitId: string;
+  visitStatus: HealthVisitStatusDto;
+  patientType: HealthPatientTypeDto;
+  patientId: string;
+  patientName: string;
+  patientRef: string;
+};
+
 export type HealthVisitDetailDto = HealthVisitDto & {
   vitals: HealthVitalObservationDto[];
   treatments: HealthTreatmentRecordDto[];
@@ -4141,6 +4283,21 @@ export type StudentHealthProfileDto = {
   recentVisits: HealthVisitDto[];
   medicationHistory: HealthMedicationAdministrationDto[];
   emergencyContacts: { name: string; phone: string | null; relation: string }[];
+};
+
+/** /health/reports — real DB aggregates over HealthVisit +
+ * HealthMedicationAdministration only (Phase C2). No Incident/Appointment
+ * metric — neither is a modeled domain. `visitsByReason` contains sensitive
+ * free text and is only populated for a health.viewSensitive caller (empty
+ * array otherwise); every other field is a plain count. */
+export type HealthReportsDto = {
+  totalVisits: number;
+  openVisits: number;
+  closedVisits: number;
+  referredVisits: number;
+  medicationsRecorded: number;
+  followUpsPending: number;
+  visitsByReason: { reason: string; count: number }[];
 };
 
 // ── Phase 9S: Counseling / Student Wellbeing. A SEPARATE confidential domain

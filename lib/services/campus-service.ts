@@ -1,5 +1,4 @@
 import { getSnapshot, setState } from "@/lib/data/store";
-import type { HostelLeaveStatus, ComplaintStatus, MaintenanceStatus, HostelVisitorStatus } from "@/lib/types/hostel";
 import type { IncidentStatus, MedicationStatus } from "@/lib/types/health";
 import type { CafeteriaOrder, CafeteriaOrderItem, OrderStatus } from "@/lib/types/cafeteria";
 import { generateId } from "@/lib/utils";
@@ -7,33 +6,14 @@ import { generateId } from "@/lib/utils";
 type Result = { ok: true } | { ok: false; error: string };
 
 // Hostel bed allocation (allocateBed/endAllocation/setBedStatus/
-// markHostelAttendance) went real in Phase 9Q (lib/server/hostel/*) and was
-// deleted here as dead mock authority — real surfaces must use
-// hooks/api/use-hostel-api. Leave/Complaints/Maintenance/Visitors below stay
-// mock (deferred — no real parent-approval/ticketing/extended-Visitor
-// workflow exists yet).
-
-export function setHostelLeaveStatus(leaveId: string, status: HostelLeaveStatus): Result {
-  setState((db) => ({ ...db, hostelLeave: db.hostelLeave.map((l) => (l.id === leaveId ? { ...l, status } : l)) }));
-  return { ok: true };
-}
-
-export function setComplaintStatus(complaintId: string, status: ComplaintStatus): Result {
-  const now = new Date().toISOString();
-  setState((db) => ({ ...db, hostelComplaints: db.hostelComplaints.map((c) => (c.id === complaintId ? { ...c, status, lastUpdate: now } : c)) }));
-  return { ok: true };
-}
-
-export function setHostelMaintenanceStatus(id: string, status: MaintenanceStatus, assignedTo?: string): Result {
-  setState((db) => ({ ...db, hostelMaintenance: db.hostelMaintenance.map((m) => (m.id === id ? { ...m, status, assignedTo: assignedTo ?? m.assignedTo } : m)) }));
-  return { ok: true };
-}
-
-export function setHostelVisitorStatus(id: string, status: HostelVisitorStatus): Result {
-  const now = new Date();
-  setState((db) => ({ ...db, hostelVisitors: db.hostelVisitors.map((v) => (v.id === id ? { ...v, status, approvedBy: status === "approved" ? "Warden" : v.approvedBy, departureTime: status === "departed" ? now.toTimeString().slice(0, 5) : v.departureTime } : v)) }));
-  return { ok: true };
-}
+// markHostelAttendance) went real in Phase 9Q (lib/server/hostel/*), and
+// Leave/Complaints/Maintenance/Visitors went real in Phase C1
+// (lib/server/hostel/{leave,complaints,maintenance,visitors}.ts) — all
+// deleted here as dead mock authority. Real surfaces must use
+// hooks/api/use-hostel-api. The underlying db.hostelLeave/hostelVisitors/
+// hostelComplaints/hostelMaintenance arrays themselves stay (still read by
+// the campus-life hub and student/parent portals — out of this phase's
+// scope), just with no mutator left pointing at them.
 
 // ---------------------------------------------------------------------------
 // Health

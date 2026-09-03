@@ -29,3 +29,20 @@ export function staffDisplayName(s: { firstName: string; lastName: string | null
 export function studentDisplayName(s: { firstName: string; lastName: string | null }): string {
   return `${s.firstName} ${s.lastName ?? ""}`.trim();
 }
+
+/**
+ * Resolve a student's CURRENT active hostel residency (Phase C1). Used by
+ * Leave/Visitor/Complaint creation to snapshot hostelId/roomId server-side —
+ * a client can never supply an arbitrary hostel/room for these, and a
+ * non-resident (no active StudentHostelAssignment) can never create one.
+ */
+export async function requireActiveResident(scope: OrgScope, studentId: string): Promise<{ hostelId: string; roomId: string; branchId: string }> {
+  const student = await prisma.student.findFirst({ where: { id: studentId, schoolId: scope.schoolId, ...(scope.branchId ? { branchId: scope.branchId } : {}) }, select: { id: true } });
+  if (!student) throw new HttpError("INVALID_HOSTEL_STUDENT", "Resident must be a real student in this school");
+  const assignment = await prisma.studentHostelAssignment.findFirst({
+    where: { studentId, schoolId: scope.schoolId, status: "ACTIVE" },
+    select: { hostelId: true, roomId: true, branchId: true },
+  });
+  if (!assignment) throw new HttpError("NOT_A_RESIDENT", "This student is not a current hostel resident");
+  return assignment;
+}
